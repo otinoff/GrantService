@@ -65,30 +65,13 @@ class GrantServiceBotWithMenu:
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации БД: {e}")
     
-    def get_total_questions(self) -> int:
-        """Получить общее количество вопросов"""
-        try:
-            # Простой способ подсчета вопросов - получаем максимальный номер
-            max_question = 0
-            for i in range(1, 100):  # Проверяем до 100 вопросов
-                question = db.get_question_by_number(i)
-                if question:
-                    max_question = i
-                else:
-                    break
-            return max_question
-        except Exception as e:
-            logger.error(f"Ошибка подсчета вопросов: {e}")
-            return 24  # Возвращаем примерное количество по умолчанию
-    
     def get_user_session(self, user_id: int) -> Dict[str, Any]:
         """Получить или создать сессию пользователя"""
         if user_id not in self.user_sessions:
-            total_questions = self.get_total_questions()
             self.user_sessions[user_id] = {
                 'state': 'main_menu',
                 'current_question': 1,
-                'total_questions': total_questions,
+                'total_questions': len(db.get_active_questions()),
                 'answers': {},
                 'started_at': datetime.now()
             }
@@ -106,11 +89,10 @@ class GrantServiceBotWithMenu:
         user_id = user.id
         
         # Сброс сессии при /start
-        total_questions = self.get_total_questions()
         self.user_sessions[user_id] = {
             'state': 'main_menu',
             'current_question': 1,
-            'total_questions': total_questions,
+            'total_questions': len(db.get_active_questions()),
             'answers': {},
             'started_at': datetime.now()
         }
@@ -335,7 +317,7 @@ https://grantservice.onff.ru/payment
     
     async def show_application_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показать статус заявки"""
-        user_id = update.callback_query.from_user.id
+        user_id = update.effective_user.id
         session = self.get_user_session(user_id)
         
         # Подсчитываем прогресс

@@ -1,0 +1,20 @@
+[0;1;32m●[0m grantservice-bot.service - GrantService Telegram Bot
+     Loaded: loaded (/etc/systemd/system/grantservice-bot.service; enabled; vendor preset: enabled)
+     Active: [0;1;32mactive (running)[0m since Sat 2025-08-02 04:13:51 UTC; 6s ago
+   Main PID: 2764783 (python)
+      Tasks: 2 (limit: 4647)
+     Memory: 42.9M
+        CPU: 628ms
+     CGroup: /system.slice/grantservice-bot.service
+             └─2764783 /var/GrantService/telegram-bot/venv/bin/python /var/GrantService/telegram-bot/main.py
+
+Aug 02 04:13:53 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:53,212 - __main__ - INFO - ГрантСервис бот запущен!
+Aug 02 04:13:53 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:53,398 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7685915842:AAGcW0kgtljyIob8enM3zvFSLuZ-BZzcPOo/getMe "HTTP/1.1 200 OK"
+Aug 02 04:13:53 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:53,454 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7685915842:AAGcW0kgtljyIob8enM3zvFSLuZ-BZzcPOo/deleteWebhook "HTTP/1.1 200 OK"
+Aug 02 04:13:53 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:53,456 - telegram.ext.Application - INFO - Application started
+Aug 02 04:13:53 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:53,637 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7685915842:AAGcW0kgtljyIob8enM3zvFSLuZ-BZzcPOo/getUpdates "HTTP/1.1 200 OK"
+Aug 02 04:13:53 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:53,772 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7685915842:AAGcW0kgtljyIob8enM3zvFSLuZ-BZzcPOo/sendMessage "HTTP/1.1 200 OK"
+Aug 02 04:13:53 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:53,851 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7685915842:AAGcW0kgtljyIob8enM3zvFSLuZ-BZzcPOo/sendMessage "HTTP/1.1 200 OK"
+Aug 02 04:13:53 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:53,925 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7685915842:AAGcW0kgtljyIob8enM3zvFSLuZ-BZzcPOo/sendMessage "HTTP/1.1 200 OK"
+Aug 02 04:13:54 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:54,008 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7685915842:AAGcW0kgtljyIob8enM3zvFSLuZ-BZzcPOo/sendMessage "HTTP/1.1 200 OK"
+Aug 02 04:13:54 xkwmiregrh grantservice-bot[2764783]: 2025-08-02 04:13:54,168 - httpx - INFO - HTTP Request: POST https://api.telegram.org/bot7685915842:AAGcW0kgtljyIob8enM3zvFSLuZ-BZzcPOo/sendMessage "HTTP/1.1 200 OK"
