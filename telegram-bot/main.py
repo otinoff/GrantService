@@ -105,6 +105,17 @@ class GrantServiceBotWithMenu:
         user = update.effective_user
         user_id = user.id
         
+        # Регистрируем пользователя в базе данных
+        db.register_user(
+            telegram_id=user_id,
+            username=user.username,
+            first_name=user.first_name,
+            last_name=user.last_name
+        )
+        
+        # Создаем сессию в базе данных
+        session_id = db.create_session(user_id)
+        
         # Сброс сессии при /start
         total_questions = self.get_total_questions()
         self.user_sessions[user_id] = {
@@ -112,7 +123,8 @@ class GrantServiceBotWithMenu:
             'current_question': 1,
             'total_questions': total_questions,
             'answers': {},
-            'started_at': datetime.now()
+            'started_at': datetime.now(),
+            'session_id': session_id
         }
         
         await self.show_main_menu(update, context)
@@ -444,7 +456,7 @@ https://grantservice.onff.ru/payment
             validation = db.validate_answer(question['id'], answer)
             if not validation['is_valid']:
                 await update.message.reply_text(
-                    f"❌ {validation['error_message']}\nПопробуйте еще раз."
+                    f"❌ {validation.get('message', 'Ошибка валидации')}\nПопробуйте еще раз."
                 )
                 return
         
