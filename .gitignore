@@ -49,7 +49,7 @@ Thumbs.db
 logs/
 
 # Database
-*.db
+# *.db  # Закомментировано - добавляем базу данных в Git для деплоя
 *.sqlite
 *.sqlite3
 
