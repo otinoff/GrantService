@@ -1,0 +1,51 @@
+name: Deploy GrantService
+
+on:
+  push:
+    branches: [ main, Dev ]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Deploy to VPS
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT }}
+        script: |
+          # Переход в директорию проекта
+          cd ~/GrantService
+          
+          # Сохранение локальных изменений
+          git stash
+          
+          # Получение последних изменений
+          git pull origin Dev
+          
+          # Применение локальных изменений (если были)
+          git stash pop || true
+          
+          # Обновление зависимостей для бота
+          cd telegram-bot
+          pip install -r requirements.txt
+          cd ..
+          
+          # Обновление зависимостей для админки
+          cd web-admin
+          pip install -r requirements.txt
+          cd ..
+          
+          # Перезапуск сервисов
+          sudo systemctl restart grantservice-bot
+          sudo systemctl restart grantservice-admin
+          
+          # Проверка статуса
+          sudo systemctl status grantservice-bot --no-pager
+          sudo systemctl status grantservice-admin --no-pager
+          
+          echo "Deployment completed successfully!"
