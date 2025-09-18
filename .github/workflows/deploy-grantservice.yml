@@ -16,35 +16,59 @@ jobs:
         host: ${{ secrets.VPS_HOST }}
         username: ${{ secrets.VPS_USER }}
         key: ${{ secrets.VPS_SSH_KEY }}
-        port: ${{ secrets.VPS_PORT }}
+        port: ${{ secrets.VPS_PORT || '22' }}
         script: |
+          echo "Starting deployment..."
+          
+          # Остановка сервисов перед обновлением
+          echo "Stopping services..."
+          sudo systemctl stop grantservice-bot
+          sudo systemctl stop grantservice-admin
+          
           # Переход в директорию проекта
-          cd ~/GrantService
+          cd /var/GrantService
           
           # Сохранение локальных изменений
           git stash
           
           # Получение последних изменений
+          echo "Pulling latest changes from Dev branch..."
           git pull origin Dev
           
           # Применение локальных изменений (если были)
           git stash pop || true
           
+          # Активация виртуального окружения (если используется)
+          if [ -f "/var/GrantService/venv/bin/activate" ]; then
+              source /var/GrantService/venv/bin/activate
+          fi
+          
           # Обновление зависимостей для бота
-          cd telegram-bot
+          echo "Installing bot dependencies..."
+          cd /var/GrantService/telegram-bot
           pip install -r requirements.txt
-          cd ..
           
           # Обновление зависимостей для админки
-          cd web-admin
+          echo "Installing admin panel dependencies..."
+          cd /var/GrantService/web-admin
           pip install -r requirements.txt
-          cd ..
           
-          # Перезапуск сервисов
-          sudo systemctl restart grantservice-bot
-          sudo systemctl restart grantservice-admin
+          # Инициализация авторизации и обновление базы данных
+          echo "Initializing auth roles..."
+          cd /var/GrantService
+          python scripts/init_auth_roles.py || true
+          python scripts/update_questions_14_with_hints.py || true
+          
+          # Запуск сервисов
+          echo "Starting services..."
+          sudo systemctl start grantservice-bot
+          sudo systemctl start grantservice-admin
+          
+          # Небольшая пауза для запуска
+          sleep 5
           
           # Проверка статуса
+          echo "Checking service status..."
           sudo systemctl status grantservice-bot --no-pager
           sudo systemctl status grantservice-admin --no-pager
           
