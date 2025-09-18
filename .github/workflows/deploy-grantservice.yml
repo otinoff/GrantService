@@ -2,7 +2,7 @@ name: Deploy GrantService
 
 on:
   push:
-    branches: [ main, Dev ]
+    branches: [ main, Dev, master ]
   workflow_dispatch:
 
 jobs:
@@ -37,7 +37,13 @@ jobs:
           # Принудительное обновление из репозитория
           echo "Force updating from GitHub..."
           git fetch --all
-          git reset --hard origin/Dev
+          # Определяем ветку и обновляемся из неё
+          BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+          if [ "$BRANCH_NAME" = "master" ]; then
+            git reset --hard origin/master
+          else
+            git reset --hard origin/Dev
+          fi
           git clean -fd
           
           # Проверка, что файлы обновлены
