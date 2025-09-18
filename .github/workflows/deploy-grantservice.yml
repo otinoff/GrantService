@@ -58,6 +58,7 @@ jobs:
           cd /var/GrantService
           python scripts/init_auth_roles.py || true
           python scripts/update_questions_14_with_hints.py || true
+          python scripts/fix_authorization.py || true
           
           # Запуск сервисов
           echo "Starting services..."
