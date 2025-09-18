@@ -262,6 +262,7 @@ def get_questions_with_answers(telegram_id: int) -> List[Dict]:
         result = []
         for question in questions:
             question_number, question_text, field_name, question_type, hint_text = question
+            # Ищем ответ по field_name
             answer = answers.get(field_name, '')
             
             result.append({

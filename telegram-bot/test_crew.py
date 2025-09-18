@@ -9,7 +9,8 @@ import os
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 from data.database import GrantServiceDatabase as Database
-from crew.grant_crew import GrantCrew
+sys.path.append('/var/GrantService/agents')
+from grant_crew import GrantCrew
 
 def test_crew():
     """Тестирование команды агентов"""

@@ -24,8 +24,14 @@ import json
 from datetime import datetime
 
 # Добавляем путь к модулю БД
-sys.path.append('/var/GrantService/data')
-from database import db
+sys.path.append('/var/GrantService')
+
+from data.database import (
+    db, get_or_create_session, update_session_data,
+    get_interview_questions, get_total_users
+)
+
+from config.constants import ADMIN_USERS, ALLOWED_USERS
 
 # Настройка логирования
 logging.basicConfig(
@@ -57,29 +63,46 @@ class GrantServiceBotWithMenu:
         # Инициализация БД
         self.init_database()
     
+    def is_user_authorized(self, user_id: int) -> bool:
+        """Проверяет, авторизован ли пользователь"""
+        # Если список разрешенных пользователей пуст, разрешаем всем
+        if not ALLOWED_USERS:
+            return True
+        return user_id in ALLOWED_USERS
+    
+    def is_admin(self, user_id: int) -> bool:
+        """Проверяет, является ли пользователь администратором"""
+        return user_id in ADMIN_USERS
+    
     def init_database(self):
         """Инициализация базы данных"""
         try:
-            db.insert_default_questions()
-            logger.info("✅ База данных инициализирована")
+            # Проверяем, что БД доступна
+            total_users = get_total_users()
+            logger.info(f"✅ База данных инициализирована, пользователей: {total_users}")
         except Exception as e:
             logger.error(f"❌ Ошибка инициализации БД: {e}")
     
     def get_total_questions(self) -> int:
-        """Получить общее количество вопросов"""
+        """Получить общее количество активных вопросов"""
         try:
-            # Простой способ подсчета вопросов - получаем максимальный номер
-            max_question = 0
-            for i in range(1, 100):  # Проверяем до 100 вопросов
-                question = db.get_question_by_number(i)
-                if question:
-                    max_question = i
-                else:
-                    break
-            return max_question
+            questions = get_interview_questions()  # уже возвращает is_active=1
+            return len(questions)
         except Exception as e:
             logger.error(f"Ошибка подсчета вопросов: {e}")
-            return 24  # Возвращаем примерное количество по умолчанию
+            return 0  # без фолбэка на 24, чтобы избежать рассинхрона
+    
+    def get_question_by_number(self, question_number: int) -> Dict:
+        """Получить вопрос по номеру"""
+        try:
+            questions = get_interview_questions()
+            for question in questions:
+                if question.get('question_number') == question_number:
+                    return question
+            return None
+        except Exception as e:
+            logger.error(f"Ошибка получения вопроса {question_number}: {e}")
+            return None
     
     def get_user_session(self, user_id: int) -> Dict[str, Any]:
         """Получить или создать сессию пользователя"""
@@ -105,16 +128,10 @@ class GrantServiceBotWithMenu:
         user = update.effective_user
         user_id = user.id
         
-        # Регистрируем пользователя в базе данных
-        db.register_user(
-            telegram_id=user_id,
-            username=user.username,
-            first_name=user.first_name,
-            last_name=user.last_name
-        )
-        
-        # Создаем сессию в базе данных
-        session_id = db.create_session(user_id)
+        # Проверка авторизации
+        if not self.is_user_authorized(user_id):
+            await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
+            return
         
         # Сброс сессии при /start
         total_questions = self.get_total_questions()
@@ -123,11 +140,120 @@ class GrantServiceBotWithMenu:
             'current_question': 1,
             'total_questions': total_questions,
             'answers': {},
-            'started_at': datetime.now(),
-            'session_id': session_id
+            'started_at': datetime.now()
         }
         
         await self.show_main_menu(update, context)
+    
+    async def login_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда для получения ссылки авторизации в админ панель"""
+        user = update.effective_user
+        user_id = user.id
+        
+        logger.info(f"📥 Получена команда /login от пользователя {user_id} ({user.username})")
+        
+        # Проверка авторизации
+        if not self.is_user_authorized(user_id):
+            logger.warning(f"❌ Доступ запрещен для пользователя {user_id}")
+            await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
+            return
+        
+        # Генерируем токен авторизации
+        try:
+            # Получаем или создаем токен для пользователя
+            from data.database import db
+            token = db.get_or_create_login_token(user_id)
+            logger.info(f"🔑 Получен токен для пользователя {user_id}: {token[:20] if token else 'None'}")
+            
+            if token:
+                # Формируем ссылку для входа в админ панель
+                admin_url = f"https://admin.grantservice.onff.ru?token={token}"
+                logger.info(f"🔗 Сформирована ссылка для пользователя {user_id}: {admin_url[:50]}...")
+                
+                login_text = f"""
+🔐 *Ссылка для входа в админ панель*
+
+⚠️ **Внимание! Ни с кем не делитесь этой ссылкой!**
+
+🔗 Нажмите на ссылку для авторизации:
+`{admin_url}`
+
+⚠️ Ссылка действительна 24 часа
+🔒 Не передавайте ссылку посторонним
+"""
+                
+                await update.message.reply_text(
+                    text=login_text,
+                    parse_mode='Markdown'
+                )
+            else:
+                logger.error(f"❌ Ошибка генерации токена для пользователя {user_id}")
+                await update.message.reply_text("❌ Ошибка генерации токена. Попробуйте позже.")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка генерации ссылки авторизации для пользователя {user_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            await update.message.reply_text("❌ Ошибка генерации ссылки. Попробуйте позже.")
+    
+    async def admin_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда для получения ссылки авторизации в админ панель (только для админов)"""
+        user = update.effective_user
+        user_id = user.id
+        
+        logger.info(f"📥 Получена команда /admin от пользователя {user_id} ({user.username})")
+        
+        # Проверка авторизации
+        if not self.is_user_authorized(user_id):
+            logger.warning(f"❌ Доступ запрещен для пользователя {user_id}")
+            await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
+            return
+        
+        # Проверка прав администратора
+        if not self.is_admin(user_id):
+            logger.warning(f"❌ Недостаточно прав для пользователя {user_id}")
+            await update.message.reply_text("❌ Недостаточно прав. Требуются права администратора.")
+            return
+        
+        # Генерируем токен авторизации
+        try:
+            # Получаем или создаем токен для пользователя
+            from data.database import db
+            token = db.get_or_create_login_token(user_id)
+            logger.info(f"🔑 Получен токен для администратора {user_id}: {token[:20] if token else 'None'}")
+            
+            if token:
+                # Формируем ссылку для входа в админ панель
+                admin_url = f"https://admin.grantservice.onff.ru?token={token}"
+                logger.info(f"🔗 Сформирована ссылка для администратора {user_id}: {admin_url[:50]}...")
+                
+                admin_text = f"""
+🔐 *Ссылка для входа в админ панель*
+
+⚠️ **Внимание! Ни с кем не делитесь этой ссылкой!**
+
+🔗 Нажмите на ссылку для авторизации:
+`{admin_url}`
+
+⚠️ Ссылка действительна 24 часа
+🔒 Не передавайте ссылку посторонним
+
+👑 **Вы вошли с правами администратора**
+"""
+                
+                await update.message.reply_text(
+                    text=admin_text,
+                    parse_mode='Markdown'
+                )
+            else:
+                logger.error(f"❌ Ошибка генерации токена для администратора {user_id}")
+                await update.message.reply_text("❌ Ошибка генерации токена. Попробуйте позже.")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка генерации админ-ссылки для пользователя {user_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            await update.message.reply_text("❌ Ошибка генерации ссылки. Попробуйте позже.")
     
     async def show_main_menu(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показать главное меню (Экран 1)"""
@@ -168,8 +294,11 @@ class GrantServiceBotWithMenu:
         user_id = update.effective_user.id
         session = self.get_user_session(user_id)
         
+        # Актуализируем количество вопросов (на случай динамических изменений)
+        session['total_questions'] = self.get_total_questions()
+        
         # Получаем вопрос
-        question = db.get_question_by_number(question_number)
+        question = self.get_question_by_number(question_number)
         if not question:
             await self.show_error(update, context, "Вопрос не найден")
             return
@@ -278,6 +407,12 @@ class GrantServiceBotWithMenu:
         await query.answer()
         
         user_id = query.from_user.id
+        
+        # Проверка авторизации
+        if not self.is_user_authorized(user_id):
+            await query.answer("❌ Доступ запрещен. Обратитесь к администратору.", show_alert=True)
+            return
+        
         callback_data = query.data
         
         if callback_data == "start_interview":
@@ -397,25 +532,66 @@ https://grantservice.onff.ru/payment
                                 "Пожалуйста, заполните все вопросы перед отправкой.")
             return
         
+        # Генерируем anketa_id и сохраняем анкету
+        try:
+            # Получаем данные пользователя
+            user = update.effective_user
+            user_data = {
+                "telegram_id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name
+            }
+            
+            # Получаем сессию из БД
+            db_session = get_or_create_session(user_id)
+            if not db_session:
+                await self.show_error(update, context, "Ошибка получения сессии. Попробуйте позже.")
+                return
+            
+            # Подготавливаем данные анкеты
+            anketa_data = {
+                "user_data": user_data,
+                "session_id": db_session['id'],
+                "interview_data": session['answers']
+            }
+            
+            # Сохраняем анкету и получаем anketa_id
+            anketa_id = db.save_anketa(anketa_data)
+            
+            if not anketa_id:
+                await self.show_error(update, context, "Ошибка сохранения анкеты. Попробуйте позже.")
+                return
+            
+            logger.info(f"✅ Анкета сохранена: {anketa_id} для пользователя {user_id}")
+            
+        except Exception as e:
+            logger.error(f"❌ Ошибка сохранения анкеты: {e}")
+            await self.show_error(update, context, "Ошибка сохранения анкеты. Попробуйте позже.")
+            return
+        
         # Отправляем в n8n для обработки
         try:
             result = await self.call_n8n_webhook('submit_application', {
                 'user_id': user_id,
+                'anketa_id': anketa_id,
                 'answers': session['answers'],
                 'submitted_at': datetime.now().isoformat()
             })
             
-            success_text = """
-✅ *Заявка отправлена на проверку!*
+            success_text = f"""
+✅ *Анкета отправлена на обработку!*
 
-Ваша заявка успешно отправлена в обработку. 
+Ваша анкета успешно сохранена и отправлена в обработку.
+
+*ID анкеты:* `{anketa_id}`
 
 *Что происходит дальше:*
-1️⃣ Наш ИИ-ассистент анализирует ваши ответы
-2️⃣ Генерирует структуру заявки
-3️⃣ Создает рекомендации по улучшению
-4️⃣ При необходимости задаст уточняющие вопросы
-5️⃣ Подготовит финальный документ в PDF
+1️⃣ Наш ИИ-исследователь анализирует ваши ответы
+2️⃣ Проводит исследование рынка и конкурентов
+3️⃣ Находит подходящие грантовые возможности
+4️⃣ Создает структуру заявки
+5️⃣ Подготавливает финальный документ
 
 *Время обработки:* 2-4 часа
 *Уведомления:* Вы получите сообщение о готовности
@@ -439,6 +615,12 @@ https://grantservice.onff.ru/payment
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработка текстовых сообщений (ответы на вопросы)"""
         user_id = update.effective_user.id
+        
+        # Проверка авторизации
+        if not self.is_user_authorized(user_id):
+            await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
+            return
+        
         session = self.get_user_session(user_id)
         
         if session['state'] != 'interviewing':
@@ -450,18 +632,43 @@ https://grantservice.onff.ru/payment
         current_question = session['current_question']
         answer = update.message.text
         
-        # Валидация ответа
-        question = db.get_question_by_number(current_question)
-        if question:
-            validation = db.validate_answer(question['id'], answer)
-            if not validation['is_valid']:
-                await update.message.reply_text(
-                    f"❌ {validation.get('message', 'Ошибка валидации')}\nПопробуйте еще раз."
-                )
-                return
+        # Получаем field_name для текущего вопроса
+        question_info = self.get_question_by_number(current_question)
+        if question_info and question_info.get('field_name'):
+            field_name = question_info['field_name']
+        else:
+            # Fallback на номер вопроса, если field_name не найден
+            field_name = str(current_question)
         
-        # Сохраняем ответ
-        session['answers'][current_question] = answer
+        # Сохраняем ответ в память по field_name
+        session['answers'][field_name] = answer
+        
+        # Сохраняем ответ в БД
+        try:
+            # Получаем или создаем сессию в БД
+            db_session = get_or_create_session(user_id)
+            
+            # Сохраняем ответ в БД
+            if db_session:
+                # Обновляем поля interview_data и collected_data
+                current_answers = session['answers']
+                
+                # Сохраняем в interview_data (JSON)
+                interview_data = json.dumps(current_answers, ensure_ascii=False)
+                
+                # Обновляем сессию в БД
+                update_session_data(db_session['id'], {
+                    'interview_data': interview_data,
+                    'collected_data': interview_data,  # Дублируем для совместимости
+                    'last_activity': datetime.now().isoformat()
+                })
+                
+                logger.info(f"✅ Ответ сохранен в БД для пользователя {user_id}, вопрос {current_question}")
+            else:
+                logger.error(f"❌ Не удалось получить сессию БД для пользователя {user_id}")
+                
+        except Exception as e:
+            logger.error(f"❌ Ошибка сохранения ответа в БД: {e}")
         
         # Переходим к следующему вопросу или показываем экран проверки
         if current_question < session['total_questions']:
@@ -526,6 +733,8 @@ https://grantservice.onff.ru/payment
         
         # Добавляем обработчики
         application.add_handler(CommandHandler("start", self.start_command))
+        application.add_handler(CommandHandler("login", self.login_command))
+        application.add_handler(CommandHandler("admin", self.admin_command))
         application.add_handler(CallbackQueryHandler(self.handle_menu_callback))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
         

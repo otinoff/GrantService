@@ -9,6 +9,8 @@ import os
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
 from data.database import GrantServiceDatabase as Database
+sys.path.append('/var/GrantService/agents')
+sys.path.append('/var/GrantService')
 from agents.researcher_agent import ResearcherAgent
 from agents.writer_agent import WriterAgent
 from agents.auditor_agent import AuditorAgent

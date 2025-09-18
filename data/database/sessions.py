@@ -18,6 +18,10 @@ class SessionManager:
             with sqlite3.connect(self.db.db_path) as conn:
                 cursor = conn.cursor()
                 
+                # Получаем актуальное количество активных вопросов
+                cursor.execute("SELECT COUNT(*) FROM interview_questions WHERE is_active = 1")
+                active_questions_count = cursor.fetchone()[0] or 0
+                
                 current_time = get_kuzbass_time()
                 cursor.execute("""
                     INSERT INTO sessions (telegram_id, current_step, status, started_at, last_activity, total_questions)
@@ -28,7 +32,7 @@ class SessionManager:
                     'active', 
                     current_time, 
                     current_time,
-                    24  # Общее количество вопросов
+                    active_questions_count
                 ))
                 
                 session_id = cursor.lastrowid
@@ -214,6 +218,72 @@ class SessionManager:
         except Exception as e:
             print(f"❌ Ошибка получения завершенных сессий: {e}")
             return []
+
+    def get_or_create_session(self, telegram_id: int) -> Dict[str, Any]:
+        """Получить активную сессию пользователя или создать новую"""
+        try:
+            with sqlite3.connect(self.db.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Ищем активную сессию
+                cursor.execute("""
+                    SELECT * FROM sessions 
+                    WHERE telegram_id = ? AND status = 'active'
+                    ORDER BY started_at DESC
+                    LIMIT 1
+                """, (telegram_id,))
+                
+                session = cursor.fetchone()
+                
+                if session:
+                    # Возвращаем существующую сессию
+                    columns = [description[0] for description in cursor.description]
+                    return dict(zip(columns, session))
+                else:
+                    # Создаем новую сессию
+                    session_id = self.create_session(telegram_id)
+                    if session_id:
+                        cursor.execute("SELECT * FROM sessions WHERE id = ?", (session_id,))
+                        session = cursor.fetchone()
+                        columns = [description[0] for description in cursor.description]
+                        return dict(zip(columns, session))
+                    else:
+                        return None
+                        
+        except Exception as e:
+            print(f"❌ Ошибка получения/создания сессии: {e}")
+            return None
+
+    def update_session_data(self, session_id: int, data: Dict[str, Any]) -> bool:
+        """Обновить данные сессии"""
+        try:
+            with sqlite3.connect(self.db.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Формируем SET часть запроса
+                set_fields = []
+                values = []
+                
+                for field, value in data.items():
+                    set_fields.append(f"{field} = ?")
+                    values.append(value)
+                
+                values.append(session_id)
+                
+                query = f"""
+                    UPDATE sessions 
+                    SET {', '.join(set_fields)}
+                    WHERE id = ?
+                """
+                
+                cursor.execute(query, values)
+                conn.commit()
+                
+                return True
+                
+        except Exception as e:
+            print(f"❌ Ошибка обновления сессии: {e}")
+            return False
 
 # Глобальные функции для совместимости
 def get_all_sessions(limit: int = 50):

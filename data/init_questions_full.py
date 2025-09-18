@@ -260,7 +260,7 @@ def init_full_questions():
         }
     ]
     
-    print("🚀 Инициализация полного списка вопросов интервью...")
+    print("Инициализация полного списка вопросов интервью...")
     
     # Очищаем существующие вопросы
     try:
@@ -268,26 +268,26 @@ def init_full_questions():
             cursor = conn.cursor()
             cursor.execute("DELETE FROM interview_questions")
             conn.commit()
-            print("🗑️ Существующие вопросы удалены")
+            print("Существующие вопросы удалены")
     except Exception as e:
-        print(f"⚠️ Ошибка очистки БД: {e}")
+        print(f"Ошибка очистки БД: {e}")
     
     # Добавляем новые вопросы в БД
     for question_data in questions:
         try:
             question_id = db.create_question(question_data)
             if question_id:
-                print(f"✅ Вопрос {question_data['question_number']} создан (ID: {question_id})")
+                print(f"Вопрос {question_data['question_number']} создан (ID: {question_id})")
             else:
-                print(f"❌ Ошибка создания вопроса {question_data['question_number']}")
+                print(f"Ошибка создания вопроса {question_data['question_number']}")
         except Exception as e:
-            print(f"❌ Ошибка при создании вопроса {question_data['question_number']}: {e}")
+            print(f"Ошибка при создании вопроса {question_data['question_number']}: {e}")
     
-    print("\n🎉 Инициализация завершена!")
+    print("\nИнициализация завершена!")
     
     # Проверяем результат
     active_questions = db.get_active_questions()
-    print(f"📊 Всего активных вопросов: {len(active_questions)}")
+    print(f"Всего активных вопросов: {len(active_questions)}")
 
 if __name__ == "__main__":
     init_full_questions() 

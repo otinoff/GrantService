@@ -8,7 +8,8 @@ import sys
 import os
 sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), '..'))
 
-from agents.researcher_agent import ResearcherAgent
+sys.path.append('/var/GrantService/agents')
+from researcher_agent import ResearcherAgent
 from data.database import GrantServiceDatabase as Database
 
 def test_researcher_logging():

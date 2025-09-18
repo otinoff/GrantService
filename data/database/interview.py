@@ -354,6 +354,9 @@ def update_interview_question(question_id: int, question_text: str = None, quest
         if options is not None:
             data['options'] = options
         
+        # Автоматически генерируем field_name если его нет
+        data['field_name'] = f"question_{question_id}"
+        
         return manager.update_question(question_id, data)
     except Exception as e:
         print(f"Ошибка обновления вопроса интервью: {e}")

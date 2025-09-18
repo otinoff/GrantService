@@ -7,16 +7,51 @@ Questions management page for GrantService admin panel
 import streamlit as st
 import sys
 import json
+import logging
 from datetime import datetime
+
+import streamlit as st
+import sys
+import os
 
 # Добавляем путь к проекту
 sys.path.append('/var/GrantService')
 
+# Проверка авторизации
+from web_admin.utils.auth import is_user_authorized
+
+if not is_user_authorized():
+    # Импортируем страницу входа
+    import importlib.util
+    spec = importlib.util.spec_from_file_location(
+        "login_page", 
+        "/var/GrantService/web-admin/pages/🔐_Вход.py"
+    )
+    login_module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(login_module)
+    login_module.show_login_page()
+    st.stop()
+# Добавляем путь к проекту
+sys.path.append('/var/GrantService')
+
 from utils.database import AdminDatabase
+from utils.logger import setup_logger
 from data.database import get_interview_questions, insert_interview_question, update_interview_question, delete_interview_question
+
+# Настройка логгера
+logger = setup_logger('questions_page', level=logging.DEBUG)
 
 # Отображение управления вопросами
 st.title("❓ Управление вопросами интервью")
+
+# Показ уведомлений из session_state
+if hasattr(st.session_state, 'success_message'):
+    st.success(st.session_state.success_message)
+    del st.session_state.success_message
+
+if hasattr(st.session_state, 'error_message'):
+    st.error(st.session_state.error_message)
+    del st.session_state.error_message
 
 # Инициализация БД
 db = AdminDatabase()
@@ -34,7 +69,7 @@ with st.form("new_question_form"):
         question_text = st.text_area("Текст вопроса", height=100, key="new_question")
         question_type = st.selectbox(
             "Тип вопроса",
-            ["text", "choice", "number", "date"],
+            ["text", "select", "choice", "number", "date", "textarea"],
             key="new_type"
         )
         order_num = st.number_input("Порядок", min_value=1, value=1, key="new_order")
@@ -58,7 +93,7 @@ with st.form("new_question_form"):
     if submitted:
         if question_text:
             try:
-                insert_interview_question(
+                result = insert_interview_question(
                     question_text=question_text,
                     question_type=question_type,
                     order_num=order_num,
@@ -66,10 +101,15 @@ with st.form("new_question_form"):
                     is_active=is_active,
                     options=options if options else None
                 )
-                st.success("✅ Вопрос создан успешно!")
+                
+                if result:
+                    st.session_state.success_message = "✅ Вопрос успешно создан!"
+                else:
+                    st.session_state.error_message = "❌ Вопрос не был создан"
                 st.rerun()
             except Exception as e:
-                st.error(f"❌ Ошибка создания вопроса: {e}")
+                st.session_state.error_message = f"❌ Ошибка создания вопроса: {e}"
+                st.rerun()
         else:
             st.error("❌ Заполните текст вопроса")
 
@@ -148,10 +188,17 @@ if questions:
                             height=100,
                             key=f"edit_q_text_{question['id']}"
                         )
+                        # Полный список типов включая все варианты из модели
+                        question_types = ["text", "select", "choice", "number", "date", "textarea"]
+                        try:
+                            default_index = question_types.index(question['question_type'])
+                        except ValueError:
+                            default_index = 0  # По умолчанию "text"
+                        
                         edit_type = st.selectbox(
                             "Тип",
-                            ["text", "choice", "number", "date"],
-                            index=["text", "choice", "number", "date"].index(question['question_type']),
+                            question_types,
+                            index=default_index,
                             key=f"edit_q_type_{question['id']}"
                         )
                         edit_order = st.number_input(
@@ -189,7 +236,12 @@ if questions:
                     with col1:
                         if st.form_submit_button("💾 Сохранить"):
                             try:
-                                update_interview_question(
+                                # Детальное логирование ПЕРЕД обновлением
+                                logger.info(f"🔄 Начинаем обновление вопроса ID: {question['id']}")
+                                logger.debug(f"Старые данные: text='{question['question_text']}', type='{question['question_type']}', order={question['question_number']}")
+                                logger.debug(f"Новые данные: text='{edit_text}', type='{edit_type}', order={edit_order}")
+                                
+                                result = update_interview_question(
                                     question['id'],
                                     question_text=edit_text,
                                     question_type=edit_type,
@@ -198,11 +250,27 @@ if questions:
                                     is_active=edit_active,
                                     options=edit_options if edit_options else None
                                 )
-                                st.success("✅ Вопрос обновлен!")
+                                
+                                # Логирование результата
+                                logger.info(f"📊 Результат обновления ID {question['id']}: {result}")
+                                
+                                if result:
+                                    logger.info(f"✅ Вопрос ID {question['id']} успешно обновлен")
+                                    st.session_state.success_message = "✅ Вопрос успешно обновлен в базе данных!"
+                                    del st.session_state.editing_question
+                                    st.rerun()
+                                else:
+                                    logger.warning(f"❌ Вопрос ID {question['id']} НЕ обновлен - функция вернула False")
+                                    st.session_state.error_message = "❌ Изменения не сохранились. Детали записаны в лог для диагностики"
+                                    del st.session_state.editing_question
+                                    st.rerun()
+                            except Exception as e:
+                                logger.error(f"💥 Критическая ошибка при обновлении ID {question['id']}: {e}")
+                                import traceback
+                                logger.error(f"Полный traceback: {traceback.format_exc()}")
+                                st.session_state.error_message = f"❌ Произошла ошибка при сохранении: {str(e)}"
                                 del st.session_state.editing_question
                                 st.rerun()
-                            except Exception as e:
-                                st.error(f"❌ Ошибка обновления: {e}")
                     
                     with col2:
                         if st.form_submit_button("❌ Отмена"):
