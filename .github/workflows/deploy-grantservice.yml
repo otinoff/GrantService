@@ -28,19 +28,22 @@ jobs:
           # Переход в директорию проекта
           cd /var/GrantService
           
-          # Сохранение локальных изменений
-          git stash
+          # Сохранение локальных изменений (если есть)
+          git stash clear
           
-          # Настройка git для использования HTTPS без аутентификации
-          git config --global credential.helper store
+          # Настройка git для работы без аутентификации
+          git config pull.rebase false
           
-          # Получение последних изменений
-          echo "Pulling latest changes from Dev branch..."
-          git fetch origin Dev
+          # Принудительное обновление из репозитория
+          echo "Force updating from GitHub..."
+          git fetch --all
           git reset --hard origin/Dev
+          git clean -fd
           
-          # Очистка неотслеживаемых файлов (опционально)
-          # git clean -fd
+          # Проверка, что файлы обновлены
+          echo "Checking if files are updated..."
+          ls -la scripts/
+          ls -la .github/workflows/
           
           # Активация виртуального окружения (если используется)
           if [ -f "/var/GrantService/venv/bin/activate" ]; then
