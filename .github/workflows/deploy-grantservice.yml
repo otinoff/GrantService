@@ -22,8 +22,8 @@ jobs:
           
           # Остановка сервисов перед обновлением
           echo "Stopping services..."
-          sudo systemctl stop grantservice-bot
-          sudo systemctl stop grantservice-admin
+          sudo systemctl stop grantservice-bot || true
+          sudo systemctl stop grantservice-admin || true
           
           # Переход в директорию проекта
           cd /var/GrantService
@@ -31,12 +31,16 @@ jobs:
           # Сохранение локальных изменений
           git stash
           
+          # Настройка git для использования HTTPS без аутентификации
+          git config --global credential.helper store
+          
           # Получение последних изменений
           echo "Pulling latest changes from Dev branch..."
-          git pull origin Dev
+          git fetch origin Dev
+          git reset --hard origin/Dev
           
-          # Применение локальных изменений (если были)
-          git stash pop || true
+          # Очистка неотслеживаемых файлов (опционально)
+          # git clean -fd
           
           # Активация виртуального окружения (если используется)
           if [ -f "/var/GrantService/venv/bin/activate" ]; then
@@ -56,9 +60,9 @@ jobs:
           # Инициализация авторизации и обновление базы данных
           echo "Initializing auth roles..."
           cd /var/GrantService
-          python scripts/init_auth_roles.py || true
-          python scripts/update_questions_14_with_hints.py || true
-          python scripts/fix_authorization.py || true
+          python3 scripts/init_auth_roles.py || true
+          python3 scripts/update_questions_14_with_hints.py || true
+          python3 scripts/fix_authorization.py || true
           
           # Запуск сервисов
           echo "Starting services..."
