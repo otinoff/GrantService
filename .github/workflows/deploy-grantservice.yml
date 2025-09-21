@@ -39,16 +39,27 @@ jobs:
           git fetch --all
           # Определяем ветку и обновляемся из неё
           BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
+          echo "Current branch: $BRANCH_NAME"
           if [ "$BRANCH_NAME" = "master" ]; then
+            echo "Updating to latest master..."
             git reset --hard origin/master
           else
+            echo "Updating to latest Dev..."
             git reset --hard origin/Dev
           fi
           git clean -fd
           
-          # Удаляем старый файл БД из Git истории (если есть)
-          echo "Removing old database file from Git history..."
-          rm -f /var/GrantService/data/grantservice.db
+          # Проверяем, что обновление прошло успешно
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          echo "Updated to commit: $CURRENT_COMMIT"
+          
+          # Проверяем и защищаем рабочую базу данных
+          echo "Protecting production database..."
+          if [ -f "/var/GrantService/data/grantservice.db" ]; then
+            echo "Production database exists and is protected"
+          else
+            echo "Warning: Production database not found"
+          fi
           
           # Проверка, что файлы обновлены
           echo "Checking if files are updated..."
