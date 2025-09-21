@@ -15,8 +15,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 def clear_invalid_tokens():
     """Очищает все токены с невалидным форматом"""
     
-    # Путь к БД
-    db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+    # Путь к БД в зависимости от ОС
+    import os
+    if os.name == 'nt':  # Windows
+        db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+    else:  # Linux/Unix
+        db_path = "/var/GrantService/data/grantservice.db"
     
     if not os.path.exists(db_path):
         print(f"❌ База данных не найдена: {db_path}")

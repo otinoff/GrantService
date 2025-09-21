@@ -75,8 +75,12 @@ def main():
     if os.path.exists(var_db_path):
         check_database(var_db_path, "База данных в /var/GrantService")
     
-    # База данных в корне проекта
-    root_db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+    # База данных в корне проекта - определяем путь в зависимости от ОС
+    if os.name == 'nt':  # Windows
+        root_db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+    else:  # Linux/Unix
+        root_db_path = "/var/GrantService/data/grantservice.db"
+    
     if os.path.exists(root_db_path):
         check_database(root_db_path, "База данных в корне проекта")
     

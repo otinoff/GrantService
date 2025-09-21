@@ -32,7 +32,13 @@ except ImportError as e:
 
 # Прямое подключение к БД без импорта модулей
 import sqlite3
-db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+import os
+
+# Определяем путь к БД в зависимости от ОС
+if os.name == 'nt':  # Windows
+    db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+else:  # Linux/Unix
+    db_path = "/var/GrantService/data/grantservice.db"
 
 # Проверяем существование файла БД
 if not os.path.exists(db_path):

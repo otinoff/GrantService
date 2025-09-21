@@ -12,8 +12,12 @@ import json
 st.title("🧪 Тест подключения к БД")
 st.markdown("---")
 
-# Определяем путь к БД
-db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+# Определяем путь к БД в зависимости от ОС
+import os
+if os.name == 'nt':  # Windows
+    db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+else:  # Linux/Unix
+    db_path = "/var/GrantService/data/grantservice.db"
 
 st.write(f"**Путь к БД:** `{db_path}`")
 st.write(f"**Файл существует:** {os.path.exists(db_path)}")
