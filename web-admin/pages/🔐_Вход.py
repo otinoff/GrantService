@@ -75,7 +75,12 @@ def show_login_page():
         st.markdown("### 🔐 Вход в систему")
         
         # Проверяем токен в URL
-        token = st.query_params.get('token', None)
+        try:
+            query_params = st.query_params  # Streamlit >= 1.30
+            token = query_params.get('token', None)
+        except AttributeError:
+            query_params = st.experimental_get_query_params()  # Streamlit < 1.30
+            token = query_params.get('token', [None])[0] if isinstance(query_params.get('token', None), list) else query_params.get('token', None)
         st.info(f"🔍 Получен токен из URL: {token[:20] if token else 'None'}")
         
         if token:

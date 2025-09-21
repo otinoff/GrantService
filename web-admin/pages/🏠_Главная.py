@@ -28,8 +28,11 @@ if str(base_dir) not in sys.path:
 import importlib.util
 
 # First, check if there's a token in the URL
-query_params = st.query_params
-token_from_url = query_params.get('token', None)
+try:
+    query_params = st.query_params  # Streamlit >= 1.30
+except AttributeError:
+    query_params = st.experimental_get_query_params()  # Streamlit < 1.30
+token_from_url = query_params.get('token', [None])[0] if isinstance(query_params.get('token', None), list) else query_params.get('token', None)
 
 # Debug output
 if token_from_url:
@@ -60,7 +63,10 @@ if token_from_url:
                     st.sidebar.success("✅ Авторизация успешна!")
                     
                     # Clear token from URL for security
-                    st.query_params.clear()
+                    try:
+                        st.query_params.clear()  # Streamlit >= 1.30
+                    except AttributeError:
+                        st.experimental_set_query_params()  # Streamlit < 1.30
                     
                     # Reload the page
                     st.rerun()
