@@ -46,6 +46,10 @@ jobs:
           fi
           git clean -fd
           
+          # Удаляем старый файл БД из Git истории (если есть)
+          echo "Removing old database file from Git history..."
+          rm -f /var/GrantService/data/grantservice.db
+          
           # Проверка, что файлы обновлены
           echo "Checking if files are updated..."
           ls -la scripts/
@@ -66,11 +70,10 @@ jobs:
           cd /var/GrantService/web-admin
           pip install -r requirements.txt
           
-          # Инициализация авторизации и обновление базы данных
+          # Инициализация авторизации (БЕЗОПАСНО для продакшн БД)
           echo "Initializing auth roles..."
           cd /var/GrantService
           python3 scripts/init_auth_roles.py || true
-          python3 scripts/update_questions_14_with_hints.py || true
           python3 scripts/fix_authorization.py || true
           
           # Запуск сервисов
