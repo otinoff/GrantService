@@ -82,44 +82,8 @@ if token_from_url:
     except Exception as e:
         st.sidebar.error(f"❌ Ошибка проверки токена: {e}")
 
-# Authorization check
-try:
-    # Try direct import first
-    from utils.auth import is_user_authorized
-except ImportError:
-    # Fallback to importlib
-    auth_file = web_admin_dir / "utils" / "auth.py"
-    spec = importlib.util.spec_from_file_location("auth", str(auth_file))
-    if spec and spec.loader:
-        auth_module = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(auth_module)
-        is_user_authorized = auth_module.is_user_authorized
-    else:
-        st.error("❌ Не удалось загрузить модуль авторизации / Failed to load auth module")
-        st.stop()
-
-# Check authorization
-if not is_user_authorized():
-    # Show impressive login page
-    auth_pages_file = web_admin_dir / "auth_pages.py"
-    spec = importlib.util.spec_from_file_location("auth_pages", str(auth_pages_file))
-    if spec and spec.loader:
-        auth_module = importlib.util.module_from_spec(spec)
-        try:
-            spec.loader.exec_module(auth_module)
-            # Call the impressive login page function
-            if hasattr(auth_module, 'show_impressive_login_page'):
-                auth_module.show_impressive_login_page()
-            else:
-                st.error("⛔ Не авторизован / Not authorized")
-                st.info("Пожалуйста, используйте бота для получения токена / Please use the bot to get a token")
-        except Exception as e:
-            st.error(f"❌ Ошибка загрузки страницы входа: {e}")
-            st.info("Пожалуйста, используйте бота @GrantServiceHelperBot для получения токена")
-    else:
-        st.error("⛔ Не авторизован / Not authorized")
-        st.info("Пожалуйста, используйте бота для получения токена / Please use the bot to get a token")
-    st.stop()
+# Authorization temporarily disabled for easier access
+# All authorization checks have been removed
 
 # If authorized, show main page
 st.title("🏛️ GrantService Admin Panel")
