@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Database utilities for GrantService admin panel
+Кроссплатформенная версия
 """
 
 import sqlite3
@@ -10,11 +11,32 @@ import os
 from datetime import datetime, timedelta
 import pandas as pd
 
-# Добавляем путь к проекту
-sys.path.append('/var/GrantService')
+# Добавляем путь к корню проекта для импорта
+parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, parent_dir)
+
+# Импортируем кроссплатформенные пути из core
+try:
+    from core import get_path_manager
+    paths = get_path_manager()
+except ImportError:
+    # Fallback - paths не критичны для работы БД
+    paths = None
 
 from data.database import GrantServiceDatabase as Database, get_total_users, get_sessions_by_date_range, get_completed_applications, get_all_sessions, insert_agent_prompt, update_agent_prompt, delete_agent_prompt
-from .logger import setup_logger
+
+# Импортируем logger
+try:
+    from utils.logger import setup_logger
+except ImportError:
+    # Fallback to relative import or create simple logger
+    try:
+        from .logger import setup_logger
+    except ImportError:
+        # Create a simple logger if imports fail
+        import logging
+        def setup_logger(name):
+            return logging.getLogger(name)
 
 # Инициализация логгера
 logger = setup_logger('database')

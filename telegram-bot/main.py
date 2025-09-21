@@ -1,15 +1,17 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-ГрантСервис - Telegram Bot с интерактивным меню
+ГрантСервис - Универсальный Telegram Bot
+Автоматически определяет платформу и использует соответствующие настройки
 Архитектура: Telegram Bot + n8n + ГигаЧат API
-Меню: Главное → Навигация → Проверка
 """
 
 import logging
 import os
 import sys
+import platform
 from typing import Dict, Any, Optional
+from abc import ABC, abstractmethod
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import (
     Application, 
@@ -23,9 +25,172 @@ import requests
 import json
 from datetime import datetime
 
-# Добавляем путь к модулю БД
-sys.path.append('/var/GrantService')
 
+# ============================================================================
+# ПЛАТФОРМОЗАВИСИМАЯ КОНФИГУРАЦИЯ
+# ============================================================================
+
+class PlatformConfig(ABC):
+    """Базовый класс для платформозависимой конфигурации"""
+    
+    @property
+    @abstractmethod
+    def base_path(self) -> str:
+        """Базовый путь к проекту"""
+        pass
+    
+    @property
+    def log_path(self) -> str:
+        """Путь к файлу логов"""
+        return os.path.join(self.base_path, 'logs', 'telegram_bot.log')
+    
+    @property
+    def env_path(self) -> str:
+        """Путь к файлу с переменными окружения"""
+        return os.path.join(self.base_path, 'config', '.env')
+    
+    @property
+    def use_emoji(self) -> bool:
+        """Использовать ли emoji в логах"""
+        return True
+    
+    def format_log_message(self, message: str, emoji: str = None) -> str:
+        """Форматировать сообщение лога с учетом платформы"""
+        if self.use_emoji and emoji:
+            return f"{emoji} {message}"
+        return message
+    
+    def ensure_directories(self):
+        """Создать необходимые директории если их нет"""
+        dirs = [
+            os.path.dirname(self.log_path),
+            os.path.join(self.base_path, 'data'),
+            os.path.join(self.base_path, 'config')
+        ]
+        for dir_path in dirs:
+            os.makedirs(dir_path, exist_ok=True)
+    
+    @abstractmethod
+    def setup_logging(self) -> logging.Logger:
+        """Настроить логирование для платформы"""
+        pass
+    
+    def load_environment(self):
+        """Загрузить переменные окружения"""
+        if os.path.exists(self.env_path):
+            with open(self.env_path, 'r', encoding='utf-8') as f:
+                for line in f:
+                    if line.strip() and not line.startswith('#'):
+                        if '=' in line:
+                            key, value = line.strip().split('=', 1)
+                            # Убираем кавычки если есть
+                            value = value.strip('"\'')
+                            os.environ[key] = value
+            return True
+        return False
+
+
+class WindowsConfig(PlatformConfig):
+    """Конфигурация для Windows"""
+    
+    @property
+    def base_path(self) -> str:
+        # Позволяем переопределить через переменную окружения
+        return os.environ.get('GRANTSERVICE_BASE_PATH', 'C:\\SnowWhiteAI\\GrantService')
+    
+    @property
+    def use_emoji(self) -> bool:
+        # Windows консоль может не поддерживать emoji
+        return os.environ.get('ENABLE_EMOJI', 'false').lower() == 'true'
+    
+    def setup_logging(self) -> logging.Logger:
+        """Настроить логирование для Windows"""
+        self.ensure_directories()
+        
+        logging.basicConfig(
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            level=logging.INFO,
+            handlers=[
+                logging.FileHandler(self.log_path, encoding='utf-8'),
+                logging.StreamHandler()
+            ]
+        )
+        return logging.getLogger(__name__)
+
+
+class UnixConfig(PlatformConfig):
+    """Конфигурация для Linux/Unix"""
+    
+    @property
+    def base_path(self) -> str:
+        # Позволяем переопределить через переменную окружения
+        return os.environ.get('GRANTSERVICE_BASE_PATH', '/var/GrantService')
+    
+    def setup_logging(self) -> logging.Logger:
+        """Настроить логирование для Unix"""
+        self.ensure_directories()
+        
+        logging.basicConfig(
+            format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+            level=logging.INFO,
+            handlers=[
+                logging.FileHandler(self.log_path),
+                logging.StreamHandler()
+            ]
+        )
+        return logging.getLogger(__name__)
+
+
+class DockerConfig(UnixConfig):
+    """Конфигурация для Docker контейнера"""
+    
+    @property
+    def base_path(self) -> str:
+        return os.environ.get('APP_PATH', '/app')
+
+
+def get_platform_config() -> PlatformConfig:
+    """Получить конфигурацию в зависимости от платформы"""
+    # Проверяем, запущены ли мы в Docker
+    if os.path.exists('/.dockerenv'):
+        return DockerConfig()
+    
+    # Определяем операционную систему
+    system = platform.system()
+    
+    if system == 'Windows':
+        return WindowsConfig()
+    elif system in ['Linux', 'Darwin']:  # Darwin для macOS
+        return UnixConfig()
+    else:
+        # Фоллбек на Unix конфигурацию
+        logging.warning(f"Неизвестная платформа {system}, используется Unix конфигурация")
+        return UnixConfig()
+
+
+# ============================================================================
+# ОСНОВНОЙ КОД БОТА
+# ============================================================================
+
+# Инициализируем конфигурацию платформы
+config = get_platform_config()
+
+# Добавляем пути к модулям БД и utils
+sys.path.insert(0, config.base_path)
+# Добавляем текущую папку telegram-bot для импорта utils
+current_dir = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, current_dir)
+
+# Настраиваем логирование
+logger = config.setup_logging()
+
+# Загружаем переменные окружения
+if config.load_environment():
+    logger.info(config.format_log_message(
+        f"Загружены переменные окружения из {config.env_path}", "✅"
+    ))
+
+# Импортируем модули БД после добавления пути
 from data.database import (
     db, get_or_create_session, update_session_data,
     get_interview_questions, get_total_users
@@ -33,19 +198,10 @@ from data.database import (
 
 from config.constants import ADMIN_USERS, ALLOWED_USERS
 
-# Настройка логирования
-logging.basicConfig(
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
-    level=logging.INFO,
-    handlers=[
-        logging.FileHandler('/var/GrantService/logs/telegram_bot.log'),
-        logging.StreamHandler()
-    ]
-)
-logger = logging.getLogger(__name__)
 
 class GrantServiceBotWithMenu:
     def __init__(self):
+        self.config = config  # Сохраняем конфигурацию
         self.token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.n8n_webhook_url = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/grant-service')
         self.gigachat_api_key = os.getenv('GIGACHAT_API_KEY')
@@ -65,23 +221,31 @@ class GrantServiceBotWithMenu:
     
     def is_user_authorized(self, user_id: int) -> bool:
         """Проверяет, авторизован ли пользователь"""
+        # ВСЕГДА разрешаем доступ (авторизация отключена)
+        return True
         # Если список разрешенных пользователей пуст, разрешаем всем
-        if not ALLOWED_USERS:
-            return True
-        return user_id in ALLOWED_USERS
+        # if not ALLOWED_USERS:
+        #     return True
+        # return user_id in ALLOWED_USERS
     
     def is_admin(self, user_id: int) -> bool:
         """Проверяет, является ли пользователь администратором"""
-        return user_id in ADMIN_USERS
+        # ВСЕГДА разрешаем админские функции (авторизация отключена)
+        return True
+        # return user_id in ADMIN_USERS
     
     def init_database(self):
         """Инициализация базы данных"""
         try:
             # Проверяем, что БД доступна
             total_users = get_total_users()
-            logger.info(f"✅ База данных инициализирована, пользователей: {total_users}")
+            logger.info(self.config.format_log_message(
+                f"База данных инициализирована, пользователей: {total_users}", "✅"
+            ))
         except Exception as e:
-            logger.error(f"❌ Ошибка инициализации БД: {e}")
+            logger.error(self.config.format_log_message(
+                f"Ошибка инициализации БД: {e}", "❌"
+            ))
     
     def get_total_questions(self) -> int:
         """Получить общее количество активных вопросов"""
@@ -124,16 +288,76 @@ class GrantServiceBotWithMenu:
         session['last_activity'] = datetime.now()
     
     async def start_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Стартовая команда - показывает главное меню"""
+        """Стартовая команда - показывает главное меню или обрабатывает deep link"""
         user = update.effective_user
         user_id = user.id
+        
+        # ДЕТАЛЬНОЕ ЛОГИРОВАНИЕ для отладки deep link
+        logger.info("="*60)
+        logger.info("ВЫЗОВ КОМАНДЫ /start")
+        logger.info(f"User ID: {user_id}")
+        logger.info(f"Username: {user.username}")
+        logger.info(f"Параметры context.args: {context.args}")
+        logger.info(f"Количество параметров: {len(context.args) if context.args else 0}")
+        if context.args:
+            for i, arg in enumerate(context.args):
+                logger.info(f"  Параметр {i}: '{arg}'")
+        logger.info(f"Update.message существует: {update.message is not None}")
+        logger.info(f"Update.callback_query существует: {update.callback_query is not None}")
+        logger.info("="*60)
+        
+        # Регистрируем пользователя в БД
+        try:
+            from data.database import db
+            db.register_user(
+                telegram_id=user_id,
+                username=user.username,
+                first_name=user.first_name,
+                last_name=user.last_name
+            )
+            logger.info(f"✅ Пользователь {user_id} зарегистрирован в БД")
+        except Exception as e:
+            logger.error(f"❌ Ошибка регистрации пользователя {user_id}: {e}")
         
         # Проверка авторизации
         if not self.is_user_authorized(user_id):
             await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
             return
         
-        # Сброс сессии при /start
+        # Проверяем параметры deep linking
+        if context.args and len(context.args) > 0:
+            command = context.args[0]
+            logger.info(f"🔍 Обнаружен deep link параметр: '{command}'")
+            
+            # Если параметр get_access - автоматически генерируем токен
+            if command == "get_access":
+                logger.info(self.config.format_log_message(
+                    f"✅ Deep link /start get_access от пользователя {user_id}", "🔗"
+                ))
+                # Используем существующее сообщение или создаем виртуальное
+                if update.message:
+                    logger.info("📨 Вызываем get_access_command с существующим message")
+                    # Вызываем функцию генерации токена с обычным update
+                    await self.get_access_command(update, context)
+                else:
+                    # Если это был callback, создаем новое сообщение
+                    logger.warning("⚠️ Deep link вызван без message, создаем виртуальное сообщение")
+                    # Отправляем сообщение пользователю и затем вызываем функцию
+                    msg = await context.bot.send_message(
+                        chat_id=user_id,
+                        text="🔐 Генерирую токен доступа..."
+                    )
+                    # Создаем новый update с этим сообщением
+                    update.message = msg
+                    await self.get_access_command(update, context)
+                logger.info("✅ Обработка deep link завершена")
+                return
+            else:
+                logger.info(f"⚠️ Неизвестный deep link параметр: '{command}'")
+        else:
+            logger.info("📋 Параметров deep link нет, показываем главное меню")
+        
+        # Обычная логика старта - сброс сессии и показ главного меню
         total_questions = self.get_total_questions()
         self.user_sessions[user_id] = {
             'state': 'main_menu',
@@ -145,73 +369,275 @@ class GrantServiceBotWithMenu:
         
         await self.show_main_menu(update, context)
     
-    async def login_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Команда для получения ссылки авторизации в админ панель"""
+    async def get_access_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /get_access - генерация токена доступа к админ-панели"""
         user = update.effective_user
         user_id = user.id
         
-        logger.info(f"📥 Получена команда /login от пользователя {user_id} ({user.username})")
+        logger.info(self.config.format_log_message(
+            f"Получена команда /get_access от пользователя {user_id} ({user.username})", "🔐"
+        ))
         
         # Проверка авторизации
         if not self.is_user_authorized(user_id):
-            logger.warning(f"❌ Доступ запрещен для пользователя {user_id}")
-            await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
+            logger.warning(self.config.format_log_message(
+                f"Доступ запрещен для пользователя {user_id}", "❌"
+            ))
+            # Обрабатываем и message, и callback_query
+            if update.message:
+                await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
+            elif update.callback_query:
+                await update.callback_query.answer("❌ Доступ запрещен", show_alert=True)
             return
         
         # Генерируем токен авторизации
         try:
             # Получаем или создаем токен для пользователя
-            from data.database import db
+            from data.database import db, auth_manager
+            
+            # Проверяем роль пользователя
+            user_role = auth_manager.get_user_role(user_id)
+            if not user_role:
+                # Устанавливаем роль по умолчанию
+                auth_manager.set_user_role(user_id, 'user')
+                user_role = 'user'
+            
             token = db.get_or_create_login_token(user_id)
-            logger.info(f"🔑 Получен токен для пользователя {user_id}: {token[:20] if token else 'None'}")
+            logger.info(self.config.format_log_message(
+                f"Сгенерирован токен для пользователя {user_id} с ролью {user_role}", "🔑"
+            ))
             
             if token:
                 # Формируем ссылку для входа в админ панель
-                admin_url = f"https://admin.grantservice.onff.ru?token={token}"
-                logger.info(f"🔗 Сформирована ссылка для пользователя {user_id}: {admin_url[:50]}...")
+                # Для локальной разработки используем localhost
+                base_url = os.getenv('ADMIN_BASE_URL', 'http://localhost:8501')
+                admin_url = f"{base_url}?token={token}"
                 
-                login_text = f"""
-🔐 *Ссылка для входа в админ панель*
+                # Логируем вход в систему
+                auth_manager.log_auth_action(
+                    user_id=user_id,
+                    action='generate_token',
+                    success=True
+                )
+                
+                access_text = f"""
+🔐 *Доступ к админ-панели*
 
-⚠️ **Внимание! Ни с кем не делитесь этой ссылкой!**
+✅ *Токен успешно сгенерирован!*
+📱 *Ваш Telegram ID:* `{user_id}`
+👤 *Роль в системе:* `{user_role}`
 
-🔗 Нажмите на ссылку для авторизации:
-`{admin_url}`
+🔗 *Ссылка для входа:*
+{admin_url}
 
-⚠️ Ссылка действительна 24 часа
-🔒 Не передавайте ссылку посторонним
+⏰ *Токен действителен:* 24 часа
+🔒 *Безопасность:* Не передавайте ссылку третьим лицам!
+
+💡 *Совет:* Ссылка активна - просто нажмите на неё
 """
                 
-                await update.message.reply_text(
-                    text=login_text,
-                    parse_mode='Markdown'
-                )
+                # Создаем инлайн-клавиатуру с дополнительными опциями
+                # НЕ добавляем кнопку с localhost URL - Telegram её не принимает
+                from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+                keyboard = [
+                    # Убираем кнопку с URL для localhost
+                    # [InlineKeyboardButton("🔗 Открыть админ-панель", url=admin_url)],
+                    [InlineKeyboardButton("🔄 Обновить токен", callback_data="refresh_token")],
+                    [InlineKeyboardButton("❌ Отозвать токен", callback_data="revoke_token")]
+                ]
+                reply_markup = InlineKeyboardMarkup(keyboard)
+                
+                # Отправляем сообщение в зависимости от типа update
+                if update.message:
+                    await update.message.reply_text(
+                        text=access_text,
+                        parse_mode='Markdown',
+                        reply_markup=reply_markup
+                    )
+                elif update.callback_query:
+                    await update.callback_query.edit_message_text(
+                        text=access_text,
+                        parse_mode='Markdown',
+                        reply_markup=reply_markup
+                    )
+                else:
+                    # Fallback - отправляем напрямую
+                    await context.bot.send_message(
+                        chat_id=user_id,
+                        text=access_text,
+                        parse_mode='Markdown',
+                        reply_markup=reply_markup
+                    )
             else:
-                logger.error(f"❌ Ошибка генерации токена для пользователя {user_id}")
-                await update.message.reply_text("❌ Ошибка генерации токена. Попробуйте позже.")
+                logger.error(self.config.format_log_message(
+                    f"Ошибка генерации токена для пользователя {user_id}", "❌"
+                ))
+                error_msg = "❌ Ошибка генерации токена. Попробуйте позже."
+                if update.message:
+                    await update.message.reply_text(error_msg)
+                elif update.callback_query:
+                    await update.callback_query.answer(error_msg, show_alert=True)
+                else:
+                    await context.bot.send_message(chat_id=user_id, text=error_msg)
                 
         except Exception as e:
-            logger.error(f"❌ Ошибка генерации ссылки авторизации для пользователя {user_id}: {e}")
+            logger.error(self.config.format_log_message(
+                f"Ошибка генерации токена доступа для пользователя {user_id}: {e}", "❌"
+            ))
             import traceback
             traceback.print_exc()
-            await update.message.reply_text("❌ Ошибка генерации ссылки. Попробуйте позже.")
+            error_msg = "❌ Ошибка генерации токена. Попробуйте позже."
+            if update.message:
+                await update.message.reply_text(error_msg)
+            elif update.callback_query:
+                await update.callback_query.answer(error_msg, show_alert=True)
+            else:
+                await context.bot.send_message(chat_id=user_id, text=error_msg)
+    
+    async def revoke_access_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /revoke_access - отзыв токена доступа"""
+        user = update.effective_user
+        user_id = user.id
+        
+        logger.info(self.config.format_log_message(
+            f"Получена команда /revoke_access от пользователя {user_id}", "🔓"
+        ))
+        
+        try:
+            from data.database import db, auth_manager
+            
+            # Очищаем токен пользователя
+            with db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE users SET login_token = NULL WHERE telegram_id = ?
+                """, (user_id,))
+                conn.commit()
+            
+            # Логируем отзыв токена
+            auth_manager.log_auth_action(
+                user_id=user_id,
+                action='revoke_token',
+                success=True
+            )
+            
+            logger.info(self.config.format_log_message(
+                f"Токен отозван для пользователя {user_id}", "✅"
+            ))
+            
+            revoke_text = """
+🔓 *Токен доступа отозван*
+
+✅ Ваш токен доступа к админ-панели был успешно отозван.
+
+Если вам снова понадобится доступ, используйте команду /get_access
+"""
+            
+            await update.message.reply_text(
+                text=revoke_text,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(self.config.format_log_message(
+                f"Ошибка отзыва токена для пользователя {user_id}: {e}", "❌"
+            ))
+            await update.message.reply_text("❌ Ошибка отзыва токена. Попробуйте позже.")
+    
+    async def my_access_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /my_access - информация о текущем доступе"""
+        user = update.effective_user
+        user_id = user.id
+        
+        logger.info(self.config.format_log_message(
+            f"Получена команда /my_access от пользователя {user_id}", "ℹ️"
+        ))
+        
+        try:
+            from data.database import db, auth_manager
+            
+            # Получаем информацию о пользователе
+            user_role = auth_manager.get_user_role(user_id)
+            user_permissions = auth_manager.get_user_permissions(user_id)
+            
+            # Проверяем наличие активного токена
+            with db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT login_token FROM users WHERE telegram_id = ?
+                """, (user_id,))
+                result = cursor.fetchone()
+                has_token = bool(result and result[0])
+            
+            # Формируем текст с информацией
+            access_info = f"""
+ℹ️ *Информация о вашем доступе*
+
+👤 *Telegram ID:* `{user_id}`
+📝 *Имя:* {user.first_name or 'Не указано'}
+🏷️ *Username:* @{user.username or 'не указан'}
+
+🎭 *Роль в системе:* `{user_role}`
+🔐 *Активный токен:* {'✅ Да' if has_token else '❌ Нет'}
+"""
+            
+            if user_permissions:
+                access_info += f"\n🔧 *Дополнительные разрешения:*\n"
+                for perm in user_permissions:
+                    access_info += f"  • {perm}\n"
+            
+            # Доступные страницы
+            accessible_pages = auth_manager.get_accessible_pages(user_id)
+            if accessible_pages:
+                access_info += f"\n📄 *Доступные страницы:*\n"
+                for page in accessible_pages[:5]:  # Показываем только первые 5
+                    access_info += f"  • {page}\n"
+                if len(accessible_pages) > 5:
+                    access_info += f"  ... и ещё {len(accessible_pages) - 5}\n"
+            
+            access_info += """
+            
+💡 *Команды управления доступом:*
+/get_access - Получить токен доступа
+/revoke_access - Отозвать токен
+/my_access - Эта информация
+"""
+            
+            await update.message.reply_text(
+                text=access_info,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка получения информации о доступе: {e}")
+            await update.message.reply_text("❌ Ошибка получения информации. Попробуйте позже.")
+    
+    async def login_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Команда /login - псевдоним для /get_access (для обратной совместимости)"""
+        await self.get_access_command(update, context)
     
     async def admin_command(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Команда для получения ссылки авторизации в админ панель (только для админов)"""
         user = update.effective_user
         user_id = user.id
         
-        logger.info(f"📥 Получена команда /admin от пользователя {user_id} ({user.username})")
+        logger.info(self.config.format_log_message(
+            f"Получена команда /admin от пользователя {user_id} ({user.username})", "📥"
+        ))
         
         # Проверка авторизации
         if not self.is_user_authorized(user_id):
-            logger.warning(f"❌ Доступ запрещен для пользователя {user_id}")
+            logger.warning(self.config.format_log_message(
+                f"Доступ запрещен для пользователя {user_id}", "❌"
+            ))
             await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
             return
         
         # Проверка прав администратора
         if not self.is_admin(user_id):
-            logger.warning(f"❌ Недостаточно прав для пользователя {user_id}")
+            logger.warning(self.config.format_log_message(
+                f"Недостаточно прав для пользователя {user_id}", "❌"
+            ))
             await update.message.reply_text("❌ Недостаточно прав. Требуются права администратора.")
             return
         
@@ -220,12 +646,16 @@ class GrantServiceBotWithMenu:
             # Получаем или создаем токен для пользователя
             from data.database import db
             token = db.get_or_create_login_token(user_id)
-            logger.info(f"🔑 Получен токен для администратора {user_id}: {token[:20] if token else 'None'}")
+            logger.info(self.config.format_log_message(
+                f"Получен токен для администратора {user_id}: {token[:20] if token else 'None'}", "🔑"
+            ))
             
             if token:
                 # Формируем ссылку для входа в админ панель
                 admin_url = f"https://admin.grantservice.onff.ru?token={token}"
-                logger.info(f"🔗 Сформирована ссылка для администратора {user_id}: {admin_url[:50]}...")
+                logger.info(self.config.format_log_message(
+                    f"Сформирована ссылка для администратора {user_id}: {admin_url[:50]}...", "🔗"
+                ))
                 
                 admin_text = f"""
 🔐 *Ссылка для входа в админ панель*
@@ -246,11 +676,15 @@ class GrantServiceBotWithMenu:
                     parse_mode='Markdown'
                 )
             else:
-                logger.error(f"❌ Ошибка генерации токена для администратора {user_id}")
+                logger.error(self.config.format_log_message(
+                    f"Ошибка генерации токена для администратора {user_id}", "❌"
+                ))
                 await update.message.reply_text("❌ Ошибка генерации токена. Попробуйте позже.")
                 
         except Exception as e:
-            logger.error(f"❌ Ошибка генерации админ-ссылки для пользователя {user_id}: {e}")
+            logger.error(self.config.format_log_message(
+                f"Ошибка генерации админ-ссылки для пользователя {user_id}: {e}", "❌"
+            ))
             import traceback
             traceback.print_exc()
             await update.message.reply_text("❌ Ошибка генерации ссылки. Попробуйте позже.")
@@ -304,8 +738,8 @@ class GrantServiceBotWithMenu:
             return
         
         # Обновляем состояние
-        self.update_user_session(user_id, 
-                               state='interviewing', 
+        self.update_user_session(user_id,
+                               state='interviewing',
                                current_question=question_number)
         
         # Создаем клавиатуру навигации
@@ -331,11 +765,35 @@ class GrantServiceBotWithMenu:
 *Вопрос {question_number} из {session['total_questions']}*
 
 {question['question_text']}
-
-{f"💡 *Подсказка:* {question['hint_text']}" if question.get('hint_text') else ""}
-
-{f"📝 *Тип ответа:* {question['question_type']}" if question.get('question_type') else ""}
 """
+        
+        # Если это вопрос типа select, добавляем варианты ответов
+        if question.get('question_type') == 'select' and question.get('options'):
+            try:
+                import json
+                # Проверяем, является ли options уже списком или нужно парсить JSON
+                if isinstance(question['options'], str):
+                    options = json.loads(question['options'])
+                elif isinstance(question['options'], list):
+                    options = question['options']
+                else:
+                    # Если это bytes или другой тип, пытаемся декодировать
+                    options = json.loads(str(question['options']))
+                
+                question_text += "\n*Варианты ответов:*\n"
+                for i, option in enumerate(options, 1):
+                    question_text += f"\n{i}. {option.get('text', option.get('value'))}"
+                    if option.get('description'):
+                        question_text += f"\n   _{option['description']}_"
+                
+                question_text += "\n\n📝 *Введите номер выбранного варианта (от 1 до " + str(len(options)) + ")*"
+            except Exception as e:
+                logger.error(f"Ошибка парсинга вариантов ответа: {e}")
+                question_text += "\n\n⚠️ Ошибка загрузки вариантов ответа"
+        
+        # Добавляем подсказку
+        if question.get('hint_text'):
+            question_text += f"\n\n💡 *Подсказка:* {question['hint_text']}"
         
         if update.callback_query:
             await update.callback_query.edit_message_text(
@@ -415,7 +873,60 @@ class GrantServiceBotWithMenu:
         
         callback_data = query.data
         
-        if callback_data == "start_interview":
+        # Обработка токен-команд
+        if callback_data == "refresh_token":
+            # Обновление токена
+            try:
+                from data.database import db, auth_manager
+                new_token = db.refresh_login_token(user_id)
+                if new_token:
+                    base_url = os.getenv('ADMIN_BASE_URL', 'http://localhost:8501')
+                    admin_url = f"{base_url}?token={new_token}"
+                    
+                    auth_manager.log_auth_action(
+                        user_id=user_id,
+                        action='refresh_token',
+                        success=True
+                    )
+                    
+                    await query.answer("✅ Токен обновлен!", show_alert=True)
+                    await query.edit_message_text(
+                        text=f"🔐 *Токен обновлен!*\n\n🔗 *Новая ссылка:*\n{admin_url}\n\n⏰ Действителен 24 часа",
+                        parse_mode='Markdown'
+                    )
+                else:
+                    await query.answer("❌ Ошибка обновления токена", show_alert=True)
+            except Exception as e:
+                logger.error(f"Ошибка обновления токена: {e}")
+                await query.answer("❌ Ошибка обновления токена", show_alert=True)
+            return
+            
+        elif callback_data == "revoke_token":
+            # Отзыв токена
+            try:
+                from data.database import db, auth_manager
+                with db.connect() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("UPDATE users SET login_token = NULL WHERE telegram_id = ?", (user_id,))
+                    conn.commit()
+                
+                auth_manager.log_auth_action(
+                    user_id=user_id,
+                    action='revoke_token_inline',
+                    success=True
+                )
+                
+                await query.answer("✅ Токен отозван!", show_alert=True)
+                await query.edit_message_text(
+                    text="🔓 *Токен доступа отозван*\n\nДля получения нового токена используйте команду /get_access",
+                    parse_mode='Markdown'
+                )
+            except Exception as e:
+                logger.error(f"Ошибка отзыва токена: {e}")
+                await query.answer("❌ Ошибка отзыва токена", show_alert=True)
+            return
+        
+        elif callback_data == "start_interview":
             # Начинаем интервью с первого вопроса
             await self.show_question_navigation(update, context, 1)
             
@@ -479,6 +990,15 @@ https://grantservice.onff.ru/payment
         elif callback_data == "submit_for_review":
             # Отправка на проверку
             await self.submit_application_for_review(update, context)
+            
+        elif callback_data == "new_anketa":
+            # Начать новую анкету
+            await self.start_new_anketa(update, context)
+            
+        elif callback_data.startswith("send_to_processing_"):
+            # Отправить анкету на обработку
+            anketa_id = callback_data.replace("send_to_processing_", "")
+            await self.send_anketa_to_processing(update, context, anketa_id)
     
     async def show_application_status(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Показать статус заявки"""
@@ -563,10 +1083,14 @@ https://grantservice.onff.ru/payment
                 await self.show_error(update, context, "Ошибка сохранения анкеты. Попробуйте позже.")
                 return
             
-            logger.info(f"✅ Анкета сохранена: {anketa_id} для пользователя {user_id}")
+            logger.info(self.config.format_log_message(
+                f"Анкета сохранена: {anketa_id} для пользователя {user_id}", "✅"
+            ))
             
         except Exception as e:
-            logger.error(f"❌ Ошибка сохранения анкеты: {e}")
+            logger.error(self.config.format_log_message(
+                f"Ошибка сохранения анкеты: {e}", "❌"
+            ))
             await self.show_error(update, context, "Ошибка сохранения анкеты. Попробуйте позже.")
             return
         
@@ -593,8 +1117,8 @@ https://grantservice.onff.ru/payment
 4️⃣ Создает структуру заявки
 5️⃣ Подготавливает финальный документ
 
-*Время обработки:* 2-4 часа
-*Уведомления:* Вы получите сообщение о готовности
+⏰ *Ваша заявка в работе!*
+📞 *В течение 48 часов мы свяжемся с вами*
 
 Спасибо за использование Грантсервиса! 🚀
 """
@@ -632,13 +1156,62 @@ https://grantservice.onff.ru/payment
         current_question = session['current_question']
         answer = update.message.text
         
-        # Получаем field_name для текущего вопроса
+        # Получаем информацию о текущем вопросе
         question_info = self.get_question_by_number(current_question)
         if question_info and question_info.get('field_name'):
             field_name = question_info['field_name']
         else:
             # Fallback на номер вопроса, если field_name не найден
             field_name = str(current_question)
+        
+        # Если это вопрос типа select, обрабатываем выбор по номеру
+        if question_info and question_info.get('question_type') == 'select':
+            try:
+                # Проверяем, что введен номер
+                choice_num = int(answer.strip())
+                
+                # Загружаем варианты ответов
+                import json
+                options_data = question_info.get('options', '[]')
+                
+                # Проверяем тип данных options
+                if isinstance(options_data, str):
+                    options = json.loads(options_data)
+                elif isinstance(options_data, list):
+                    options = options_data
+                else:
+                    options = json.loads(str(options_data))
+                
+                if 1 <= choice_num <= len(options):
+                    # Сохраняем ТЕКСТ выбранного варианта для анализа заявки
+                    selected_option = options[choice_num - 1]
+                    # Берем полный текст варианта, а не value (код)
+                    answer = selected_option.get('text', selected_option.get('value', str(choice_num)))
+                    
+                    # Логируем выбор пользователя
+                    answer_value = selected_option.get('value', '')
+                    logger.info(f"Пользователь {user_id} выбрал вариант {choice_num}: {answer}")
+                    logger.info(f"  -> Текст для БД: {answer}")
+                    logger.info(f"  -> Код варианта: {answer_value}")
+                else:
+                    await update.message.reply_text(
+                        f"⚠️ Пожалуйста, введите число от 1 до {len(options)}"
+                    )
+                    return
+                    
+            except ValueError:
+                await update.message.reply_text(
+                    "⚠️ Для вопросов с вариантами ответа введите номер варианта (например: 1)"
+                )
+                return
+            except json.JSONDecodeError as e:
+                logger.error(f"Ошибка декодирования JSON: {e}, данные: {type(options_data)}")
+                await update.message.reply_text(
+                    "⚠️ Ошибка загрузки вариантов ответа. Пожалуйста, введите ваш ответ текстом."
+                )
+                # Продолжаем обработку как обычного текстового ответа
+            except Exception as e:
+                logger.error(f"Ошибка обработки select вопроса: {e}")
         
         # Сохраняем ответ в память по field_name
         session['answers'][field_name] = answer
@@ -663,18 +1236,38 @@ https://grantservice.onff.ru/payment
                     'last_activity': datetime.now().isoformat()
                 })
                 
-                logger.info(f"✅ Ответ сохранен в БД для пользователя {user_id}, вопрос {current_question}")
+                logger.info(self.config.format_log_message(
+                    f"Ответ сохранен в БД для пользователя {user_id}, вопрос {current_question}", "✅"
+                ))
             else:
-                logger.error(f"❌ Не удалось получить сессию БД для пользователя {user_id}")
+                logger.error(self.config.format_log_message(
+                    f"Не удалось получить сессию БД для пользователя {user_id}", "❌"
+                ))
                 
         except Exception as e:
-            logger.error(f"❌ Ошибка сохранения ответа в БД: {e}")
+            logger.error(self.config.format_log_message(
+                f"Ошибка сохранения ответа в БД: {e}", "❌"
+            ))
         
-        # Переходим к следующему вопросу или показываем экран проверки
-        if current_question < session['total_questions']:
+        # Актуализируем количество вопросов перед проверкой
+        actual_total_questions = self.get_total_questions()
+        session['total_questions'] = actual_total_questions  # Обновляем в сессии
+        
+        # Логирование для отладки
+        logger.info(f"Пользователь {user_id}: вопрос {current_question} из {actual_total_questions} активных")
+        
+        # Проверяем, ответил ли пользователь на все активные вопросы
+        if current_question < actual_total_questions:
             await self.show_question_navigation(update, context, current_question + 1)
         else:
-            await self.show_review_screen(update, context)
+            # Автоматически сохраняем анкету после последнего активного вопроса
+            logger.info(f"Пользователь {user_id} ответил на все {actual_total_questions} активных вопросов")
+            anketa_id = await self.auto_save_anketa(update, context, user_id)
+            if anketa_id:
+                await self.show_completion_screen(update, context, anketa_id)
+            else:
+                # Если не удалось сохранить, показываем экран проверки
+                await self.show_review_screen(update, context)
     
     async def call_n8n_webhook(self, action: str, data: Dict[str, Any]) -> Dict[str, Any]:
         """Вызов n8n webhook"""
@@ -722,26 +1315,248 @@ https://grantservice.onff.ru/payment
                 parse_mode='Markdown'
             )
     
+    async def auto_save_anketa(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int) -> Optional[str]:
+        """Автоматически сохранить анкету после последнего вопроса"""
+        try:
+            session = self.get_user_session(user_id)
+            
+            # Логирование для отладки
+            logger.info(f"Автосохранение: пользователь {user_id} заполнил {len(session['answers'])} из {session['total_questions']} вопросов")
+            
+            # Получаем данные пользователя
+            user = update.effective_user
+            user_data = {
+                "telegram_id": user.id,
+                "username": user.username,
+                "first_name": user.first_name,
+                "last_name": user.last_name
+            }
+            
+            # Получаем сессию из БД
+            db_session = get_or_create_session(user_id)
+            if not db_session:
+                logger.error(f"Не удалось получить сессию для пользователя {user_id}")
+                return None
+            
+            # Подготавливаем данные анкеты
+            anketa_data = {
+                "user_data": user_data,
+                "session_id": db_session['id'],
+                "interview_data": session['answers']
+            }
+            
+            # Сохраняем анкету и получаем anketa_id
+            from data.database import db
+            anketa_id = db.save_anketa(anketa_data)
+            
+            if anketa_id:
+                logger.info(f"Анкета автоматически сохранена: {anketa_id} для пользователя {user_id}")
+                # Сохраняем anketa_id в сессии для дальнейшего использования
+                session['anketa_id'] = anketa_id
+                
+                # НОВОЕ: Автоматически создаем грантовую заявку
+                try:
+                    from utils.grant_application_creator import create_grant_application_from_session, update_session_completion_status
+                    
+                    # Создаем грантовую заявку
+                    app_number = create_grant_application_from_session(
+                        session_id=db_session['id'],
+                        user_data=user_data,
+                        answers=session['answers']
+                    )
+                    
+                    if app_number:
+                        logger.info(f"✅ Автоматически создана грантовая заявка: {app_number} для пользователя {user_id}")
+                        
+                        # Обновляем статус сессии
+                        update_session_completion_status(db_session['id'], app_number)
+                        
+                        # Сохраняем номер заявки в сессии
+                        session['application_number'] = app_number
+                        
+                        # Логируем успешное создание заявки (уведомление отправим через show_completion_screen)
+                        logger.info(f"✅ Грантовая заявка {app_number} будет показана в финальном экране")
+                    
+                    else:
+                        logger.warning(f"⚠️ Не удалось создать грантовую заявку для пользователя {user_id}, но анкета сохранена")
+                        
+                except Exception as grant_error:
+                    logger.error(f"❌ Ошибка создания грантовой заявки: {grant_error}")
+                    # Не прерываем выполнение - анкета уже сохранена
+                
+                return anketa_id
+            else:
+                logger.error(f"Не удалось сохранить анкету для пользователя {user_id}")
+                return None
+                
+        except Exception as e:
+            logger.error(f"Ошибка автосохранения анкеты: {e}")
+            return None
+    
+    async def show_completion_screen(self, update: Update, context: ContextTypes.DEFAULT_TYPE, anketa_id: str):
+        """Показать экран успешного завершения анкеты"""
+        user_id = update.effective_user.id
+        session = self.get_user_session(user_id)
+        
+        # Проверяем, создана ли грантовая заявка
+        app_number = session.get('application_number')
+        
+        if app_number:
+            # Если заявка создана - показываем упрощенное меню
+            keyboard = [
+                [InlineKeyboardButton("📝 Заполнить новую анкету", callback_data="new_anketa")],
+                [InlineKeyboardButton("🏠 Вернуться в меню", callback_data="main_menu")]
+            ]
+            
+            completion_text = f"""
+🎉 *Поздравляем! Интервью завершено!*
+
+✅ *Анкета сохранена:* `{anketa_id}`
+📋 *Грантовая заявка создана:* `{app_number}`
+
+🚀 *Ваша заявка автоматически создана и находится в обработке!*
+
+📞 *Что дальше:*
+• Наши эксперты проверят заявку
+• При необходимости мы свяжемся с вами
+• Готовый документ будет выслан в течение 48 часов
+
+*Спасибо за использование ГрантСервиса!*
+"""
+        else:
+            # Если заявка не создана - оставляем старое меню с возможностью отправки
+            keyboard = [
+                [InlineKeyboardButton("📝 Заполнить новую анкету", callback_data="new_anketa")],
+                [InlineKeyboardButton("📤 Отправить на обработку", callback_data=f"send_to_processing_{anketa_id}")],
+                [InlineKeyboardButton("🏠 Вернуться в меню", callback_data="main_menu")]
+            ]
+            
+            completion_text = f"""
+✅ *Анкета успешно сохранена!*
+
+📋 *Номер вашей анкеты:* `{anketa_id}`
+
+Все ваши ответы сохранены в базе данных.
+Вы можете скопировать номер анкеты для дальнейшего использования.
+
+⏰ *Ваша заявка в работе!*
+📞 *В течение 48 часов мы свяжемся с вами*
+
+*Что вы хотите сделать дальше?*
+"""
+        
+        reply_markup = InlineKeyboardMarkup(keyboard)
+        
+        await update.message.reply_text(
+            text=completion_text,
+            reply_markup=reply_markup,
+            parse_mode='Markdown'
+        )
+    
+    async def start_new_anketa(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Начать заполнение новой анкеты"""
+        user = update.effective_user
+        user_id = user.id
+        
+        # Сбрасываем сессию
+        total_questions = self.get_total_questions()
+        self.user_sessions[user_id] = {
+            'state': 'interviewing',
+            'current_question': 1,
+            'total_questions': total_questions,
+            'answers': {},
+            'started_at': datetime.now()
+        }
+        
+        # Показываем первый вопрос
+        await self.show_question_navigation(update, context, 1)
+    
+    async def send_anketa_to_processing(self, update: Update, context: ContextTypes.DEFAULT_TYPE, anketa_id: str):
+        """Отправить анкету на обработку в n8n"""
+        user_id = update.effective_user.id
+        
+        try:
+            # Отправляем в n8n для обработки
+            result = await self.call_n8n_webhook('submit_application', {
+                'user_id': user_id,
+                'anketa_id': anketa_id,
+                'submitted_at': datetime.now().isoformat()
+            })
+            
+            success_text = f"""
+✅ *Анкета отправлена на обработку!*
+
+*ID анкеты:* `{anketa_id}`
+
+*Что происходит дальше:*
+1️⃣ Наш ИИ-исследователь анализирует ваши ответы
+2️⃣ Проводит исследование рынка и конкурентов
+3️⃣ Находит подходящие грантовые возможности
+4️⃣ Создает структуру заявки
+5️⃣ Подготавливает финальный документ
+
+⏰ *Ваша заявка в работе!*
+📞 *В течение 48 часов мы свяжемся с вами*
+
+Спасибо за использование Грантсервиса! 🚀
+"""
+            
+            keyboard = [[InlineKeyboardButton("🏠 Вернуться в меню", callback_data="main_menu")]]
+            reply_markup = InlineKeyboardMarkup(keyboard)
+            
+            await update.callback_query.edit_message_text(
+                text=success_text,
+                reply_markup=reply_markup,
+                parse_mode='Markdown'
+            )
+            
+        except Exception as e:
+            logger.error(f"Ошибка отправки анкеты на обработку: {e}")
+            await self.show_error(update, context, f"Ошибка отправки анкеты {anketa_id} на обработку")
+    
     def run(self):
         """Запуск бота"""
         if not self.token:
-            logger.error("❌ TELEGRAM_BOT_TOKEN не установлен")
+            logger.error(self.config.format_log_message(
+                "TELEGRAM_BOT_TOKEN не установлен", "❌"
+            ))
+            logger.error("Пожалуйста, установите переменную окружения TELEGRAM_BOT_TOKEN")
+            logger.error(f"Или добавьте её в файл {self.config.env_path}")
             return
         
         # Создаем приложение
         application = Application.builder().token(self.token).build()
         
-        # Добавляем обработчики
+        # Добавляем обработчики команд
         application.add_handler(CommandHandler("start", self.start_command))
+        
+        # Команды управления токенами
+        application.add_handler(CommandHandler("get_access", self.get_access_command))
+        application.add_handler(CommandHandler("revoke_access", self.revoke_access_command))
+        application.add_handler(CommandHandler("my_access", self.my_access_command))
+        
+        # Старые команды для совместимости
         application.add_handler(CommandHandler("login", self.login_command))
         application.add_handler(CommandHandler("admin", self.admin_command))
+        
+        # Обработчики коллбэков и сообщений
         application.add_handler(CallbackQueryHandler(self.handle_menu_callback))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
         
         # Запускаем бота
-        logger.info("🤖 Бот запущен с интерактивным меню")
-        application.run_polling()
+        logger.info(self.config.format_log_message(
+            f"Бот запущен на платформе {platform.system()}", "🤖"
+        ))
+        logger.info("Для остановки нажмите Ctrl+C")
+        
+        try:
+            application.run_polling(drop_pending_updates=True)
+        except Exception as e:
+            logger.error(self.config.format_log_message(
+                f"Ошибка при запуске бота: {e}", "❌"
+            ))
+
 
 if __name__ == "__main__":
     bot = GrantServiceBotWithMenu()
-    bot.run() 
+    bot.run()

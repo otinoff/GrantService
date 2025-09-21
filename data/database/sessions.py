@@ -23,24 +23,41 @@ class SessionManager:
                 active_questions_count = cursor.fetchone()[0] or 0
                 
                 current_time = get_kuzbass_time()
-                cursor.execute("""
-                    INSERT INTO sessions (telegram_id, current_step, status, started_at, last_activity, total_questions)
-                    VALUES (?, ?, ?, ?, ?, ?)
-                """, (
-                    telegram_id, 
-                    'main_menu', 
-                    'active', 
-                    current_time, 
-                    current_time,
-                    active_questions_count
-                ))
+                
+                # Проверяем, есть ли колонка total_questions
+                cursor.execute("PRAGMA table_info(sessions)")
+                columns = [col[1] for col in cursor.fetchall()]
+                
+                if 'total_questions' in columns:
+                    cursor.execute("""
+                        INSERT INTO sessions (telegram_id, current_step, status, started_at, last_activity, total_questions)
+                        VALUES (?, ?, ?, ?, ?, ?)
+                    """, (
+                        telegram_id,
+                        'main_menu',
+                        'active',
+                        current_time,
+                        current_time,
+                        active_questions_count
+                    ))
+                else:
+                    cursor.execute("""
+                        INSERT INTO sessions (telegram_id, current_step, status, started_at, last_activity)
+                        VALUES (?, ?, ?, ?, ?)
+                    """, (
+                        telegram_id,
+                        'main_menu',
+                        'active',
+                        current_time,
+                        current_time
+                    ))
                 
                 session_id = cursor.lastrowid
                 conn.commit()
-                print(f"✅ Создана сессия {session_id} для пользователя {telegram_id}")
+                print(f"[OK] Создана сессия {session_id} для пользователя {telegram_id}")
                 return session_id
         except Exception as e:
-            print(f"❌ Ошибка создания сессии: {e}")
+            print(f"[ERROR] Ошибка создания сессии: {e}")
             return 0
     
     def get_user_sessions(self, telegram_id: int) -> List[Dict[str, Any]]:
@@ -64,7 +81,7 @@ class SessionManager:
                 
                 return sessions
         except Exception as e:
-            print(f"❌ Ошибка получения сессий пользователя: {e}")
+            print(f"[ERROR] Ошибка получения сессий пользователя: {e}")
             return []
     
     def get_session_progress(self, session_id: int) -> Dict[str, Any]:
@@ -96,7 +113,7 @@ class SessionManager:
                     return dict(zip(columns, row))
                 return {}
         except Exception as e:
-            print(f"❌ Ошибка получения прогресса сессии: {e}")
+            print(f"[ERROR] Ошибка получения прогресса сессии: {e}")
             return {}
     
     def get_user_answers(self, session_id: int) -> List[Dict[str, Any]]:
@@ -124,7 +141,7 @@ class SessionManager:
                 
                 return answers
         except Exception as e:
-            print(f"❌ Ошибка получения ответов пользователя: {e}")
+            print(f"[ERROR] Ошибка получения ответов пользователя: {e}")
             return []
     
     def save_user_answer(self, session_id: int, question_id: int, answer_text: str) -> bool:
@@ -158,7 +175,7 @@ class SessionManager:
                 conn.commit()
                 return True
         except Exception as e:
-            print(f"❌ Ошибка сохранения ответа: {e}")
+            print(f"[ERROR] Ошибка сохранения ответа: {e}")
             return False
     
     def get_active_sessions(self) -> List[Dict[str, Any]]:
@@ -187,7 +204,7 @@ class SessionManager:
                 
                 return sessions
         except Exception as e:
-            print(f"❌ Ошибка получения активных сессий: {e}")
+            print(f"[ERROR] Ошибка получения активных сессий: {e}")
             return []
     
     def get_completed_sessions(self) -> List[Dict[str, Any]]:
@@ -216,7 +233,7 @@ class SessionManager:
                 
                 return sessions
         except Exception as e:
-            print(f"❌ Ошибка получения завершенных сессий: {e}")
+            print(f"[ERROR] Ошибка получения завершенных сессий: {e}")
             return []
 
     def get_or_create_session(self, telegram_id: int) -> Dict[str, Any]:
@@ -251,7 +268,7 @@ class SessionManager:
                         return None
                         
         except Exception as e:
-            print(f"❌ Ошибка получения/создания сессии: {e}")
+            print(f"[ERROR] Ошибка получения/создания сессии: {e}")
             return None
 
     def update_session_data(self, session_id: int, data: Dict[str, Any]) -> bool:
@@ -282,7 +299,7 @@ class SessionManager:
                 return True
                 
         except Exception as e:
-            print(f"❌ Ошибка обновления сессии: {e}")
+            print(f"[ERROR] Ошибка обновления сессии: {e}")
             return False
 
 # Глобальные функции для совместимости

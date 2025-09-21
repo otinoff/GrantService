@@ -1,222 +1,246 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Модуль для проверки прав доступа к страницам админки
+Страница авторизации для GrantService Admin Panel
+Впечатляющий дизайн с QR кодом и автообновлением
 """
 
 import streamlit as st
-import sys
 import os
-from functools import wraps
+import time
+from datetime import datetime
+import qrcode
+import io
+from PIL import Image
 
-sys.path.append('/var/GrantService')
-from data.database import auth_manager, UserRole
-
-class PageAuth:
-    """Класс для управления авторизацией страниц"""
+def show_impressive_login_page():
+    """Показать впечатляющую страницу входа через Telegram"""
     
-    @staticmethod
-    def check_page_access(page_name: str) -> bool:
-        """Проверить доступ к странице"""
-        if 'user_data' not in st.session_state:
-            return False
-        
-        user_id = st.session_state.user_data.get('telegram_id')
-        if not user_id:
-            return False
-        
-        return auth_manager.can_access_page(user_id, page_name)
-    
-    @staticmethod
-    def require_page_access(page_name: str):
-        """Декоратор для требования доступа к странице"""
-        def decorator(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                if not PageAuth.check_page_access(page_name):
-                    st.error(f"❌ У вас нет доступа к странице '{page_name}'")
-                    st.stop()
-                return func(*args, **kwargs)
-            return wrapper
-        return decorator
-    
-    @staticmethod
-    def require_admin():
-        """Декоратор для страниц только для администраторов"""
-        def decorator(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                if 'user_data' not in st.session_state:
-                    st.error("❌ Требуется авторизация")
-                    st.stop()
-                
-                user_id = st.session_state.user_data.get('telegram_id')
-                if not auth_manager.is_admin(user_id):
-                    st.error("❌ Эта страница доступна только администраторам")
-                    st.stop()
-                    
-                return func(*args, **kwargs)
-            return wrapper
-        return decorator
-    
-    @staticmethod
-    def require_editor():
-        """Декоратор для страниц редакторов"""
-        def decorator(func):
-            @wraps(func)
-            def wrapper(*args, **kwargs):
-                if 'user_data' not in st.session_state:
-                    st.error("❌ Требуется авторизация")
-                    st.stop()
-                
-                user_id = st.session_state.user_data.get('telegram_id')
-                if not auth_manager.can_edit_content(user_id):
-                    st.error("❌ Эта страница доступна только редакторам и администраторам")
-                    st.stop()
-                    
-                return func(*args, **kwargs)
-            return wrapper
-        return decorator
-    
-    @staticmethod
-    def get_user_role_badge() -> str:
-        """Получить badge с ролью пользователя"""
-        if 'user_data' not in st.session_state:
-            return ""
-        
-        user_id = st.session_state.user_data.get('telegram_id')
-        if not user_id:
-            return ""
-        
-        role = auth_manager.get_user_role(user_id)
-        
-        role_badges = {
-            UserRole.ADMIN.value: "👑 Администратор",
-            UserRole.EDITOR.value: "✏️ Редактор",
-            UserRole.VIEWER.value: "👁️ Наблюдатель",
-            UserRole.USER.value: "👤 Пользователь"
-        }
-        
-        return role_badges.get(role, "👤 Пользователь")
-    
-    @staticmethod
-    def show_access_denied_message(required_role: str = None):
-        """Показать сообщение об отказе в доступе"""
-        st.error("❌ Доступ запрещен")
-        
-        if required_role:
-            st.info(f"Для доступа к этой странице требуется роль: **{required_role}**")
-        
-        st.markdown("""
-        ### Что вы можете сделать:
-        
-        1. **Обратитесь к администратору** для получения необходимых прав
-        2. **Проверьте свою роль** в настройках профиля
-        3. **Вернитесь на главную страницу** и выберите доступный раздел
-        """)
-        
-        if st.button("🏠 На главную"):
-            st.switch_page("pages/📊_Главная.py")
-    
-    @staticmethod
-    def get_accessible_pages() -> list:
-        """Получить список доступных страниц для текущего пользователя"""
-        if 'user_data' not in st.session_state:
-            return []
-        
-        user_id = st.session_state.user_data.get('telegram_id')
-        if not user_id:
-            return []
-        
-        return auth_manager.get_accessible_pages(user_id)
-    
-    @staticmethod
-    def show_navigation_sidebar():
-        """Показать навигацию с учетом прав доступа"""
-        with st.sidebar:
-            st.markdown("## 🧭 Навигация")
-            
-            # Показываем роль пользователя
-            badge = PageAuth.get_user_role_badge()
-            if badge:
-                st.markdown(f"**{badge}**")
-                st.markdown("---")
-            
-            # Получаем доступные страницы
-            accessible_pages = PageAuth.get_accessible_pages()
-            
-            # Группы страниц
-            page_groups = {
-                "📊 Аналитика": [
-                    ("dashboard", "📊 Главная", "pages/📊_Главная.py"),
-                    ("analytics", "📈 Аналитика", "pages/📈_Аналитика.py"),
-                    ("export", "📥 Экспорт", "pages/📥_Экспорт_данных.py"),
-                ],
-                "✏️ Управление контентом": [
-                    ("questions", "❓ Вопросы", "pages/❓_Вопросы_интервью.py"),
-                    ("prompts", "🤖 Промпты", "pages/🤖_Промпты_агентов.py"),
-                    ("agents", "👥 Агенты", "pages/👥_Агенты.py"),
-                    ("applications", "📋 Заявки", "pages/📋_Заявки.py"),
-                ],
-                "⚙️ Администрирование": [
-                    ("users", "👤 Пользователи", "pages/👤_Пользователи.py"),
-                    ("settings", "⚙️ Настройки", "pages/⚙️_Настройки.py"),
-                    ("logs", "📜 Логи", "pages/📜_Логи.py"),
-                ],
-            }
-            
-            # Показываем доступные страницы по группам
-            for group_name, pages in page_groups.items():
-                # Проверяем, есть ли доступные страницы в группе
-                group_accessible = [p for p in pages if p[0] in accessible_pages]
-                
-                if group_accessible:
-                    st.markdown(f"### {group_name}")
-                    for page_key, page_title, page_file in group_accessible:
-                        if st.button(page_title, key=f"nav_{page_key}"):
-                            st.switch_page(page_file)
-                    st.markdown("")
-
-# Функции для использования в страницах
-def check_auth():
-    """Базовая проверка авторизации"""
-    if 'user_data' not in st.session_state:
-        st.error("❌ Требуется авторизация")
-        st.markdown("""
-        ### Как войти в систему:
-        1. Откройте Telegram бота @GrantServiceBot
-        2. Выполните команду `/login` или `/admin`
-        3. Перейдите по полученной ссылке
-        """)
-        st.stop()
-    
-    return st.session_state.user_data
-
-def check_role(required_role: UserRole):
-    """Проверка роли пользователя"""
-    user_data = check_auth()
-    user_id = user_data.get('telegram_id')
-    
-    user_role = auth_manager.get_user_role(user_id)
-    
-    # Проверяем иерархию ролей
-    role_hierarchy = {
-        UserRole.USER.value: 0,
-        UserRole.VIEWER.value: 1,
-        UserRole.EDITOR.value: 2,
-        UserRole.ADMIN.value: 3
+    # Настройка стилей для полной ширины
+    st.markdown("""
+    <style>
+    /* Убираем padding по умолчанию и используем всю ширину */
+    .block-container {
+        padding-top: 2rem;
+        padding-bottom: 2rem;
+        padding-left: 5rem;
+        padding-right: 5rem;
+        max-width: 100%;
     }
     
-    user_level = role_hierarchy.get(user_role, 0)
-    required_level = role_hierarchy.get(required_role.value, 999)
+    .main-container {
+        max-width: 900px;
+        margin: 0 auto;
+        padding: 20px;
+    }
     
-    if user_level < required_level:
-        PageAuth.show_access_denied_message(required_role.value)
-        st.stop()
+    .main-title {
+        text-align: center;
+        color: #1f77b4;
+        margin-bottom: 30px;
+        font-size: 48px;
+    }
     
-    return user_data
-
-# Экспортируем для удобства использования
-require_admin = PageAuth.require_admin
-require_editor = PageAuth.require_editor
-require_page_access = PageAuth.require_page_access
+    .subtitle {
+        text-align: center;
+        color: #666;
+        font-size: 24px;
+        margin-bottom: 40px;
+    }
+    
+    .info-box {
+        background-color: #f0f8ff;
+        border-radius: 15px;
+        padding: 30px;
+        margin: 30px auto;
+        border-left: 5px solid #0088cc;
+        max-width: 700px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .info-box h4 {
+        font-size: 24px;
+        margin-bottom: 15px;
+    }
+    
+    .info-box p {
+        font-size: 18px;
+        line-height: 1.6;
+    }
+    
+    .step-section {
+        max-width: 700px;
+        margin: 40px auto;
+    }
+    
+    .step-section h3 {
+        font-size: 28px;
+        color: #333;
+        margin-bottom: 20px;
+    }
+    
+    .telegram-button {
+        display: block;
+        width: 100%;
+        max-width: 500px;
+        height: 70px;
+        font-size: 24px;
+        font-weight: bold;
+        background-color: #0088cc;
+        color: white;
+        border-radius: 15px;
+        border: none;
+        cursor: pointer;
+        margin: 20px auto;
+        text-align: center;
+        line-height: 70px;
+        text-decoration: none;
+        transition: all 0.3s ease;
+        box-shadow: 0 4px 15px rgba(0,136,204,0.3);
+    }
+    
+    .telegram-button:hover {
+        background-color: #006699;
+        transform: translateY(-2px);
+        box-shadow: 0 6px 20px rgba(0,136,204,0.4);
+    }
+    
+    .security-note {
+        background-color: #fff3cd;
+        border-radius: 10px;
+        padding: 20px;
+        margin: 40px auto;
+        border-left: 5px solid #ffc107;
+        max-width: 700px;
+        box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+    }
+    
+    .security-note strong {
+        font-size: 20px;
+    }
+    
+    .security-note ul {
+        margin-top: 10px;
+        font-size: 16px;
+        line-height: 1.8;
+    }
+    
+    .waiting-section {
+        text-align: center;
+        margin: 40px auto;
+        max-width: 700px;
+    }
+    
+    /* QR код контейнер */
+    .qr-container {
+        text-align: center;
+        margin: 20px auto;
+    }
+    </style>
+    """, unsafe_allow_html=True)
+    
+    # Основной контейнер
+    st.markdown('<div class="main-container">', unsafe_allow_html=True)
+    
+    # Заголовок
+    st.markdown('<h1 class="main-title">🏛️ GrantService Admin Panel</h1>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">Система управления грантовыми заявками</div>', unsafe_allow_html=True)
+    
+    # Информационный блок
+    st.markdown("""
+    <div class="info-box">
+        <h4>🔐 Безопасная авторизация через Telegram</h4>
+        <p>Для входа в админ-панель используется ваш Telegram аккаунт.<br>
+        Никаких паролей запоминать не нужно - всё просто и безопасно!</p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Получаем имя бота
+    bot_username = os.getenv('TELEGRAM_BOT_USERNAME', 'GrantServiceHelperBot')
+    telegram_url = f"https://t.me/{bot_username}?start=get_access"
+    
+    # Секция с кнопкой
+    st.markdown('<div class="step-section">', unsafe_allow_html=True)
+    st.markdown("""
+    <h3>📱 Шаг 1: Откройте Telegram бот</h3>
+    <p style="font-size: 18px; color: #666; text-align: center;">
+    Нажмите кнопку ниже, чтобы открыть наш бот в Telegram:
+    </p>
+    """, unsafe_allow_html=True)
+    
+    st.markdown(f"""
+    <a href="{telegram_url}" target="_blank" class="telegram-button">
+        🚀 Открыть @{bot_username}
+    </a>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Инструкции
+    st.markdown('<div class="step-section">', unsafe_allow_html=True)
+    st.markdown("""
+    <h3>🔗 Шаг 2: Получите ссылку для входа</h3>
+    <ol style="font-size: 18px; line-height: 2;">
+        <li>В боте автоматически выполнится команда <code>/get_access</code></li>
+        <li>Бот пришлет вам уникальную ссылку для входа</li>
+        <li>Перейдите по ссылке - и вы в системе!</li>
+    </ol>
+    """, unsafe_allow_html=True)
+    st.markdown('</div>', unsafe_allow_html=True)
+    
+    # Ожидание авторизации
+    st.markdown("""
+    <div class="waiting-section">
+        <h3>⏳ Ожидание авторизации...</h3>
+        <p style="font-size: 18px; color: #666;">
+        После получения ссылки в Telegram, перейдите по ней.<br>
+        Страница обновится автоматически.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # Автообновление
+    st.markdown("""
+    <script>
+    setTimeout(function(){
+        window.location.reload();
+    }, 3000);
+    </script>
+    """, unsafe_allow_html=True)
+    
+    # Блок безопасности
+    st.markdown("""
+    <div class="security-note">
+        <strong>🔒 Информация о безопасности:</strong>
+        <ul>
+            <li>Токены действуют 24 часа</li>
+            <li>Каждый токен уникален и одноразовый</li>
+            <li>Привязка к вашему Telegram ID</li>
+            <li>Не делитесь ссылками с другими людьми</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+    
+    # QR код в центре
+    with st.container():
+        with st.expander("📷 Альтернативный способ - QR код", expanded=False):
+            col1, col2, col3 = st.columns([1, 2, 1])
+            with col2:
+                try:
+                    # Генерируем QR код
+                    qr = qrcode.QRCode(version=1, box_size=10, border=5)
+                    qr.add_data(telegram_url)
+                    qr.make(fit=True)
+                    
+                    img = qr.make_image(fill_color="black", back_color="white")
+                    
+                    # Конвертируем в байты
+                    buf = io.BytesIO()
+                    img.save(buf, format='PNG')
+                    buf.seek(0)
+                    
+                    st.image(buf, caption=f"Сканируйте QR код для открытия @{bot_username}", width=300)
+                    st.caption("Используйте камеру Telegram для сканирования")
+                except Exception as e:
+                    st.info("QR код будет доступен после установки библиотеки qrcode")
+    
+    st.markdown('</div>', unsafe_allow_html=True)

@@ -4,10 +4,20 @@
 Основной интерфейс базы данных GrantService
 """
 
+import os
 from .models import GrantServiceDatabase
 
-# Глобальный экземпляр БД
-db = GrantServiceDatabase()
+# Определяем путь к базе данных в зависимости от платформы
+if os.name == 'nt':  # Windows
+    db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+else:  # Linux/Unix
+    db_path = "/var/GrantService/data/grantservice.db"
+
+# Глобальный экземпляр БД с явным указанием пути
+db = GrantServiceDatabase(db_path)
+
+# Импортируем классы авторизации
+from .auth import AuthManager, UserRole, UserPermission
 
 # Импортируем функции после создания экземпляра БД
 from .researcher import (
@@ -22,8 +32,6 @@ from .user_progress import (
     get_user_progress, get_user_answers, get_current_question_info,
     get_all_users_progress, get_questions_with_answers, export_user_form
 )
-from .auth import AuthManager
-
 # Создаем экземпляр SessionManager для доступа к новым функциям
 session_manager = SessionManager(db)
 
@@ -70,4 +78,17 @@ def get_or_create_session(telegram_id: int):
 
 def update_session_data(session_id: int, data: dict):
     """Обновить данные сессии"""
-    return session_manager.update_session_data(session_id, data) 
+    return session_manager.update_session_data(session_id, data)
+
+# Функции для работы с грантовыми заявками
+def save_grant_application(application_data):
+    """Сохранить грантовую заявку в базу данных"""
+    return db.save_grant_application(application_data)
+
+def get_all_applications(limit=100, offset=0):
+    """Получить список всех заявок"""
+    return db.get_all_applications(limit, offset)
+
+def get_application_by_number(application_number):
+    """Получить заявку по номеру"""
+    return db.get_application_by_number(application_number)

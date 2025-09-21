@@ -3,17 +3,38 @@
 """
 ГрантСервис - Веб-админ панель (Streamlit)
 Модульная версия: только заголовок и стили
+Кроссплатформенная версия
 """
 
 import streamlit as st
 import sys
 import os
 
-# Добавляем путь к проекту
-sys.path.append('/var/GrantService')
+# Определяем пути
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)
 
-# Инициализация логгера
-from utils.logger import setup_logger
+# Добавляем пути для импортов
+sys.path.insert(0, parent_dir)  # Для импорта config
+sys.path.insert(0, current_dir)  # Для импорта utils
+
+# Импортируем кроссплатформенные пути
+from config import paths
+
+# Инициализация логгера - пробуем разные варианты импорта
+try:
+    from utils.logger import setup_logger
+except ImportError:
+    try:
+        # Если не получилось, добавляем web-admin в путь
+        sys.path.insert(0, os.path.join(parent_dir, 'web-admin'))
+        from utils.logger import setup_logger
+    except ImportError:
+        # Создаем заглушку если логгер не найден
+        import logging
+        def setup_logger(name):
+            return logging.getLogger(name)
+
 logger = setup_logger('main_admin')
 
 st.set_page_config(

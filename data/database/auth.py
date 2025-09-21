@@ -19,6 +19,16 @@ class UserRole(Enum):
     VIEWER = "viewer"        # Только просмотр
     USER = "user"            # Обычный пользователь Telegram бота
 
+class UserPermission(Enum):
+    """Разрешения пользователей в системе"""
+    VIEW_ANALYTICS = "view_analytics"     # Просмотр аналитики
+    EDIT_QUESTIONS = "edit_questions"     # Редактирование вопросов
+    EDIT_PROMPTS = "edit_prompts"         # Редактирование промптов
+    MANAGE_USERS = "manage_users"         # Управление пользователями
+    EXPORT_DATA = "export_data"           # Экспорт данных
+    REVIEW_GRANTS = "review_grants"       # Проверка грантов
+    SEND_MESSAGES = "send_messages"       # Отправка сообщений
+
 class AuthManager:
     """Менеджер авторизации и управления ролями"""
     
@@ -380,19 +390,53 @@ def create_login_token() -> str:
 
 def verify_login_token(token: str) -> bool:
     """Проверяет валидность токена (действителен 24 часа)"""
+    print(f"[AUTH] Проверка токена verify_login_token")
+    print(f"[AUTH] Входной токен (длина {len(token) if token else 0}): {token}")
+    
     if not token:
+        print("[AUTH] ❌ Токен пустой")
         return False
     
-    try:
-        parts = token.split('_')
-        if len(parts) >= 2:
-            token_timestamp = int(parts[1])
-            current_time = int(time.time())
-            # Токен действителен 24 часа (86400 секунд)
-            return current_time - token_timestamp < 86400
-    except:
-        pass
+    token_timestamp = None
     
+    # Формат 1: token_timestamp_hash (с подчеркиваниями)
+    if '_' in token:
+        parts = token.split('_')
+        print(f"[AUTH] Обнаружен формат с подчеркиваниями, частей: {len(parts)}")
+        if len(parts) >= 3:
+            try:
+                token_timestamp = int(parts[1])
+                print(f"[AUTH] Извлечен timestamp из формата с подчеркиваниями: {token_timestamp}")
+            except (ValueError, IndexError):
+                pass
+    
+    # Формат 2: tokenTIMESTAMPHASH (без подчеркиваний, фиксированные позиции)
+    if not token_timestamp and token.startswith('token') and len(token) == 47:
+        print(f"[AUTH] Обнаружен формат без подчеркиваний (длина 47)")
+        try:
+            # Позиции: token(5) + timestamp(10) + hash(32) = 47
+            timestamp_str = token[5:15]  # позиции 5-14 (10 цифр)
+            
+            # Проверяем, что timestamp состоит из цифр
+            if timestamp_str.isdigit():
+                token_timestamp = int(timestamp_str)
+                print(f"[AUTH] Извлечен timestamp из формата без подчеркиваний: {token_timestamp}")
+        except (ValueError, IndexError) as e:
+            print(f"[AUTH] Ошибка парсинга формата без подчеркиваний: {e}")
+    
+    # Проверяем, удалось ли извлечь timestamp
+    if token_timestamp:
+        current_time = int(time.time())
+        time_diff = current_time - token_timestamp
+        print(f"[AUTH] Timestamp: {token_timestamp}, текущее: {current_time}, разница: {time_diff} сек")
+        
+        # Токен действителен 24 часа (86400 секунд)
+        is_valid = time_diff < 86400
+        print(f"[AUTH] Результат проверки: {'✅ ВАЛИДЕН' if is_valid else '❌ ИСТЕК'}")
+        return is_valid
+    
+    print(f"[AUTH] ❌ Не удалось извлечь timestamp из токена")
+    print(f"[AUTH] ❌ Токен невалиден")
     return False
 
 def get_or_create_login_token(telegram_id: int) -> Optional[str]:

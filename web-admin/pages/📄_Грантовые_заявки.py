@@ -1,451 +1,337 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Страница просмотра грантовых заявок
+Отображение всех заполненных грантовых заявок из базы данных
+"""
+
 import streamlit as st
 import sys
 import os
 import json
-from datetime import datetime, timedelta
+from datetime import datetime
 import pandas as pd
 
-import streamlit as st
-import sys
-import os
-
-# Добавляем путь к проекту
-sys.path.append('/var/GrantService')
+# Добавляем пути для импорта
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)  # web-admin
+grandparent_dir = os.path.dirname(parent_dir)  # GrantService
+sys.path.insert(0, grandparent_dir)
+sys.path.insert(0, parent_dir)
 
 # Проверка авторизации
-from web_admin.utils.auth import is_user_authorized
-
-if not is_user_authorized():
-    # Импортируем страницу входа
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "login_page", 
-        "/var/GrantService/web-admin/pages/🔐_Вход.py"
-    )
-    login_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(login_module)
-    login_module.show_login_page()
-    st.stop()
-# Добавляем пути к модулям
-sys.path.append('/var/GrantService/data')
-sys.path.append('/var/GrantService')
-
-# Импорты базы данных
 try:
-    from database import GrantServiceDatabase
-    DATABASE_AVAILABLE = True
+    from utils.auth import is_user_authorized, get_current_user
+    if not is_user_authorized():
+        st.error("⛔ Не авторизован / Not authorized")
+        st.info("Пожалуйста, войдите через бота / Please login via bot")
+        st.stop()
 except ImportError as e:
-    st.error(f"❌ Ошибка импорта базы данных: {e}")
-    DATABASE_AVAILABLE = False
+    st.error(f"❌ Ошибка импорта / Import error: {e}")
+    st.stop()
 
-# Настройка страницы
+# Прямое подключение к БД без импорта модулей
+import sqlite3
+db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+
+# Проверяем существование файла БД
+if not os.path.exists(db_path):
+    st.error(f"❌ База данных не найдена по пути: {db_path}")
+    st.stop()
+
+# Заголовок страницы
 st.set_page_config(
-    page_title="📄 Грантовые заявки",
+    page_title="Грантовые заявки",
     page_icon="📄",
-    layout="wide",
-    initial_sidebar_state="expanded"
+    layout="wide"
 )
 
-def show_applications_list():
-    """Показывает список всех заявок"""
-    if not DATABASE_AVAILABLE:
-        st.error("❌ База данных недоступна")
-        return
-    
-    db = GrantServiceDatabase()
-    
-    st.header("📄 Список грантовых заявок")
-    st.markdown("---")
-    
-    # Получаем статистику
-    stats = db.get_applications_statistics()
-    
-    # Показываем статистику
-    if stats:
-        st.subheader("📊 Статистика")
-        
-        col1, col2, col3, col4 = st.columns(4)
-        
-        with col1:
-            st.metric("Всего заявок", stats.get('total_applications', 0))
-        
-        with col2:
-            st.metric("Средняя оценка", f"{stats.get('average_quality_score', 0):.1f}/10")
-        
-        with col3:
-            draft_count = stats.get('status_distribution', {}).get('draft', 0)
-            st.metric("Черновики", draft_count)
-        
-        with col4:
-            submitted_count = stats.get('status_distribution', {}).get('submitted', 0)
-            st.metric("Отправлены", submitted_count)
-        
-        # Распределение по статусам
-        if stats.get('status_distribution'):
-            st.subheader("📈 Распределение по статусам")
-            
-            status_data = stats['status_distribution']
-            status_names = {
-                'draft': 'Черновик',
-                'submitted': 'Отправлена',
-                'approved': 'Одобрена',
-                'rejected': 'Отклонена'
-            }
-            
-            status_df = pd.DataFrame([
-                {'Статус': status_names.get(status, status), 'Количество': count}
-                for status, count in status_data.items()
-            ])
-            
-            col1, col2 = st.columns([2, 1])
-            with col1:
-                st.bar_chart(status_df.set_index('Статус'))
-            with col2:
-                st.dataframe(status_df, use_container_width=True)
-    
-    # Фильтры
-    st.subheader("🔍 Фильтры")
-    
-    col1, col2, col3 = st.columns(3)
-    
-    with col1:
-        status_filter = st.selectbox(
-            "Статус",
-            ["Все", "draft", "submitted", "approved", "rejected"],
-            format_func=lambda x: {
-                "Все": "Все статусы",
-                "draft": "Черновик", 
-                "submitted": "Отправлена",
-                "approved": "Одобрена",
-                "rejected": "Отклонена"
-            }.get(x, x)
-        )
-    
-    with col2:
-        date_filter = st.selectbox(
-            "Период",
-            ["Все время", "Сегодня", "Неделя", "Месяц"]
-        )
-    
-    with col3:
-        provider_filter = st.selectbox(
-            "LLM провайдер",
-            ["Все", "gigachat", "local", "fallback"]
-        )
-    
-    # Получаем список заявок
-    applications = db.get_all_applications(limit=50)
-    
-    if not applications:
-        st.info("📝 Пока нет созданных заявок")
-        return
-    
-    # Дедупликация по номеру заявки
-    seen_numbers = set()
-    unique_applications = []
-    for app in applications:
-        app_number = app.get('application_number', '')
-        if app_number and app_number not in seen_numbers:
-            seen_numbers.add(app_number)
-            unique_applications.append(app)
-    
-    applications = unique_applications
-    
-    # Применяем фильтры
-    filtered_apps = applications
-    
-    if status_filter != "Все":
-        filtered_apps = [app for app in filtered_apps if app.get('status') == status_filter]
-    
-    if provider_filter != "Все":
-        filtered_apps = [app for app in filtered_apps if app.get('llm_provider') == provider_filter]
-    
-    # Фильтр по дате
-    if date_filter != "Все время":
-        now = datetime.now()
-        if date_filter == "Сегодня":
-            cutoff_date = now.replace(hour=0, minute=0, second=0, microsecond=0)
-        elif date_filter == "Неделя":
-            cutoff_date = now - timedelta(days=7)
-        elif date_filter == "Месяц":
-            cutoff_date = now - timedelta(days=30)
-        
-        date_filtered_apps = []
-        for app in filtered_apps:  # Используем уже отфильтрованные заявки
-            try:
-                created_at = datetime.fromisoformat(app.get('created_at', ''))
-                if created_at >= cutoff_date:
-                    date_filtered_apps.append(app)
-            except:
-                continue
-        filtered_apps = date_filtered_apps
-    
-    # Показываем заявки
-    st.subheader(f"📄 Заявки ({len(filtered_apps)})")
-    
-    if not filtered_apps:
-        st.info("🔍 По выбранным фильтрам заявки не найдены")
-        return
-    
-    # Создаем таблицу
-    for app in filtered_apps:
-        # Создаем красивый заголовок
-        title = app.get('title', 'Без названия')
-        if len(title) > 80:
-            display_title = title[:80] + "..."
-        else:
-            display_title = title
-            
-        app_number = app.get('application_number', 'Без номера')
-        
-        with st.expander(f"📄 {display_title} (#{app_number})", expanded=False):
-            
-            # Основная информация
-            col1, col2, col3, col4 = st.columns(4)
-            
-            with col1:
-                status_emoji = {
-                    'draft': '📝',
-                    'submitted': '📤',
-                    'approved': '✅',
-                    'rejected': '❌'
-                }.get(app.get('status', 'draft'), '📝')
-                
-                st.metric("Статус", f"{status_emoji} {app.get('status', 'draft')}")
-            
-            with col2:
-                st.metric("Оценка качества", f"{app.get('quality_score', 0):.1f}/10")
-            
-            with col3:
-                st.metric("LLM провайдер", app.get('llm_provider', 'Unknown'))
-            
-            with col4:
-                created_date = app.get('created_at', '')
-                if created_date:
-                    try:
-                        date_obj = datetime.fromisoformat(created_date)
-                        formatted_date = date_obj.strftime("%d.%m.%Y %H:%M")
-                    except:
-                        formatted_date = created_date
-                else:
-                    formatted_date = "Неизвестно"
-                st.metric("Дата создания", formatted_date)
-            
-            # Дополнительная информация
-            if app.get('summary'):
-                st.write("**Описание:**")
-                st.write(app['summary'])
-            
-            # Кнопки действий
-            col1, col2, col3, col4, col5 = st.columns(5)
-            
-            with col1:
-                if st.button(f"👁️ Просмотр", key=f"view_{app['id']}"):
-                    st.session_state.selected_application = app['application_number']
-                    st.switch_page("pages/📄_Просмотр_заявки.py")
-            
-            with col2:
-                if st.button(f"✏️ Изменить статус", key=f"status_{app['id']}"):
-                    change_status_modal(app)
-            
-            with col3:
-                if st.button(f"📥 Экспорт", key=f"export_{app['id']}"):
-                    export_application(app['application_number'])
-            
-            with col4:
-                if st.button(f"📋 Копировать", key=f"copy_{app['id']}"):
-                    st.session_state.copy_source = app['application_number']
-                    st.success("✅ Номер заявки скопирован!")
-            
-            with col5:
-                if app.get('status') == 'draft':
-                    if st.button(f"🗑️ Удалить", key=f"delete_{app['id']}", type="secondary"):
-                        # Здесь можно добавить логику удаления
-                        st.warning("⚠️ Функция удаления будет добавлена позже")
+st.title("📄 Грантовые заявки")
+st.markdown("---")
 
-def change_status_modal(app):
-    """Модальное окно для изменения статуса заявки"""
-    with st.container():
-        st.subheader(f"Изменение статуса заявки #{app['application_number']}")
+# Функция для получения заявок - прямой SQL запрос
+def get_grant_applications():
+    """Получить все грантовые заявки из БД"""
+    try:
+        # Прямое подключение к БД
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
         
-        current_status = app.get('status', 'draft')
+        # Получаем заявки с информацией о пользователях
+        query = """
+        SELECT
+            ga.id,
+            ga.application_number,
+            ga.title,
+            ga.content_json,
+            ga.summary,
+            ga.status,
+            ga.user_id,
+            ga.session_id,
+            ga.quality_score,
+            ga.grant_fund,
+            ga.requested_amount,
+            ga.project_duration,
+            ga.created_at,
+            ga.updated_at,
+            ga.admin_user,
+            ga.llm_provider,
+            ga.model_used,
+            ga.processing_time,
+            ga.tokens_used
+        FROM grant_applications ga
+        ORDER BY ga.created_at DESC
+        """
         
-        new_status = st.selectbox(
-            "Новый статус",
-            ["draft", "submitted", "approved", "rejected"],
-            index=["draft", "submitted", "approved", "rejected"].index(current_status),
-            format_func=lambda x: {
-                "draft": "📝 Черновик",
-                "submitted": "📤 Отправлена",
-                "approved": "✅ Одобрена",
-                "rejected": "❌ Отклонена"
-            }.get(x, x),
-            key=f"new_status_{app['id']}"
-        )
+        cursor.execute(query)
+        columns = [description[0] for description in cursor.description]
+        applications = []
         
-        if st.button("💾 Сохранить изменения", key=f"save_status_{app['id']}"):
-            if DATABASE_AVAILABLE:
-                db = GrantServiceDatabase()
-                success = db.update_application_status(app['application_number'], new_status)
-                
-                if success:
-                    st.success(f"✅ Статус изменен на: {new_status}")
-                    st.rerun()
-                else:
-                    st.error("❌ Ошибка изменения статуса")
-
-def export_application(application_number):
-    """Экспорт заявки в различных форматах"""
-    if not DATABASE_AVAILABLE:
-        st.error("❌ База данных недоступна")
-        return
-    
-    db = GrantServiceDatabase()
-    app = db.get_application_by_number(application_number)
-    
-    if not app:
-        st.error("❌ Заявка не найдена")
-        return
-    
-    # JSON экспорт
-    export_data = {
-        'application_number': app['application_number'],
-        'title': app['title'],
-        'status': app['status'],
-        'created_at': app['created_at'],
-        'content': app.get('content', {}),
-        'quality_score': app['quality_score']
-    }
-    
-    json_str = json.dumps(export_data, ensure_ascii=False, indent=2)
-    
-    st.download_button(
-        label="📥 Скачать JSON",
-        data=json_str.encode('utf-8'),
-        file_name=f"grant_application_{application_number}.json",
-        mime="application/json",
-        key=f"download_json_{application_number}"
-    )
-
-def main():
-    """Главная функция страницы"""
-    st.title("📄 Управление грантовыми заявками")
-    
-    # Боковое меню
-    st.sidebar.title("🎯 Навигация")
-    
-    page_mode = st.sidebar.selectbox(
-        "Выберите режим",
-        ["📄 Список заявок", "📊 Аналитика", "⚙️ Настройки"]
-    )
-    
-    if page_mode == "📄 Список заявок":
-        show_applications_list()
-    elif page_mode == "📊 Аналитика":
-        show_analytics()
-    elif page_mode == "⚙️ Настройки":
-        show_settings()
-
-def show_analytics():
-    """Показывает аналитику по заявкам"""
-    st.header("📊 Аналитика грантовых заявок")
-    st.markdown("---")
-    
-    if not DATABASE_AVAILABLE:
-        st.error("❌ База данных недоступна")
-        return
-    
-    db = GrantServiceDatabase()
-    applications = db.get_all_applications(limit=1000)  # Больше данных для аналитики
-    
-    if not applications:
-        st.info("📝 Нет данных для аналитики")
-        return
-    
-    # Создаем DataFrame для анализа
-    df = pd.DataFrame(applications)
-    
-    # График по дням
-    st.subheader("📈 Создание заявок по дням")
-    
-    if 'created_at' in df.columns:
-        try:
-            df['date'] = pd.to_datetime(df['created_at']).dt.date
-            daily_counts = df.groupby('date').size().reset_index(name='count')
-            
-            if not daily_counts.empty:
-                st.line_chart(daily_counts.set_index('date'))
+        for row in cursor.fetchall():
+            app = dict(zip(columns, row))
+            # Парсим JSON контент если он есть
+            if app.get('content_json'):
+                try:
+                    app['content_data'] = json.loads(app['content_json'])
+                except:
+                    app['content_data'] = {}
             else:
-                st.info("Недостаточно данных для графика")
-        except Exception as e:
-            st.error(f"Ошибка обработки дат: {e}")
-    
-    # Распределение по провайдерам
-    st.subheader("🤖 Использование LLM провайдеров")
-    
-    if 'llm_provider' in df.columns:
-        provider_counts = df['llm_provider'].value_counts()
-        if not provider_counts.empty:
-            st.bar_chart(provider_counts)
-    
-    # Качество заявок
-    st.subheader("⭐ Распределение оценок качества")
-    
-    if 'quality_score' in df.columns:
-        quality_scores = df['quality_score'].dropna()
-        if not quality_scores.empty:
-            hist_data = pd.DataFrame({'Оценка': quality_scores})
-            st.histogram_chart(hist_data, x='Оценка')
-
-def show_settings():
-    """Показывает настройки системы заявок"""
-    st.header("⚙️ Настройки системы заявок")
-    st.markdown("---")
-    
-    st.subheader("🔧 Общие настройки")
-    
-    col1, col2 = st.columns(2)
-    
-    with col1:
-        auto_save = st.checkbox("Автоматическое сохранение заявок", value=True)
-        show_debug = st.checkbox("Показывать отладочную информацию", value=False)
+                app['content_data'] = {}
+                
+            # Добавляем заглушки для полей пользователя
+            app.setdefault('username', None)
+            app.setdefault('first_name', None)
+            app.setdefault('last_name', None)
+            app.setdefault('telegram_id', None)
+            
+            applications.append(app)
         
-    with col2:
-        default_status = st.selectbox(
-            "Статус по умолчанию",
-            ["draft", "submitted"],
-            format_func=lambda x: {"draft": "Черновик", "submitted": "Отправлена"}.get(x, x)
+        conn.close()
+        return applications
+        
+    except Exception as e:
+        st.error(f"Ошибка при получении заявок: {e}")
+        st.error(f"Путь к БД: {db_path}")
+        import traceback
+        st.error(traceback.format_exc())
+        return []
+
+# Получаем заявки
+applications = get_grant_applications()
+
+# Статистика
+col1, col2, col3, col4 = st.columns(4)
+
+with col1:
+    st.metric("Всего заявок", len(applications))
+
+with col2:
+    draft_count = len([a for a in applications if a['status'] == 'draft'])
+    st.metric("Черновики", draft_count)
+
+with col3:
+    completed_count = len([a for a in applications if a['status'] == 'completed'])
+    st.metric("Завершенные", completed_count)
+
+with col4:
+    if applications:
+        avg_score = sum(a['quality_score'] or 0 for a in applications) / len(applications)
+        st.metric("Средний балл", f"{avg_score:.1f}")
+    else:
+        st.metric("Средний балл", "0.0")
+
+st.markdown("---")
+
+# Фильтры
+st.subheader("🔍 Фильтры")
+filter_col1, filter_col2, filter_col3 = st.columns(3)
+
+with filter_col1:
+    status_filter = st.selectbox(
+        "Статус",
+        ["Все"] + list(set(a['status'] for a in applications if a['status']))
+    )
+
+with filter_col2:
+    user_filter = st.selectbox(
+        "Пользователь",
+        ["Все"] + list(set(f"{a['first_name']} {a['last_name']}" 
+                          for a in applications 
+                          if a['first_name'] or a['last_name']))
+    )
+
+with filter_col3:
+    date_filter = st.date_input(
+        "Дата создания (от)",
+        value=None,
+        format="DD.MM.YYYY"
+    )
+
+# Применяем фильтры
+filtered_apps = applications
+
+if status_filter != "Все":
+    filtered_apps = [a for a in filtered_apps if a['status'] == status_filter]
+
+if user_filter != "Все":
+    filtered_apps = [a for a in filtered_apps 
+                    if f"{a['first_name']} {a['last_name']}" == user_filter]
+
+if date_filter:
+    filtered_apps = [a for a in filtered_apps 
+                    if a['created_at'] and 
+                    datetime.fromisoformat(a['created_at']).date() >= date_filter]
+
+st.markdown("---")
+
+# Отображение заявок
+if filtered_apps:
+    st.subheader(f"📋 Найдено заявок: {len(filtered_apps)}")
+    
+    # Tabs для разных видов отображения
+    tab1, tab2, tab3 = st.tabs(["📊 Таблица", "📇 Карточки", "📈 Аналитика"])
+    
+    with tab1:
+        # Таблица заявок
+        df_data = []
+        for app in filtered_apps:
+            df_data.append({
+                "ID": app['id'],
+                "Номер": app['application_number'],
+                "Название": app['title'][:50] + "..." if len(app['title']) > 50 else app['title'],
+                "Пользователь": f"{app['first_name']} {app['last_name']}" if app['first_name'] else "Не указан",
+                "Статус": app['status'],
+                "Балл": app['quality_score'] or 0,
+                "Сумма": f"{app['requested_amount']:,.0f} ₽" if app['requested_amount'] else "-",
+                "Создана": datetime.fromisoformat(app['created_at']).strftime("%d.%m.%Y %H:%M") if app['created_at'] else "-"
+            })
+        
+        df = pd.DataFrame(df_data)
+        st.dataframe(df, use_container_width=True, hide_index=True)
+        
+        # Кнопка экспорта
+        csv = df.to_csv(index=False, encoding='utf-8-sig')
+        st.download_button(
+            label="📥 Скачать CSV",
+            data=csv,
+            file_name=f"grant_applications_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+            mime='text/csv'
         )
     
-    st.subheader("📤 Настройки экспорта")
+    with tab2:
+        # Отображение карточками
+        for i, app in enumerate(filtered_apps):
+            with st.expander(f"📄 {app['title']}", expanded=(i == 0)):
+                col1, col2 = st.columns([2, 1])
+                
+                with col1:
+                    st.write(f"**Номер заявки:** {app['application_number']}")
+                    st.write(f"**Пользователь:** {app['first_name']} {app['last_name']}" 
+                            if app['first_name'] else "Не указан")
+                    
+                    if app['summary']:
+                        st.write("**Краткое описание:**")
+                        st.info(app['summary'])
+                    
+                    if app['content_data']:
+                        st.write("**Содержание заявки:**")
+                        
+                        # Отображаем ключевые поля из JSON
+                        for key, value in app['content_data'].items():
+                            if isinstance(value, dict):
+                                st.write(f"**{key}:**")
+                                for sub_key, sub_value in value.items():
+                                    st.write(f"  • {sub_key}: {sub_value}")
+                            elif isinstance(value, list):
+                                st.write(f"**{key}:** {', '.join(str(v) for v in value)}")
+                            else:
+                                st.write(f"**{key}:** {value}")
+                
+                with col2:
+                    # Метрики заявки
+                    st.metric("Статус", app['status'])
+                    if app['quality_score']:
+                        st.metric("Качество", f"{app['quality_score']:.1f}/10")
+                    if app['requested_amount']:
+                        st.metric("Запрашиваемая сумма", f"{app['requested_amount']:,.0f} ₽")
+                    if app['project_duration']:
+                        st.metric("Длительность", f"{app['project_duration']} мес.")
+                    
+                    # Даты
+                    st.caption(f"**Создана:** {datetime.fromisoformat(app['created_at']).strftime('%d.%m.%Y %H:%M')}" 
+                              if app['created_at'] else "-")
+                    st.caption(f"**Обновлена:** {datetime.fromisoformat(app['updated_at']).strftime('%d.%m.%Y %H:%M')}" 
+                              if app['updated_at'] else "-")
+                
+                # Действия с заявкой
+                action_col1, action_col2, action_col3 = st.columns(3)
+                
+                with action_col1:
+                    if st.button(f"📝 Редактировать", key=f"edit_{app['id']}"):
+                        st.session_state[f'edit_mode_{app["id"]}'] = True
+                        st.rerun()
+                
+                with action_col2:
+                    if st.button(f"📄 Экспорт в Word", key=f"export_{app['id']}"):
+                        st.info("Функция экспорта будет добавлена")
+                
+                with action_col3:
+                    if app['status'] == 'draft':
+                        if st.button(f"✅ Отправить", key=f"submit_{app['id']}"):
+                            st.success("Заявка отправлена!")
     
-    export_formats = st.multiselect(
-        "Доступные форматы экспорта",
-        ["JSON", "PDF", "DOCX", "TXT"],
-        default=["JSON"]
-    )
-    
-    if st.button("💾 Сохранить настройки"):
-        st.success("✅ Настройки сохранены!")
-    
-    # Информация о системе
-    st.markdown("---")
-    st.subheader("ℹ️ Информация о системе")
-    
-    if DATABASE_AVAILABLE:
-        db = GrantServiceDatabase()
-        stats = db.get_applications_statistics()
+    with tab3:
+        # Аналитика
+        st.subheader("📊 Аналитика заявок")
         
-        st.info(f"""
-        **Состояние системы:**
-        - ✅ База данных подключена
-        - 📄 Всего заявок: {stats.get('total_applications', 0)}
-        - ⭐ Средняя оценка: {stats.get('average_quality_score', 0):.1f}/10
-        - 🕒 Последнее обновление: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}
-        """)
-    else:
-        st.error("❌ База данных недоступна")
+        # График по статусам
+        status_counts = {}
+        for app in applications:
+            status = app['status'] or 'unknown'
+            status_counts[status] = status_counts.get(status, 0) + 1
+        
+        if status_counts:
+            chart_col1, chart_col2 = st.columns(2)
+            
+            with chart_col1:
+                st.write("**Распределение по статусам:**")
+                chart_data = pd.DataFrame.from_dict(status_counts, orient='index', columns=['Количество'])
+                st.bar_chart(chart_data)
+            
+            with chart_col2:
+                st.write("**Динамика создания заявок:**")
+                # Группируем по датам
+                date_counts = {}
+                for app in applications:
+                    if app['created_at']:
+                        date = datetime.fromisoformat(app['created_at']).date()
+                        date_counts[date] = date_counts.get(date, 0) + 1
+                
+                if date_counts:
+                    date_df = pd.DataFrame.from_dict(date_counts, orient='index', columns=['Заявки'])
+                    date_df = date_df.sort_index()
+                    st.line_chart(date_df)
+        
+        # Топ пользователей
+        st.write("**Топ активных пользователей:**")
+        user_counts = {}
+        for app in applications:
+            user_name = f"{app['first_name']} {app['last_name']}" if app['first_name'] else "Неизвестный"
+            user_counts[user_name] = user_counts.get(user_name, 0) + 1
+        
+        if user_counts:
+            sorted_users = sorted(user_counts.items(), key=lambda x: x[1], reverse=True)[:5]
+            for user, count in sorted_users:
+                st.write(f"• {user}: {count} заявок")
 
-if __name__ == "__main__":
-    main()
+else:
+    st.info("🔍 Нет заявок, соответствующих выбранным фильтрам")
 
+# Кнопка обновления
+st.markdown("---")
+if st.button("🔄 Обновить данные"):
+    st.cache_data.clear()
+    st.rerun()
+
+# Информация о последнем обновлении
+st.caption(f"Последнее обновление: {datetime.now().strftime('%d.%m.%Y %H:%M:%S')}")

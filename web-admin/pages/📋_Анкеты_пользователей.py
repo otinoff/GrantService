@@ -7,6 +7,28 @@
 import streamlit as st
 import sys
 import os
+
+# Simple imports without path manipulation
+# The environment will be set up by the launcher
+
+# Authorization check
+try:
+    from utils.auth import is_user_authorized
+    if not is_user_authorized():
+        st.error("⛔ Не авторизован / Not authorized")
+        st.info("Пожалуйста, используйте бота для получения токена / Please use the bot to get a token")
+        st.stop()
+except ImportError as e:
+    st.error(f"❌ Ошибка импорта / Import error: {e}")
+    st.info("Запустите через launcher.py / Run via launcher.py")
+    st.stop()
+
+Страница для просмотра анкет пользователей
+"""
+
+import streamlit as st
+import sys
+import os
 from datetime import datetime
 import json
 
@@ -14,25 +36,27 @@ import streamlit as st
 import sys
 import os
 
-# Добавляем путь к проекту
-sys.path.append('/var/GrantService')
+# Добавляем пути кроссплатформенно
+current_dir = os.path.dirname(os.path.abspath(__file__))
+parent_dir = os.path.dirname(current_dir)  # web-admin
+grandparent_dir = os.path.dirname(parent_dir)  # GrantService
+sys.path.insert(0, grandparent_dir)  # Для импорта config и data
+sys.path.insert(0, parent_dir)  # Для импорта utils
 
 # Проверка авторизации
-from web_admin.utils.auth import is_user_authorized
+from utils.auth import is_user_authorized
 
 if not is_user_authorized():
     # Импортируем страницу входа
     import importlib.util
     spec = importlib.util.spec_from_file_location(
-        "login_page", 
-        "/var/GrantService/web-admin/pages/🔐_Вход.py"
+        "login_page",
+        os.path.join(current_dir, "🔐_Вход.py")
     )
     login_module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(login_module)
     login_module.show_login_page()
     st.stop()
-# Добавляем путь к проекту
-sys.path.append('/var/GrantService')
 
 from data.database.models import GrantServiceDatabase
 from utils.logger import setup_logger

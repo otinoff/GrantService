@@ -1,0 +1,1767 @@
+{
+  "database": "C:\\SnowWhiteAI\\GrantService\\data\\grantservice.db",
+  "analyzed_at": "2025-09-21T21:15:00.780035",
+  "tables": {
+    "interview_questions": {
+      "row_count": 24,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "question_number",
+          "type": "INTEGER",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "question_text",
+          "type": "TEXT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "field_name",
+          "type": "VARCHAR(100)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "question_type",
+          "type": "VARCHAR(50)",
+          "not_null": false,
+          "default": "'text'",
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "options",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "hint_text",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "is_required",
+          "type": "BOOLEAN",
+          "not_null": false,
+          "default": "1",
+          "primary_key": false
+        },
+        {
+          "id": 8,
+          "name": "follow_up_question",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 9,
+          "name": "validation_rules",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 10,
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "not_null": false,
+          "default": "1",
+          "primary_key": false
+        },
+        {
+          "id": 11,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 12,
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_questions_active",
+          "unique": false
+        },
+        {
+          "name": "idx_questions_number",
+          "unique": false
+        }
+      ],
+      "foreign_keys": []
+    },
+    "sqlite_sequence": {
+      "row_count": 10,
+      "columns": [
+        {
+          "id": 0,
+          "name": "name",
+          "type": "",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 1,
+          "name": "seq",
+          "type": "",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        }
+      ],
+      "indexes": [],
+      "foreign_keys": []
+    },
+    "users": {
+      "row_count": 4,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "telegram_id",
+          "type": "BIGINT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "username",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "first_name",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "last_name",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "registration_date",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "last_active",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "total_sessions",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 8,
+          "name": "completed_applications",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 9,
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "not_null": false,
+          "default": "1",
+          "primary_key": false
+        },
+        {
+          "id": 10,
+          "name": "login_token",
+          "type": "VARCHAR(255)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 11,
+          "name": "role",
+          "type": "VARCHAR(20)",
+          "not_null": false,
+          "default": "'user'",
+          "primary_key": false
+        },
+        {
+          "id": 12,
+          "name": "permissions",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 13,
+          "name": "token_expires_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_users_telegram_id",
+          "unique": false
+        },
+        {
+          "name": "sqlite_autoindex_users_1",
+          "unique": true
+        }
+      ],
+      "foreign_keys": []
+    },
+    "sessions": {
+      "row_count": 11,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "telegram_id",
+          "type": "BIGINT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "current_step",
+          "type": "VARCHAR(50)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "status",
+          "type": "VARCHAR(30)",
+          "not_null": false,
+          "default": "'active'",
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "conversation_history",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "collected_data",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "interview_data",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "audit_result",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 8,
+          "name": "plan_structure",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 9,
+          "name": "final_document",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 10,
+          "name": "project_name",
+          "type": "VARCHAR(300)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 11,
+          "name": "started_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 12,
+          "name": "completed_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 13,
+          "name": "last_activity",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 14,
+          "name": "total_messages",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 15,
+          "name": "ai_requests_count",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 16,
+          "name": "progress_percentage",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 17,
+          "name": "questions_answered",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 18,
+          "name": "total_questions",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "24",
+          "primary_key": false
+        },
+        {
+          "id": 19,
+          "name": "last_question_number",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "1",
+          "primary_key": false
+        },
+        {
+          "id": 20,
+          "name": "answers_data",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 21,
+          "name": "session_duration_minutes",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 22,
+          "name": "completion_status",
+          "type": "VARCHAR(20)",
+          "not_null": false,
+          "default": "\"in_progress\"",
+          "primary_key": false
+        },
+        {
+          "id": 23,
+          "name": "anketa_id",
+          "type": "VARCHAR(20)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_sessions_anketa",
+          "unique": false
+        },
+        {
+          "name": "idx_sessions_telegram",
+          "unique": false
+        },
+        {
+          "name": "idx_sessions_anketa_id",
+          "unique": false
+        },
+        {
+          "name": "idx_sessions_status",
+          "unique": false
+        },
+        {
+          "name": "idx_sessions_progress",
+          "unique": false
+        },
+        {
+          "name": "idx_sessions_telegram_id",
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "id": 0,
+          "table": "users",
+          "from": "telegram_id",
+          "to": "telegram_id"
+        }
+      ]
+    },
+    "user_answers": {
+      "row_count": 0,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "session_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "question_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "answer_text",
+          "type": "TEXT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "answer_timestamp",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "validation_status",
+          "type": "VARCHAR(20)",
+          "not_null": false,
+          "default": "'valid'",
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_user_answers_question",
+          "unique": false
+        },
+        {
+          "name": "idx_user_answers_session",
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "id": 0,
+          "table": "interview_questions",
+          "from": "question_id",
+          "to": "id"
+        },
+        {
+          "id": 1,
+          "table": "sessions",
+          "from": "session_id",
+          "to": "id"
+        }
+      ]
+    },
+    "researcher_logs": {
+      "row_count": 7,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "user_id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "session_id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "query_text",
+          "type": "TEXT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "perplexity_response",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "sources",
+          "type": "JSON",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "usage_stats",
+          "type": "JSON",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "cost",
+          "type": "REAL",
+          "not_null": false,
+          "default": "0.0",
+          "primary_key": false
+        },
+        {
+          "id": 8,
+          "name": "status",
+          "type": "VARCHAR(50)",
+          "not_null": false,
+          "default": "'success'",
+          "primary_key": false
+        },
+        {
+          "id": 9,
+          "name": "error_message",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 10,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 11,
+          "name": "credit_balance",
+          "type": "REAL",
+          "not_null": false,
+          "default": "0.0",
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_researcher_logs_created_at",
+          "unique": false
+        },
+        {
+          "name": "idx_researcher_logs_session_id",
+          "unique": false
+        },
+        {
+          "name": "idx_researcher_logs_user_id",
+          "unique": false
+        }
+      ],
+      "foreign_keys": [
+        {
+          "id": 0,
+          "table": "user_sessions",
+          "from": "session_id",
+          "to": "id"
+        },
+        {
+          "id": 1,
+          "table": "users",
+          "from": "user_id",
+          "to": "id"
+        }
+      ]
+    },
+    "prompt_categories": {
+      "row_count": 14,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "name",
+          "type": "VARCHAR(100)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "description",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "agent_type",
+          "type": "VARCHAR(50)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "not_null": false,
+          "default": "1",
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "sqlite_autoindex_prompt_categories_1",
+          "unique": true
+        }
+      ],
+      "foreign_keys": []
+    },
+    "prompt_versions": {
+      "row_count": 1,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "prompt_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "prompt_template",
+          "type": "TEXT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "variables",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "default_values",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "version_number",
+          "type": "INTEGER",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "created_by",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        }
+      ],
+      "indexes": [],
+      "foreign_keys": [
+        {
+          "id": 0,
+          "table": "agent_prompts",
+          "from": "prompt_id",
+          "to": "id"
+        }
+      ]
+    },
+    "agent_prompts": {
+      "row_count": 14,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "category_id",
+          "type": "INTEGER",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "name",
+          "type": "VARCHAR(100)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "description",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "prompt_template",
+          "type": "TEXT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "variables",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "default_values",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "not_null": false,
+          "default": "1",
+          "primary_key": false
+        },
+        {
+          "id": 8,
+          "name": "priority",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 9,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 10,
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        }
+      ],
+      "indexes": [],
+      "foreign_keys": [
+        {
+          "id": 0,
+          "table": "prompt_categories",
+          "from": "category_id",
+          "to": "id"
+        }
+      ]
+    },
+    "grant_applications": {
+      "row_count": 9,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "application_number",
+          "type": "VARCHAR(50)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "title",
+          "type": "VARCHAR(500)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "content_json",
+          "type": "TEXT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "summary",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "status",
+          "type": "VARCHAR(30)",
+          "not_null": false,
+          "default": "'draft'",
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "user_id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "session_id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 8,
+          "name": "admin_user",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 9,
+          "name": "quality_score",
+          "type": "REAL",
+          "not_null": false,
+          "default": "0.0",
+          "primary_key": false
+        },
+        {
+          "id": 10,
+          "name": "llm_provider",
+          "type": "VARCHAR(50)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 11,
+          "name": "model_used",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 12,
+          "name": "processing_time",
+          "type": "REAL",
+          "not_null": false,
+          "default": "0.0",
+          "primary_key": false
+        },
+        {
+          "id": 13,
+          "name": "tokens_used",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 14,
+          "name": "grant_fund",
+          "type": "VARCHAR(200)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 15,
+          "name": "requested_amount",
+          "type": "DECIMAL(15,2)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 16,
+          "name": "project_duration",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 17,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 18,
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "sqlite_autoindex_grant_applications_1",
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "id": 0,
+          "table": "sessions",
+          "from": "session_id",
+          "to": "id"
+        },
+        {
+          "id": 1,
+          "table": "users",
+          "from": "user_id",
+          "to": "id"
+        }
+      ],
+      "sample_data": [
+        {
+          "id": 9,
+          "user_id": null,
+          "created_at": "2025-09-09T10:38:52.876720+07:00",
+          "status": "draft"
+        },
+        {
+          "id": 8,
+          "user_id": null,
+          "created_at": "2025-09-06T00:22:46.916330+07:00",
+          "status": "draft"
+        },
+        {
+          "id": 7,
+          "user_id": null,
+          "created_at": "2025-08-30T20:54:52.022281+07:00",
+          "status": "draft"
+        },
+        {
+          "id": 6,
+          "user_id": null,
+          "created_at": "2025-08-30T17:23:10.254472+07:00",
+          "status": "draft"
+        },
+        {
+          "id": 5,
+          "user_id": null,
+          "created_at": "2025-08-29T19:40:09.243275+07:00",
+          "status": "draft"
+        }
+      ]
+    },
+    "researcher_research": {
+      "row_count": 2,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "research_id",
+          "type": "VARCHAR(50)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "anketa_id",
+          "type": "VARCHAR(20)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "user_id",
+          "type": "BIGINT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "username",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "first_name",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "last_name",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "session_id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 8,
+          "name": "research_type",
+          "type": "VARCHAR(50)",
+          "not_null": false,
+          "default": "'comprehensive'",
+          "primary_key": false
+        },
+        {
+          "id": 9,
+          "name": "llm_provider",
+          "type": "VARCHAR(50)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 10,
+          "name": "model",
+          "type": "VARCHAR(50)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 11,
+          "name": "status",
+          "type": "VARCHAR(30)",
+          "not_null": false,
+          "default": "'pending'",
+          "primary_key": false
+        },
+        {
+          "id": 12,
+          "name": "research_results",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 13,
+          "name": "metadata",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 14,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 15,
+          "name": "completed_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_research_provider",
+          "unique": false
+        },
+        {
+          "name": "idx_research_status",
+          "unique": false
+        },
+        {
+          "name": "idx_research_date",
+          "unique": false
+        },
+        {
+          "name": "idx_research_user_id",
+          "unique": false
+        },
+        {
+          "name": "idx_research_anketa_id",
+          "unique": false
+        },
+        {
+          "name": "idx_research_research_id",
+          "unique": false
+        },
+        {
+          "name": "sqlite_autoindex_researcher_research_1",
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "id": 0,
+          "table": "sessions",
+          "from": "session_id",
+          "to": "id"
+        },
+        {
+          "id": 1,
+          "table": "users",
+          "from": "user_id",
+          "to": "telegram_id"
+        }
+      ]
+    },
+    "grants": {
+      "row_count": 0,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "grant_id",
+          "type": "VARCHAR(50)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "anketa_id",
+          "type": "VARCHAR(20)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "research_id",
+          "type": "VARCHAR(50)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "user_id",
+          "type": "BIGINT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "username",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "first_name",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "last_name",
+          "type": "VARCHAR(100)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 8,
+          "name": "grant_title",
+          "type": "VARCHAR(200)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 9,
+          "name": "grant_content",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 10,
+          "name": "grant_sections",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 11,
+          "name": "metadata",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 12,
+          "name": "llm_provider",
+          "type": "VARCHAR(50)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 13,
+          "name": "model",
+          "type": "VARCHAR(50)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 14,
+          "name": "status",
+          "type": "VARCHAR(30)",
+          "not_null": false,
+          "default": "'draft'",
+          "primary_key": false
+        },
+        {
+          "id": 15,
+          "name": "quality_score",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": "0",
+          "primary_key": false
+        },
+        {
+          "id": 16,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 17,
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        },
+        {
+          "id": 18,
+          "name": "submitted_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "idx_grants_provider",
+          "unique": false
+        },
+        {
+          "name": "idx_grants_status",
+          "unique": false
+        },
+        {
+          "name": "idx_grants_date",
+          "unique": false
+        },
+        {
+          "name": "idx_grants_user_id",
+          "unique": false
+        },
+        {
+          "name": "idx_grants_research_id",
+          "unique": false
+        },
+        {
+          "name": "idx_grants_anketa_id",
+          "unique": false
+        },
+        {
+          "name": "idx_grants_grant_id",
+          "unique": false
+        },
+        {
+          "name": "sqlite_autoindex_grants_1",
+          "unique": true
+        }
+      ],
+      "foreign_keys": [
+        {
+          "id": 0,
+          "table": "researcher_research",
+          "from": "research_id",
+          "to": "research_id"
+        },
+        {
+          "id": 1,
+          "table": "sessions",
+          "from": "anketa_id",
+          "to": "anketa_id"
+        },
+        {
+          "id": 2,
+          "table": "users",
+          "from": "user_id",
+          "to": "telegram_id"
+        }
+      ]
+    },
+    "db_version": {
+      "row_count": 1,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "version",
+          "type": "TEXT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "updated_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        }
+      ],
+      "indexes": [],
+      "foreign_keys": []
+    },
+    "db_timestamps": {
+      "row_count": 1,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "timestamp",
+          "type": "TEXT",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "description",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        }
+      ],
+      "indexes": [],
+      "foreign_keys": []
+    },
+    "auth_logs": {
+      "row_count": 3,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "user_id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "action",
+          "type": "VARCHAR(50)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "ip_address",
+          "type": "VARCHAR(45)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "user_agent",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "success",
+          "type": "BOOLEAN",
+          "not_null": false,
+          "default": "1",
+          "primary_key": false
+        },
+        {
+          "id": 6,
+          "name": "error_message",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 7,
+          "name": "created_at",
+          "type": "TIMESTAMP",
+          "not_null": false,
+          "default": "CURRENT_TIMESTAMP",
+          "primary_key": false
+        }
+      ],
+      "indexes": [],
+      "foreign_keys": [
+        {
+          "id": 0,
+          "table": "users",
+          "from": "user_id",
+          "to": "id"
+        }
+      ]
+    },
+    "page_permissions": {
+      "row_count": 0,
+      "columns": [
+        {
+          "id": 0,
+          "name": "id",
+          "type": "INTEGER",
+          "not_null": false,
+          "default": null,
+          "primary_key": true
+        },
+        {
+          "id": 1,
+          "name": "page_name",
+          "type": "VARCHAR(100)",
+          "not_null": true,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 2,
+          "name": "required_role",
+          "type": "VARCHAR(20)",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 3,
+          "name": "required_permissions",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 4,
+          "name": "description",
+          "type": "TEXT",
+          "not_null": false,
+          "default": null,
+          "primary_key": false
+        },
+        {
+          "id": 5,
+          "name": "is_active",
+          "type": "BOOLEAN",
+          "not_null": false,
+          "default": "1",
+          "primary_key": false
+        }
+      ],
+      "indexes": [
+        {
+          "name": "sqlite_autoindex_page_permissions_1",
+          "unique": true
+        }
+      ],
+      "foreign_keys": []
+    }
+  }
+}

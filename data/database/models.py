@@ -270,59 +270,75 @@ class GrantServiceDatabase:
         import secrets
         import time
         
-        # Формат: token_<timestamp>_<random_hex>
+        # Формат: tokenTIMESTAMPRANDOM_HEX (без подчеркиваний, 47 символов)
+        # token(5) + timestamp(10) + random_hex(32) = 47 символов
         timestamp = int(time.time())
-        random_hex = secrets.token_hex(16)
-        return f"token_{timestamp}_{random_hex}"
+        random_hex = secrets.token_hex(16)  # 32 символа hex
+        return f"token{timestamp}{random_hex}"
     
-    def get_or_create_login_token(self, user_id: int) -> Optional[str]:
-        """Получает существующий токен пользователя или создает новый"""
+    def get_or_create_login_token(self, telegram_id: int) -> Optional[str]:
+        """Получает существующий токен пользователя или создает новый (по telegram_id)"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Проверяем, есть ли уже токен у пользователя
+                # Проверяем, есть ли уже токен у пользователя (по telegram_id)
                 cursor.execute("""
-                    SELECT login_token FROM users WHERE id = ?
-                """, (user_id,))
+                    SELECT login_token FROM users WHERE telegram_id = ?
+                """, (telegram_id,))
                 
                 result = cursor.fetchone()
-                print(f"Проверка токена для пользователя {user_id}: {result}")
+                print(f"Проверка токена для пользователя с telegram_id {telegram_id}: {result}")
                 
                 if result and result[0]:
                     token = result[0]
                     print(f"Найден токен: {token[:20]}...")
                     # Проверяем срок действия токена (24 часа)
                     try:
-                        parts = token.split('_')
-                        if len(parts) >= 2:
-                            token_timestamp = int(parts[1])
+                        import time
+                        token_timestamp = None
+                        
+                        # Проверяем формат с подчеркиваниями
+                        if '_' in token:
+                            parts = token.split('_')
+                            if len(parts) >= 3:
+                                token_timestamp = int(parts[1])
+                        # Проверяем формат без подчеркиваний
+                        elif token.startswith('token') and len(token) == 47:
+                            try:
+                                timestamp_str = token[5:15]  # позиции 5-14 (10 цифр)
+                                if timestamp_str.isdigit():
+                                    token_timestamp = int(timestamp_str)
+                            except (ValueError, IndexError):
+                                pass
+                        
+                        if token_timestamp:
                             current_time = int(time.time())
                             # Токен действителен 24 часа (86400 секунд)
                             if current_time - token_timestamp < 86400:
-                                print(f"Токен действителен для пользователя {user_id}")
+                                print(f"Токен действителен для пользователя с telegram_id {telegram_id}")
                                 return token
                             else:
-                                print(f"Токен истек для пользователя {user_id}")
+                                print(f"Токен истек для пользователя с telegram_id {telegram_id}")
                     except (ValueError, IndexError) as e:
-                        print(f"Невалидный формат токена для пользователя {user_id}: {e}")
+                        print(f"Невалидный формат токена для пользователя с telegram_id {telegram_id}: {e}")
                         pass  # Невалидный формат токена
                 
                 # Генерируем новый токен
                 new_token = self.generate_login_token()
-                print(f"Генерируем новый токен для пользователя {user_id}: {new_token[:20]}...")
+                print(f"Генерируем новый токен для пользователя с telegram_id {telegram_id}: {new_token[:20]}...")
                 
-                # Обновляем токен в БД
+                # Обновляем токен в БД (по telegram_id)
                 cursor.execute("""
-                    UPDATE users SET login_token = ? WHERE id = ?
-                """, (new_token, user_id))
+                    UPDATE users SET login_token = ? WHERE telegram_id = ?
+                """, (new_token, telegram_id))
                 
                 conn.commit()
-                print(f"Токен обновлен для пользователя {user_id}")
+                print(f"Токен обновлен для пользователя с telegram_id {telegram_id}")
                 return new_token
                 
         except Exception as e:
-            print(f"Ошибка получения/создания токена для пользователя {user_id}: {e}")
+            print(f"Ошибка получения/создания токена для пользователя {telegram_id}: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -331,73 +347,144 @@ class GrantServiceDatabase:
         """Проверяет токен и возвращает данные пользователя если токен валиден"""
         import time
         
-        if not token:
-            print("Пустой токен")
-            return None
-        
-        print(f"Проверка токена: {token[:20]}...")
-        
         try:
-            # Парсим timestamp из токена
-            parts = token.split('_')
-            if len(parts) >= 2:
-                token_timestamp = int(parts[1])
-                current_time = int(time.time())
-                print(f"Время токена: {token_timestamp}, текущее время: {current_time}")
-                # Токен действителен 24 часа (86400 секунд)
-                if current_time - token_timestamp < 86400:
-                    print("Токен не истек")
-                    # Ищем пользователя с таким токеном
-                    with sqlite3.connect(self.db_path) as conn:
-                        cursor = conn.cursor()
-                        cursor.execute("""
-                            SELECT id, telegram_id, username, first_name, last_name, is_active
-                            FROM users WHERE login_token = ?
-                        """, (token,))
-                        
-                        result = cursor.fetchone()
-                        print(f"Результат поиска пользователя по токену: {result}")
-                        
-                        if result:
-                            columns = [description[0] for description in cursor.description]
-                            user_data = dict(zip(columns, result))
-                            print(f"Найден пользователь по токену: {user_data}")
-                            return user_data
-                        else:
-                            print("Пользователь с таким токеном не найден")
-                else:
-                    print("Токен истек")
-            else:
-                print("Неверный формат токена")
+            print("="*60)
+            print("ДЕТАЛЬНАЯ ПРОВЕРКА ТОКЕНА")
+            print("-"*60)
             
-        except (ValueError, IndexError) as e:
-            print(f"Невалидный формат токена: {e}")
-            pass  # Невалидный формат токена
+            if not token:
+                print("❌ ОШИБКА: Пустой токен")
+                print("="*60)
+                return None
+            
+            # Выводим полную информацию о токене
+            print(f"📍 Полный токен (длина {len(token)}): {token}")
+            
+            # Проверяем два возможных формата токена
+            token_timestamp = None
+            token_hash = None
+            
+            # Формат 1: token_timestamp_hash (с подчеркиваниями)
+            if '_' in token:
+                parts = token.split('_')
+                print(f"📍 Обнаружен формат с подчеркиваниями, частей: {len(parts)}")
+                if len(parts) >= 3:
+                    print(f"✅ Формат токена с подчеркиваниями (token_timestamp_hash)")
+                    try:
+                        token_timestamp = int(parts[1])
+                        token_hash = parts[2]
+                    except (ValueError, IndexError):
+                        pass
+            
+            # Формат 2: tokenTIMESTAMPHASH (без подчеркиваний, фиксированные позиции)
+            if not token_timestamp and token.startswith('token') and len(token) == 47:
+                print(f"📍 Обнаружен формат без подчеркиваний (длина 47)")
+                try:
+                    # Позиции: token(5) + timestamp(10) + hash(32) = 47
+                    timestamp_str = token[5:15]  # позиции 5-14 (10 цифр)
+                    token_hash = token[15:47]    # позиции 15-46 (32 символа)
+                    
+                    # Проверяем, что timestamp состоит из цифр
+                    if timestamp_str.isdigit():
+                        token_timestamp = int(timestamp_str)
+                        print(f"✅ Успешно извлечен timestamp: {token_timestamp}")
+                        print(f"✅ Успешно извлечен hash: {token_hash[:16]}...")
+                except (ValueError, IndexError) as e:
+                    print(f"❌ Ошибка парсинга формата без подчеркиваний: {e}")
+            
+            # Проверяем, удалось ли извлечь timestamp
+            if not token_timestamp:
+                print(f"❌ ОШИБКА: Не удалось извлечь timestamp из токена!")
+                print(f"   Токен не соответствует ни одному из форматов:")
+                print(f"   1. token_timestamp_hash (с подчеркиваниями)")
+                print(f"   2. tokenTIMESTAMPHASH (без подчеркиваний, 47 символов)")
+                print("="*60)
+                return None
+            
+            # Проверяем срок действия токена
+            current_time = int(time.time())
+            time_diff = current_time - token_timestamp
+            print(f"📍 Timestamp токена: {token_timestamp}")
+            print(f"📍 Текущее время: {current_time}")
+            print(f"📍 Разница: {time_diff} секунд ({time_diff//3600} часов)")
+            
+            # Токен действителен 24 часа (86400 секунд)
+            if time_diff >= 86400:
+                print(f"❌ Токен истек! Прошло {time_diff//3600} часов (лимит 24 часа)")
+                print("="*60)
+                return None
+            
+            print("✅ Токен не истек (действителен 24 часа)")
+            
+            # Ищем пользователя с таким токеном
+            print("🔍 Поиск пользователя в базе данных...")
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Сначала проверим, есть ли вообще пользователи с токенами
+                cursor.execute("SELECT COUNT(*) FROM users WHERE login_token IS NOT NULL")
+                total_with_tokens = cursor.fetchone()[0]
+                print(f"📍 Всего пользователей с токенами: {total_with_tokens}")
+                
+                # Теперь ищем конкретный токен
+                cursor.execute("""
+                    SELECT id, telegram_id, username, first_name, last_name, is_active
+                    FROM users WHERE login_token = ?
+                """, (token,))
+                
+                result = cursor.fetchone()
+                
+                if result:
+                    columns = [description[0] for description in cursor.description]
+                    user_data = dict(zip(columns, result))
+                    # ВАЖНО: Добавляем telegram_id как user_id для совместимости с auth.py
+                    user_data['user_id'] = user_data['telegram_id']
+                    print(f"✅ УСПЕХ! Найден пользователь:")
+                    print(f"   ID: {user_data['id']}")
+                    print(f"   Telegram ID: {user_data['telegram_id']}")
+                    print(f"   Username: {user_data['username']}")
+                    print(f"   Имя: {user_data['first_name']} {user_data['last_name']}")
+                    print(f"   Активен: {user_data['is_active']}")
+                    print("="*60)
+                    return user_data
+                else:
+                    print("❌ Пользователь с таким токеном НЕ найден в БД")
+                    
+                    # Для отладки покажем первые несколько токенов из БД
+                    cursor.execute("SELECT id, SUBSTR(login_token, 1, 40) FROM users WHERE login_token IS NOT NULL LIMIT 3")
+                    existing = cursor.fetchall()
+                    if existing:
+                        print("📍 Примеры токенов в БД (первые 40 символов):")
+                        for uid, token_part in existing:
+                            print(f"   User {uid}: {token_part}...")
+                    print("="*60)
+                    return None
+                    
         except Exception as e:
-            print(f"Ошибка проверки токена {token[:10]}...: {e}")
+            print(f"❌ Ошибка проверки токена: {e}")
             import traceback
             traceback.print_exc()
-        
-        return None
+            print("="*60)
+            return None
     
-    def refresh_login_token(self, user_id: int) -> Optional[str]:
-        """Принудительно обновляет токен пользователя"""
+    def refresh_login_token(self, telegram_id: int) -> Optional[str]:
+        """Принудительно обновляет токен пользователя (по telegram_id)"""
         try:
             new_token = self.generate_login_token()
-            print(f"Обновление токена для пользователя {user_id}: {new_token[:20]}...")
+            print(f"Обновление токена для пользователя с telegram_id {telegram_id}: {new_token[:20]}...")
             
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    UPDATE users SET login_token = ? WHERE id = ?
-                """, (new_token, user_id))
+                    UPDATE users SET login_token = ? WHERE telegram_id = ?
+                """, (new_token, telegram_id))
                 
                 conn.commit()
-                print(f"Токен обновлен для пользователя {user_id}")
+                print(f"Токен обновлен для пользователя с telegram_id {telegram_id}")
                 return new_token
                 
         except Exception as e:
-            print(f"Ошибка обновления токена для пользователя {user_id}: {e}")
+            print(f"Ошибка обновления токена для пользователя {telegram_id}: {e}")
             import traceback
             traceback.print_exc()
             return None
@@ -439,13 +526,25 @@ class GrantServiceDatabase:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
                 
-                # Генерируем уникальный номер заявки
-                import uuid
-                application_number = f"GA-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+                # Используем переданный номер заявки или генерируем новый
+                if 'application_number' in application_data and application_data['application_number']:
+                    application_number = application_data['application_number']
+                else:
+                    import uuid
+                    application_number = f"GA-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
                 
                 # Извлекаем данные из application_data
                 title = application_data.get('title', 'Без названия')
-                content_json = json.dumps(application_data.get('application', {}), ensure_ascii=False, indent=2)
+                
+                # Попробуем разные варианты содержимого заявки
+                if 'content_json' in application_data:
+                    content_json = application_data['content_json']
+                elif 'application' in application_data:
+                    content_json = json.dumps(application_data.get('application', {}), ensure_ascii=False, indent=2)
+                else:
+                    # Если ни того, ни другого нет, сохраняем все данные как есть
+                    content_json = json.dumps(application_data, ensure_ascii=False, indent=2)
+                
                 summary = application_data.get('summary', '')[:500]  # Ограничиваем длину
                 admin_user = application_data.get('admin_user', 'system')
                 quality_score = application_data.get('quality_score', 0.0)
@@ -460,18 +559,22 @@ class GrantServiceDatabase:
                 requested_amount = application_data.get('requested_amount', 0.0)
                 project_duration = application_data.get('project_duration', 12)
                 
+                # Добавляем session_id и user_id из application_data
+                session_id = application_data.get('session_id')
+                user_id = application_data.get('user_id')
+                
                 cursor.execute("""
                     INSERT INTO grant_applications (
-                        application_number, title, content_json, summary, 
+                        application_number, title, content_json, summary,
                         admin_user, quality_score, llm_provider, model_used,
-                        processing_time, tokens_used, grant_fund, requested_amount, 
-                        project_duration, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        processing_time, tokens_used, grant_fund, requested_amount,
+                        project_duration, user_id, session_id, created_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """, (
                     application_number, title, content_json, summary,
                     admin_user, quality_score, llm_provider, model_used,
                     processing_time, tokens_used, grant_fund, requested_amount,
-                    project_duration, get_kuzbass_time()
+                    project_duration, user_id, session_id, get_kuzbass_time()
                 ))
                 
                 conn.commit()
