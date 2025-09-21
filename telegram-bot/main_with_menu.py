@@ -175,7 +175,6 @@ class GrantServiceBotWithMenu:
 
 {f"💡 *Подсказка:* {question['hint_text']}" if question.get('hint_text') else ""}
 
-{f"📝 *Тип ответа:* {question['question_type']}" if question.get('question_type') else ""}
 """
         
         if update.callback_query:
