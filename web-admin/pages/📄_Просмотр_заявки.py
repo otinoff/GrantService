@@ -325,7 +325,10 @@ def share_application(application_number):
 def main():
     """Главная функция страницы"""
     # Проверяем, передан ли номер заявки
-    query_params = st.query_params
+    try:
+        query_params = st.query_params  # Streamlit >= 1.30
+    except AttributeError:
+        query_params = st.experimental_get_query_params()  # Streamlit < 1.30
     
     if 'app' in query_params:
         application_number = query_params['app']

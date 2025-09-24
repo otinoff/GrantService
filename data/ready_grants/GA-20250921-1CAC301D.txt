@@ -1,0 +1,12 @@
+ГРАНТОВАЯ ЗАЯВКА: GA-20250921-1CAC301D
+==================================================
+Название: 1
+Статус: draft
+Создана: 2025-09-21T22:48:49.306693+07:00
+
+СОДЕРЖАНИЕ:
+------------------------------
+user_info: {'telegram_id': 5032079932, 'username': 'theperipherals', 'first_name': 'Andrew', 'last_name': 'Otinoff'}
+interview_answers: {'project_name': '1', 'project_description': '2', 'project_location': '3', 'problem_solution': '4', 'target_audience': '5', 'main_goal': '6', 'project_tasks': '7', 'project_timeline': '8', 'potential_obstacles': '9', 'team_competencies': '10', 'volunteers_partners': '11', 'organization_info': '12', 'online_presence': '13', 'previous_grants': '14', 'grant_direction': '11'}
+session_id: 16
+_auto_created: {'created_at': '2025-09-21T22:48:49.305692', 'source': 'telegram_bot_auto', 'version': '1.0'}

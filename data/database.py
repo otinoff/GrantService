@@ -83,5 +83,27 @@ __all__ = [
     'get_or_create_login_token',
     'cleanup_expired_tokens',
     'get_user_role',
-    'set_user_role'
+    'set_user_role',
+    # Функции для работы с отправленными документами
+    'save_sent_document',
+    'update_document_delivery_status',
+    'get_sent_documents',
+    'get_users_for_sending'
 ]
+
+# Добавляем функции-обертки для работы с отправленными документами
+def save_sent_document(document_data):
+    """Сохранить информацию об отправленном документе"""
+    return db.save_sent_document(document_data)
+
+def update_document_delivery_status(document_id, status, telegram_message_id=None, error_message=None):
+    """Обновить статус доставки документа"""
+    return db.update_document_delivery_status(document_id, status, telegram_message_id, error_message)
+
+def get_sent_documents(user_id=None, limit=100, offset=0):
+    """Получить список отправленных документов"""
+    return db.get_sent_documents(user_id, limit, offset)
+
+def get_users_for_sending():
+    """Получить список пользователей для отправки документов"""
+    return db.get_users_for_sending()

@@ -260,6 +260,33 @@ class GrantServiceDatabase:
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_grants_status ON grants(status)")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_grants_provider ON grants(llm_provider)")
             
+            # Таблица отправленных документов
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS sent_documents (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id BIGINT NOT NULL, -- Telegram ID получателя
+                    grant_application_id TEXT, -- Номер грантовой заявки
+                    file_path TEXT NOT NULL, -- Путь к файлу
+                    file_name TEXT NOT NULL, -- Имя файла
+                    file_size INTEGER DEFAULT 0, -- Размер файла в байтах
+                    admin_comment TEXT, -- Комментарий администратора
+                    delivery_status VARCHAR(20) DEFAULT 'pending', -- pending, sent, delivered, failed
+                    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    delivered_at TIMESTAMP,
+                    error_message TEXT, -- Сообщение об ошибке, если доставка неуспешна
+                    telegram_message_id INTEGER, -- ID сообщения в Telegram для отслеживания
+                    admin_user VARCHAR(100), -- Кто отправил
+                    FOREIGN KEY (user_id) REFERENCES users(telegram_id),
+                    FOREIGN KEY (grant_application_id) REFERENCES grant_applications(application_number)
+                )
+            """)
+            
+            # Индексы для таблицы sent_documents
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sent_documents_user_id ON sent_documents(user_id)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sent_documents_status ON sent_documents(delivery_status)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sent_documents_date ON sent_documents(sent_at)")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sent_documents_grant_id ON sent_documents(grant_application_id)")
+            
             conn.commit()
             print("База данных инициализирована")
     
@@ -1219,7 +1246,172 @@ class GrantServiceDatabase:
             print(f"Ошибка получения всех грантов: {e}")
             return []
 
+    # ===== МЕТОДЫ ДЛЯ РАБОТЫ С ОТПРАВЛЕННЫМИ ДОКУМЕНТАМИ =====
+    
+    def save_sent_document(self, document_data: Dict[str, Any]) -> int:
+        """Сохранить информацию об отправленном документе"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    INSERT INTO sent_documents (
+                        user_id, grant_application_id, file_path, file_name,
+                        file_size, admin_comment, delivery_status, admin_user,
+                        sent_at
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    document_data['user_id'],
+                    document_data.get('grant_application_id'),
+                    document_data['file_path'],
+                    document_data['file_name'],
+                    document_data.get('file_size', 0),
+                    document_data.get('admin_comment', ''),
+                    'pending',
+                    document_data.get('admin_user', 'system'),
+                    get_kuzbass_time()
+                ))
+                
+                document_id = cursor.lastrowid
+                conn.commit()
+                print(f"Документ зарегистрирован для отправки: ID {document_id}")
+                return document_id
+                
+        except Exception as e:
+            print(f"Ошибка сохранения информации о документе: {e}")
+            return 0
+    
+    def update_document_delivery_status(self, document_id: int, status: str,
+                                       telegram_message_id: int = None,
+                                       error_message: str = None) -> bool:
+        """Обновить статус доставки документа"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                # Подготавливаем данные для обновления
+                update_data = {
+                    'status': status,
+                    'telegram_message_id': telegram_message_id,
+                    'error_message': error_message
+                }
+                
+                # Если статус "delivered", устанавливаем время доставки
+                if status == 'delivered':
+                    update_data['delivered_at'] = get_kuzbass_time()
+                
+                # Формируем SQL запрос
+                set_clause = "delivery_status = ?"
+                params = [status]
+                
+                if telegram_message_id:
+                    set_clause += ", telegram_message_id = ?"
+                    params.append(telegram_message_id)
+                    
+                if error_message:
+                    set_clause += ", error_message = ?"
+                    params.append(error_message)
+                    
+                if status == 'delivered':
+                    set_clause += ", delivered_at = ?"
+                    params.append(update_data['delivered_at'])
+                
+                params.append(document_id)
+                
+                cursor.execute(f"""
+                    UPDATE sent_documents
+                    SET {set_clause}
+                    WHERE id = ?
+                """, params)
+                
+                conn.commit()
+                return cursor.rowcount > 0
+                
+        except Exception as e:
+            print(f"Ошибка обновления статуса документа {document_id}: {e}")
+            return False
+    
+    def get_sent_documents(self, user_id: int = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+        """Получить список отправленных документов"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                if user_id:
+                    cursor.execute("""
+                        SELECT sd.*, u.username, u.first_name, u.last_name,
+                               ga.title as grant_title
+                        FROM sent_documents sd
+                        LEFT JOIN users u ON sd.user_id = u.telegram_id
+                        LEFT JOIN grant_applications ga ON sd.grant_application_id = ga.application_number
+                        WHERE sd.user_id = ?
+                        ORDER BY sd.sent_at DESC
+                        LIMIT ? OFFSET ?
+                    """, (user_id, limit, offset))
+                else:
+                    cursor.execute("""
+                        SELECT sd.*, u.username, u.first_name, u.last_name,
+                               ga.title as grant_title
+                        FROM sent_documents sd
+                        LEFT JOIN users u ON sd.user_id = u.telegram_id
+                        LEFT JOIN grant_applications ga ON sd.grant_application_id = ga.application_number
+                        ORDER BY sd.sent_at DESC
+                        LIMIT ? OFFSET ?
+                    """, (limit, offset))
+                
+                columns = [desc[0] for desc in cursor.description]
+                documents = []
+                
+                for row in cursor.fetchall():
+                    doc_dict = dict(zip(columns, row))
+                    documents.append(doc_dict)
+                
+                return documents
+                
+        except Exception as e:
+            print(f"Ошибка получения списка отправленных документов: {e}")
+            return []
+    
+    def get_users_for_sending(self) -> List[Dict[str, Any]]:
+        """Получить список пользователей для отправки документов"""
+        try:
+            with sqlite3.connect(self.db_path) as conn:
+                cursor = conn.cursor()
+                
+                cursor.execute("""
+                    SELECT telegram_id, username, first_name, last_name,
+                           total_sessions, completed_applications, last_active
+                    FROM users
+                    WHERE is_active = 1
+                    ORDER BY last_active DESC
+                """)
+                
+                columns = [desc[0] for desc in cursor.description]
+                users = []
+                
+                for row in cursor.fetchall():
+                    user_dict = dict(zip(columns, row))
+                    # Создаем отображаемое имя
+                    display_name = ""
+                    if user_dict['first_name']:
+                        display_name += user_dict['first_name']
+                    if user_dict['last_name']:
+                        display_name += f" {user_dict['last_name']}"
+                    if user_dict['username']:
+                        display_name += f" (@{user_dict['username']})"
+                    if not display_name.strip():
+                        display_name = f"ID: {user_dict['telegram_id']}"
+                    
+                    user_dict['display_name'] = display_name.strip()
+                    users.append(user_dict)
+                
+                return users
+                
+        except Exception as e:
+            print(f"Ошибка получения списка пользователей: {e}")
+            return []
+
 def get_connection():
     """Получить соединение с БД (для внутреннего использования)"""
     from . import db
-    return sqlite3.connect(db.db_path) 
+    return sqlite3.connect(db.db_path)
