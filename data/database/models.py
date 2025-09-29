@@ -548,21 +548,21 @@ class GrantServiceDatabase:
     #             return []
 
     def save_grant_application(self, application_data: Dict[str, Any]) -> str:
-        """Сохранить грантовую заявку в базу данных"""
+        """Сохранить грантовую заявку в базу данных и отправить уведомление администраторам"""
         try:
             with sqlite3.connect(self.db_path) as conn:
                 cursor = conn.cursor()
-                
+
                 # Используем переданный номер заявки или генерируем новый
                 if 'application_number' in application_data and application_data['application_number']:
                     application_number = application_data['application_number']
                 else:
                     import uuid
                     application_number = f"GA-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
-                
+
                 # Извлекаем данные из application_data
                 title = application_data.get('title', 'Без названия')
-                
+
                 # Попробуем разные варианты содержимого заявки
                 if 'content_json' in application_data:
                     content_json = application_data['content_json']
@@ -571,7 +571,7 @@ class GrantServiceDatabase:
                 else:
                     # Если ни того, ни другого нет, сохраняем все данные как есть
                     content_json = json.dumps(application_data, ensure_ascii=False, indent=2)
-                
+
                 summary = application_data.get('summary', '')[:500]  # Ограничиваем длину
                 admin_user = application_data.get('admin_user', 'system')
                 quality_score = application_data.get('quality_score', 0.0)
@@ -579,17 +579,17 @@ class GrantServiceDatabase:
                 model_used = application_data.get('model_used', 'unknown')
                 processing_time = application_data.get('processing_time', 0.0)
                 tokens_used = application_data.get('tokens_used', 0)
-                
+
                 # Извлекаем дополнительную информацию из содержания заявки
                 application_content = application_data.get('application', {})
                 grant_fund = application_data.get('grant_fund', '')
                 requested_amount = application_data.get('requested_amount', 0.0)
                 project_duration = application_data.get('project_duration', 12)
-                
+
                 # Добавляем session_id и user_id из application_data
                 session_id = application_data.get('session_id')
                 user_id = application_data.get('user_id')
-                
+
                 cursor.execute("""
                     INSERT INTO grant_applications (
                         application_number, title, content_json, summary,
@@ -603,11 +603,83 @@ class GrantServiceDatabase:
                     processing_time, tokens_used, grant_fund, requested_amount,
                     project_duration, user_id, session_id, get_kuzbass_time()
                 ))
-                
+
                 conn.commit()
                 print(f"Заявка сохранена с номером: {application_number}")
+
+                # Отправляем уведомление администраторам о новой заявке
+                try:
+                    # Получаем данные пользователя если есть user_id
+                    user_data = None
+                    if user_id:
+                        cursor.execute("""
+                            SELECT telegram_id, username, first_name, last_name
+                            FROM users
+                            WHERE id = ?
+                        """, (user_id,))
+                        user_row = cursor.fetchone()
+                        if user_row:
+                            user_data = {
+                                'telegram_id': user_row[0],
+                                'username': user_row[1],
+                                'first_name': user_row[2],
+                                'last_name': user_row[3]
+                            }
+
+                    # Если user_data нет, пробуем получить через session_id
+                    if not user_data and session_id:
+                        cursor.execute("""
+                            SELECT u.telegram_id, u.username, u.first_name, u.last_name
+                            FROM sessions s
+                            JOIN users u ON s.telegram_id = u.telegram_id
+                            WHERE s.id = ?
+                        """, (session_id,))
+                        user_row = cursor.fetchone()
+                        if user_row:
+                            user_data = {
+                                'telegram_id': user_row[0],
+                                'username': user_row[1],
+                                'first_name': user_row[2],
+                                'last_name': user_row[3]
+                            }
+
+                    # Подготавливаем данные для уведомления
+                    notification_data = {
+                        'application_number': application_number,
+                        'title': title,
+                        'grant_fund': grant_fund,
+                        'requested_amount': requested_amount,
+                        'project_duration': project_duration,
+                        'created_at': get_kuzbass_time()
+                    }
+
+                    # Импортируем и используем модуль уведомлений
+                    import sys
+                    import os
+                    # Добавляем путь к модулю если его нет
+                    bot_utils_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'telegram-bot', 'utils')
+                    if bot_utils_path not in sys.path:
+                        sys.path.append(bot_utils_path)
+
+                    from admin_notifications import get_notifier
+
+                    notifier = get_notifier()
+                    if notifier:
+                        # Отправляем уведомление (синхронно)
+                        success = notifier.send_notification_sync(notification_data, user_data)
+                        if success:
+                            print(f"✅ Уведомление о заявке {application_number} отправлено администраторам")
+                        else:
+                            print(f"⚠️ Не удалось отправить уведомление о заявке {application_number}")
+                    else:
+                        print("⚠️ Модуль уведомлений недоступен (нет токена бота)")
+
+                except Exception as notify_error:
+                    # Ошибка отправки уведомления не должна препятствовать сохранению заявки
+                    print(f"⚠️ Ошибка отправки уведомления: {notify_error}")
+
                 return application_number
-                
+
         except Exception as e:
             print(f"Ошибка сохранения заявки: {e}")
             return ""

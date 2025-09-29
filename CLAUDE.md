@@ -1,491 +1,214 @@
-# GrantService Database Structure
+# GrantService - AI-Powered Grant Application System
 
-**Database Path:** `C:\SnowWhiteAI\GrantService\data\grantservice.db`
-**Analysis Date:** 2025-09-21T21:15:00.780035
-**Total Tables:** 16
+## 🎯 Project Overview
+GrantService is an automated system for creating grant applications using AI agents. The system guides users through the grant application process via a Telegram bot, leveraging multiple specialized AI agents to collect information, analyze projects, structure applications, and generate professional grant proposals.
 
-## Tables Summary
+## 🏗 Architecture
 
-| Table Name | Row Count | Columns | Indexes | Foreign Keys |
-|------------|-----------|---------|---------|--------------|
-| interview_questions | 24 | 13 | 2 | 0 |
-| sqlite_sequence | 10 | 2 | 0 | 0 |
-| users | 4 | 14 | 2 | 0 |
-| sessions | 11 | 24 | 6 | 1 |
-| user_answers | 0 | 6 | 2 | 2 |
-| researcher_logs | 7 | 12 | 3 | 2 |
-| prompt_categories | 14 | 7 | 1 | 0 |
-| prompt_versions | 1 | 8 | 0 | 1 |
-| agent_prompts | 14 | 11 | 0 | 1 |
-| grant_applications | 9 | 19 | 1 | 2 |
-| researcher_research | 2 | 16 | 7 | 2 |
-| grants | 0 | 19 | 8 | 3 |
-| db_version | 1 | 3 | 0 | 0 |
-| db_timestamps | 1 | 4 | 0 | 0 |
-| auth_logs | 3 | 8 | 0 | 1 |
-| page_permissions | 0 | 6 | 1 | 0 |
+### Core Components
+- **Telegram Bot** - User interface for grant application process
+- **n8n Workflows** - Business logic orchestration
+- **GigaChat API** - Russian LLM for content generation
+- **PostgreSQL/SQLite** - Data persistence
+- **Streamlit Admin** - Web administration panel
 
-## Detailed Table Structures
+### AI Agents Pipeline
+1. **Interviewer Agent** - Collects project information through guided dialogue
+2. **Auditor Agent** - Analyzes project viability and scoring (1-10 scale)
+3. **Planner Agent** - Structures grant application sections
+4. **Writer Agent** - Generates professional grant text
 
-### 📊 interview_questions
+## 📂 Project Structure
+```
+GrantService/
+├── telegram-bot/       # Telegram bot implementation
+├── web-admin/         # Streamlit admin interface
+├── agents/           # AI agent configurations
+├── data/            # Database and storage
+├── scripts/         # Utility scripts
+├── n8n-workflows/   # Workflow definitions
+└── .claude/        # Claude Code agents
+    └── agents/     # Specialized development agents
+```
 
-**Rows:** 24
+## 🤖 Available Claude Code Agents
 
-#### Columns:
+### grant-architect
+Main system architect specializing in grant application systems and AI agent design.
+```bash
+# Use for architectural decisions, system design, grant logic
+@grant-architect help me design a new grant evaluation module
+```
 
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| question_number | INTEGER | ✓ |  |  |
-| question_text | TEXT | ✓ |  |  |
-| field_name | VARCHAR(100) | ✓ |  |  |
-| question_type | VARCHAR(50) |  | 'text' |  |
-| options | TEXT |  |  |  |
-| hint_text | TEXT |  |  |  |
-| is_required | BOOLEAN |  | 1 |  |
-| follow_up_question | TEXT |  |  |  |
-| validation_rules | TEXT |  |  |  |
-| is_active | BOOLEAN |  | 1 |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| updated_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
+### telegram-bot-developer
+Expert in Telegram bot development with python-telegram-bot v20+.
+```bash
+# Use for bot features, handlers, user interaction
+@telegram-bot-developer implement conversation flow for grant interview
+```
 
-#### Indexes:
-- idx_questions_active 
-- idx_questions_number 
+### database-manager
+PostgreSQL/SQLite expert for schema design and optimization.
+```bash
+# Use for database operations, migrations, optimization
+@database-manager optimize the grant_applications table queries
+```
 
----
+### ai-integration-specialist
+GigaChat API integration and prompt engineering expert.
+```bash
+# Use for AI prompts, token optimization, agent configuration
+@ai-integration-specialist improve the interviewer agent prompts
+```
 
-### 📊 sqlite_sequence
+## 🚀 Quick Start
 
-**Rows:** 10
+### Launch Admin Panel
+```bash
+# Windows
+admin.bat
 
-#### Columns:
+# Linux/Mac
+./admin.sh
 
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| name |  |  |  |  |
-| seq |  |  |  |  |
+# Alternative
+python launcher.py
+```
 
----
+### Test Installation
+```bash
+python launcher.py --test
+```
 
-### 📊 users
+## 💾 Database Schema
 
-**Rows:** 4
+### Key Tables
+- **users** - System users (telegram_id, role, permissions)
+- **sessions** - User sessions and progress tracking
+- **interview_questions** - Dynamic questionnaire (24 questions)
+- **grant_applications** - Completed applications
+- **agent_prompts** - AI agent configurations
+- **researcher_research** - Research data and analysis
+- **grants** - Final grant documents
 
-#### Columns:
+### Database Location
+```
+C:\SnowWhiteAI\GrantService\data\grantservice.db
+```
 
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| telegram_id | BIGINT | ✓ |  |  |
-| username | VARCHAR(100) |  |  |  |
-| first_name | VARCHAR(100) |  |  |  |
-| last_name | VARCHAR(100) |  |  |  |
-| registration_date | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| last_active | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| total_sessions | INTEGER |  | 0 |  |
-| completed_applications | INTEGER |  | 0 |  |
-| is_active | BOOLEAN |  | 1 |  |
-| login_token | VARCHAR(255) |  |  |  |
-| role | VARCHAR(20) |  | 'user' |  |
-| permissions | TEXT |  |  |  |
-| token_expires_at | TIMESTAMP |  |  |  |
+## 🔧 Development Guidelines
 
-#### Indexes:
-- idx_users_telegram_id 
-- sqlite_autoindex_users_1 UNIQUE
+### Code Style
+- Python 3.9+ with type hints
+- Async/await for Telegram bot handlers
+- SQLAlchemy for database operations
+- Environment variables for configuration
 
----
+### Testing Commands
+```bash
+# Run tests
+python test_streamlit_imports.py
+python test_anketa_autosave.py
+python test_deep_link.py
 
-### 📊 sessions
+# Check database
+python check_remote_db.py
+```
 
-**Rows:** 11
+### Git Workflow
+```bash
+# Feature branch workflow
+git checkout -b feature/your-feature
+git commit -m "feat: your feature description"
+git push origin feature/your-feature
+```
 
-#### Columns:
+## 🔐 Security
 
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| telegram_id | BIGINT | ✓ |  |  |
-| current_step | VARCHAR(50) |  |  |  |
-| status | VARCHAR(30) |  | 'active' |  |
-| conversation_history | TEXT |  |  |  |
-| collected_data | TEXT |  |  |  |
-| interview_data | TEXT |  |  |  |
-| audit_result | TEXT |  |  |  |
-| plan_structure | TEXT |  |  |  |
-| final_document | TEXT |  |  |  |
-| project_name | VARCHAR(300) |  |  |  |
-| started_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| completed_at | TIMESTAMP |  |  |  |
-| last_activity | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| total_messages | INTEGER |  | 0 |  |
-| ai_requests_count | INTEGER |  | 0 |  |
-| progress_percentage | INTEGER |  | 0 |  |
-| questions_answered | INTEGER |  | 0 |  |
-| total_questions | INTEGER |  | 24 |  |
-| last_question_number | INTEGER |  | 1 |  |
-| answers_data | TEXT |  |  |  |
-| session_duration_minutes | INTEGER |  | 0 |  |
-| completion_status | VARCHAR(20) |  | "in_progress" |  |
-| anketa_id | VARCHAR(20) |  |  |  |
+### Authentication
+- Telegram ID-based authentication
+- JWT tokens for admin panel
+- Role-based access control (user, coordinator, admin)
 
-#### Indexes:
-- idx_sessions_anketa 
-- idx_sessions_telegram 
-- idx_sessions_anketa_id 
-- idx_sessions_status 
-- idx_sessions_progress 
-- idx_sessions_telegram_id 
+### Data Protection
+- Personal data stored on Russian servers
+- HTTPS for all connections
+- Token expiration and rotation
 
-#### Foreign Keys:
-- telegram_id → users.telegram_id
+## 📊 Monitoring
 
----
+### Key Metrics
+- Application completion rate
+- Average time to complete
+- Grant approval success rate
+- AI token usage and costs
+- User satisfaction (NPS)
 
-### 📊 user_answers
+### Health Checks
+- Database connectivity
+- Telegram bot status
+- GigaChat API availability
+- Admin panel responsiveness
 
-**Rows:** 0
+## 🛠 Troubleshooting
 
-#### Columns:
+### Common Issues
 
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| session_id | INTEGER | ✓ |  |  |
-| question_id | INTEGER | ✓ |  |  |
-| answer_text | TEXT | ✓ |  |  |
-| answer_timestamp | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| validation_status | VARCHAR(20) |  | 'valid' |  |
+1. **ModuleNotFoundError**
+   - Always launch via `launcher.py` or `admin.bat`
+   - Check Python path configuration
 
-#### Indexes:
-- idx_user_answers_question 
-- idx_user_answers_session 
+2. **Database Connection**
+   - Verify SQLite file exists
+   - Check file permissions
 
-#### Foreign Keys:
-- question_id → interview_questions.id
-- session_id → sessions.id
+3. **Telegram Bot Not Responding**
+   - Check token in environment variables
+   - Verify webhook/polling configuration
 
----
+4. **AI Agent Errors**
+   - Monitor GigaChat API quota
+   - Check prompt token limits
+   - Review context window size
 
-### 📊 researcher_logs
+## 📝 Important Files
 
-**Rows:** 7
+- **ARCHITECTURE.md** - Detailed system architecture
+- **ROADMAP_UNIFIED_AGENTS.md** - Agent development roadmap
+- **DEPLOYMENT_STATUS.md** - Current deployment status
+- **launcher.py** - Main application entry point
 
-#### Columns:
+## 🎯 Project Goals
 
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| user_id | INTEGER |  |  |  |
-| session_id | INTEGER |  |  |  |
-| query_text | TEXT | ✓ |  |  |
-| perplexity_response | TEXT |  |  |  |
-| sources | JSON |  |  |  |
-| usage_stats | JSON |  |  |  |
-| cost | REAL |  | 0.0 |  |
-| status | VARCHAR(50) |  | 'success' |  |
-| error_message | TEXT |  |  |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| credit_balance | REAL |  | 0.0 |  |
+1. **Increase Grant Success Rate** from 10-15% to 40-50%
+2. **Automate Application Process** reducing time from weeks to hours
+3. **Provide Expert-Level Quality** through specialized AI agents
+4. **Support Multiple Grant Types** (presidential, youth, international)
 
-#### Indexes:
-- idx_researcher_logs_created_at 
-- idx_researcher_logs_session_id 
-- idx_researcher_logs_user_id 
+## 👥 Team
 
-#### Foreign Keys:
-- session_id → user_sessions.id
-- user_id → users.id
+- **Developer**: Nikolay Stepanov
+- **Consultant**: Andrey Otinov (@otinoff)
+- **Contact**: otinoff@gmail.com
 
----
+## 🚦 Current Status
 
-### 📊 prompt_categories
+- ✅ Core architecture implemented
+- ✅ Database schema deployed
+- ✅ Admin panel functional
+- ✅ Basic AI agents configured
+- 🔄 Telegram bot in testing
+- 📅 Production launch: September 2025
 
-**Rows:** 14
+## 🔄 Next Steps
 
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| name | VARCHAR(100) | ✓ |  |  |
-| description | TEXT |  |  |  |
-| agent_type | VARCHAR(50) | ✓ |  |  |
-| is_active | BOOLEAN |  | 1 |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| updated_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-
-#### Indexes:
-- sqlite_autoindex_prompt_categories_1 UNIQUE
+1. Complete Telegram bot conversation flows
+2. Optimize AI agent prompts for better results
+3. Implement analytics dashboard
+4. Add multi-language support
+5. Deploy to production environment
 
 ---
 
-### 📊 prompt_versions
-
-**Rows:** 1
-
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| prompt_id | INTEGER | ✓ |  |  |
-| prompt_template | TEXT | ✓ |  |  |
-| variables | TEXT |  |  |  |
-| default_values | TEXT |  |  |  |
-| version_number | INTEGER | ✓ |  |  |
-| created_by | VARCHAR(100) |  |  |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-
-#### Foreign Keys:
-- prompt_id → agent_prompts.id
-
----
-
-### 📊 agent_prompts
-
-**Rows:** 14
-
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| category_id | INTEGER | ✓ |  |  |
-| name | VARCHAR(100) | ✓ |  |  |
-| description | TEXT |  |  |  |
-| prompt_template | TEXT | ✓ |  |  |
-| variables | TEXT |  |  |  |
-| default_values | TEXT |  |  |  |
-| is_active | BOOLEAN |  | 1 |  |
-| priority | INTEGER |  | 0 |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| updated_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-
-#### Foreign Keys:
-- category_id → prompt_categories.id
-
----
-
-### 📊 grant_applications
-
-**Rows:** 9
-
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| application_number | VARCHAR(50) | ✓ |  |  |
-| title | VARCHAR(500) | ✓ |  |  |
-| content_json | TEXT | ✓ |  |  |
-| summary | TEXT |  |  |  |
-| status | VARCHAR(30) |  | 'draft' |  |
-| user_id | INTEGER |  |  |  |
-| session_id | INTEGER |  |  |  |
-| admin_user | VARCHAR(100) |  |  |  |
-| quality_score | REAL |  | 0.0 |  |
-| llm_provider | VARCHAR(50) |  |  |  |
-| model_used | VARCHAR(100) |  |  |  |
-| processing_time | REAL |  | 0.0 |  |
-| tokens_used | INTEGER |  | 0 |  |
-| grant_fund | VARCHAR(200) |  |  |  |
-| requested_amount | DECIMAL(15,2) |  |  |  |
-| project_duration | INTEGER |  |  |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| updated_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-
-#### Indexes:
-- sqlite_autoindex_grant_applications_1 UNIQUE
-
-#### Foreign Keys:
-- session_id → sessions.id
-- user_id → users.id
-
-#### Sample Data (Latest 5 records):
-
-| ID | User ID | Created At | Status |
-|----|---------|------------|--------|
-| 9 | None | 2025-09-09T10:38:52.876720+07:00 | draft |
-| 8 | None | 2025-09-06T00:22:46.916330+07:00 | draft |
-| 7 | None | 2025-08-30T20:54:52.022281+07:00 | draft |
-| 6 | None | 2025-08-30T17:23:10.254472+07:00 | draft |
-| 5 | None | 2025-08-29T19:40:09.243275+07:00 | draft |
-
----
-
-### 📊 researcher_research
-
-**Rows:** 2
-
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| research_id | VARCHAR(50) | ✓ |  |  |
-| anketa_id | VARCHAR(20) | ✓ |  |  |
-| user_id | BIGINT | ✓ |  |  |
-| username | VARCHAR(100) |  |  |  |
-| first_name | VARCHAR(100) |  |  |  |
-| last_name | VARCHAR(100) |  |  |  |
-| session_id | INTEGER |  |  |  |
-| research_type | VARCHAR(50) |  | 'comprehensive' |  |
-| llm_provider | VARCHAR(50) | ✓ |  |  |
-| model | VARCHAR(50) |  |  |  |
-| status | VARCHAR(30) |  | 'pending' |  |
-| research_results | TEXT |  |  |  |
-| metadata | TEXT |  |  |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| completed_at | TIMESTAMP |  |  |  |
-
-#### Indexes:
-- idx_research_provider 
-- idx_research_status 
-- idx_research_date 
-- idx_research_user_id 
-- idx_research_anketa_id 
-- idx_research_research_id 
-- sqlite_autoindex_researcher_research_1 UNIQUE
-
-#### Foreign Keys:
-- session_id → sessions.id
-- user_id → users.telegram_id
-
----
-
-### 📊 grants
-
-**Rows:** 0
-
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| grant_id | VARCHAR(50) | ✓ |  |  |
-| anketa_id | VARCHAR(20) | ✓ |  |  |
-| research_id | VARCHAR(50) | ✓ |  |  |
-| user_id | BIGINT | ✓ |  |  |
-| username | VARCHAR(100) |  |  |  |
-| first_name | VARCHAR(100) |  |  |  |
-| last_name | VARCHAR(100) |  |  |  |
-| grant_title | VARCHAR(200) |  |  |  |
-| grant_content | TEXT |  |  |  |
-| grant_sections | TEXT |  |  |  |
-| metadata | TEXT |  |  |  |
-| llm_provider | VARCHAR(50) | ✓ |  |  |
-| model | VARCHAR(50) |  |  |  |
-| status | VARCHAR(30) |  | 'draft' |  |
-| quality_score | INTEGER |  | 0 |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| updated_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-| submitted_at | TIMESTAMP |  |  |  |
-
-#### Indexes:
-- idx_grants_provider 
-- idx_grants_status 
-- idx_grants_date 
-- idx_grants_user_id 
-- idx_grants_research_id 
-- idx_grants_anketa_id 
-- idx_grants_grant_id 
-- sqlite_autoindex_grants_1 UNIQUE
-
-#### Foreign Keys:
-- research_id → researcher_research.research_id
-- anketa_id → sessions.anketa_id
-- user_id → users.telegram_id
-
----
-
-### 📊 db_version
-
-**Rows:** 1
-
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| version | TEXT | ✓ |  |  |
-| updated_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-
----
-
-### 📊 db_timestamps
-
-**Rows:** 1
-
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| timestamp | TEXT | ✓ |  |  |
-| description | TEXT |  |  |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-
----
-
-### 📊 auth_logs
-
-**Rows:** 3
-
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| user_id | INTEGER |  |  |  |
-| action | VARCHAR(50) |  |  |  |
-| ip_address | VARCHAR(45) |  |  |  |
-| user_agent | TEXT |  |  |  |
-| success | BOOLEAN |  | 1 |  |
-| error_message | TEXT |  |  |  |
-| created_at | TIMESTAMP |  | CURRENT_TIMESTAMP |  |
-
-#### Foreign Keys:
-- user_id → users.id
-
----
-
-### 📊 page_permissions
-
-**Rows:** 0
-
-#### Columns:
-
-| Column | Type | Not Null | Default | Primary Key |
-|--------|------|----------|---------|-------------|
-| id | INTEGER |  |  | ✓ |
-| page_name | VARCHAR(100) | ✓ |  |  |
-| required_role | VARCHAR(20) |  |  |  |
-| required_permissions | TEXT |  |  |  |
-| description | TEXT |  |  |  |
-| is_active | BOOLEAN |  | 1 |  |
-
-#### Indexes:
-- sqlite_autoindex_page_permissions_1 UNIQUE
-
----
-
-## 📋 Grant Applications Analysis
-
-**Total Applications:** 9
-
-The grant_applications table contains filled grant applications.
-Each application is linked to a user and contains:
-- Application data in JSON format
-- User responses to interview questions
-- Status tracking
-- Timestamps for creation and updates
-
-## 🔍 Key Relationships
-
-1. **Users ↔ Grant Applications**: One-to-many relationship
-2. **Users ↔ User Answers**: Track interview responses
-3. **Sessions ↔ Users**: Authentication and session management
-4. **Interview Questions ↔ User Answers**: Q&A tracking
-5. **Grants ↔ Grant Applications**: Grant program tracking
+*Last Updated: 2025-09-29*
+*Version: 1.0*
