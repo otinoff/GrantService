@@ -61,6 +61,22 @@ GigaChat API integration and prompt engineering expert.
 @ai-integration-specialist improve the interviewer agent prompts
 ```
 
+### documentation-keeper
+Expert in maintaining modular, versioned documentation across 8 core files.
+```bash
+# Use for updating docs after code changes
+@documentation-keeper update docs after adding new feature
+```
+
+### deployment-manager
+Automates full deployment cycle: git push, monitoring, verification, reporting.
+```bash
+# Use for deploying to production
+@deployment-manager deploy latest changes to production
+@deployment-manager check server status
+@deployment-manager rollback last deployment
+```
+
 ## 🚀 Quick Start
 
 ### Launch Admin Panel
