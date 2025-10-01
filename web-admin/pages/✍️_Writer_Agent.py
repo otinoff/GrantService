@@ -23,9 +23,6 @@ except ImportError as e:
     st.info("Запустите через launcher.py / Run via launcher.py")
     st.stop()
 
-Страница Writer Agent - написание грантовых заявок
-"""
-
 import streamlit as st
 import sys
 import os
@@ -318,25 +315,39 @@ def main():
                                 with st.spinner("✍️ Пишу грант на основе выбранных данных..."):
                                     try:
                                         # Формируем данные для писателя
-                                        combined_data = f"""📋 АНКЕТА: {session['anketa_id']}
-👤 Пользователь: @{session.get('username', 'N/A')} ({session.get('first_name', '')} {session.get('last_name', '')})
-📅 Дата создания: {session.get('started_at', 'Unknown')[:10]}
+                                        anketa_section = f"АНКЕТА: {session['anketa_id']}"
+                                        user_section = f"Пользователь: @{session.get('username', 'N/A')} ({session.get('first_name', '')} {session.get('last_name', '')})"
+                                        date_section = f"Дата создания: {session.get('started_at', 'Unknown')[:10]}"
 
-🔬 ИССЛЕДОВАНИЕ: {research['research_id']}
-🤖 Провайдер: {research['llm_provider']}
-📊 Статус: {research['status']}
-⏰ Завершено: {research.get('completed_at', 'N/A')}
+                                        research_section = f"ИССЛЕДОВАНИЕ: {research['research_id']}"
+                                        provider_section = f"Провайдер: {research['llm_provider']}"
+                                        status_section = f"Статус: {research['status']}"
+                                        completed_section = f"Завершено: {research.get('completed_at', 'N/A')}"
 
-📝 ДАННЫЕ АНКЕТЫ:
-{json.dumps(session.get('interview_data', {}), ensure_ascii=False, indent=2)}
+                                        anketa_data = json.dumps(session.get('interview_data', {}), ensure_ascii=False, indent=2)
+                                        research_results = research.get('research_results', 'Нет данных')
+                                        logs = research.get('logs', 'Нет логов')
 
-🔍 РЕЗУЛЬТАТЫ ИССЛЕДОВАНИЯ:
-{research.get('research_results', 'Нет данных')}
+                                        combined_data = f"""
+{anketa_section}
+{user_section}
+{date_section}
 
-📋 ЛОГИ ПРОЦЕССА:
-{research.get('logs', 'Нет логов')}
+{research_section}
+{provider_section}
+{status_section}
+{completed_section}
+
+ДАННЫЕ АНКЕТЫ:
+{anketa_data}
+
+РЕЗУЛЬТАТЫ ИССЛЕДОВАНИЯ:
+{research_results}
+
+ЛОГИ ПРОЦЕССА:
+{logs}
 """
-                                        
+
                                         # Создаем агента с базой данных
                                         db = GrantServiceDatabase()
                                         agent = WriterAgent(db=db, llm_provider=llm_provider)

@@ -23,9 +23,6 @@ except ImportError as e:
     st.info("Запустите через launcher.py / Run via launcher.py")
     st.stop()
 
-Researcher analytics page for GrantService admin panel
-"""
-
 import streamlit as st
 import sys
 import pandas as pd
@@ -96,12 +93,17 @@ try:
         from data.database import get_latest_credit_balance, update_latest_credit_balance
         
         current_balance = get_latest_credit_balance()
-        
+
+        balance_emoji = "💰"
+        tier = account_info.get('current_tier', 'Tier 0')
+        spent = account_info.get('total_spent', 0.02)
+        balance_str = f"{current_balance:.6f}"
+        spent_str = f"{spent:.2f}"
         st.markdown(f"""
-        **💰 Баланс аккаунта:**
-        - **Credit balance:** ${current_balance:.6f} USD
-        - **Уровень:** {account_info.get('current_tier', 'Tier 0')}
-        - **Потрачено:** ${account_info.get('total_spent', 0.02):.2f}
+        **{balance_emoji} Баланс аккаунта:**
+        - **Credit balance:** {balance_str} USD
+        - **Уровень:** {tier}
+        - **Потрачено:** {spent_str} USD
         """)
         
         # Интерфейс для редактирования баланса
@@ -186,8 +188,9 @@ try:
                     st.error(f"❌ Ошибка: {e}")
     
     with col2:
+        chart_emoji = "📊"
         st.markdown(f"""
-        **📊 API Requests:**
+        **{chart_emoji} API Requests:**
         - **sonar-pro, low:** {screen_data.get('sonar_pro_low', 0)}
         - **sonar, medium:** {screen_data.get('sonar_medium', 0)}
         - **sonar, low:** {screen_data.get('sonar_low', 0)}
@@ -256,8 +259,9 @@ try:
         screen_data.get('sonar_low', 0) + 
         screen_data.get('reasoning_pro', 0)
     )
-    
-    st.markdown(f"**📊 Всего запросов: {total_requests}**")
+
+    chart_emoji2 = "📊"
+    st.markdown(f"**{chart_emoji2} Всего запросов: {total_requests}**")
     
     # Добавляем секцию Input Tokens как в Perplexity
     st.markdown("---")
@@ -331,8 +335,9 @@ try:
     col1, col2, col3 = st.columns(3)
 
     with col1:
+        robot_emoji = "🤖"
         st.markdown(f"""
-        **🤖 Модель Perplexity API:**
+        **{robot_emoji} Модель Perplexity API:**
         - **Название:** `{model_settings['model_name']}`
         - **Тип:** {model_settings['model_type']}
         - **Контекст:** {model_settings['context_size']}
@@ -340,22 +345,30 @@ try:
 
     with col2:
         pricing = model_settings['pricing']
+        money_emoji = "💰"
+        checkmark = "✅"
         st.markdown(f"""
-        **💰 Стоимость:**
+        **{money_emoji} Стоимость:**
         - **Вход:** {pricing['input_tokens']}
         - **Выход:** {pricing['output_tokens']}
         - **Поиск:** {pricing['search_queries']}
-        - **Статус:** ✅ {pricing['status']}
+        - **Статус:** {checkmark} {pricing['status']}
         """)
 
     with col3:
         performance = model_settings['performance']
+        lightning_emoji = "⚡"
+        check = "✅"
+        cross = "❌"
+        web_search_icon = check if performance['web_search'] else cross
+        sources_icon = check if performance['sources'] else cross
+        citations_icon = check if performance['citations'] else cross
         st.markdown(f"""
-        **⚡ Производительность:**
+        **{lightning_emoji} Производительность:**
         - **Запросы/мин:** {performance['requests_per_minute']}
-        - **Поиск в интернете:** {'✅' if performance['web_search'] else '❌'}
-        - **Источники:** {'✅' if performance['sources'] else '❌'}
-        - **Цитаты:** {'✅' if performance['citations'] else '❌'}
+        - **Поиск в интернете:** {web_search_icon}
+        - **Источники:** {sources_icon}
+        - **Цитаты:** {citations_icon}
         """)
 
     # Дополнительная информация
@@ -364,15 +377,18 @@ try:
 
     with col1:
         capabilities = model_settings['capabilities']
-        capabilities_text = "\n".join([f"- ✅ {cap}" for cap in capabilities])
+        check_emoji = "✅"
+        capabilities_text = "\n".join([f"- {check_emoji} {cap}" for cap in capabilities])
+        target_emoji = "🎯"
         st.markdown(f"""
-        **🎯 Возможности модели `{model_settings['model_name']}`:**
+        **{target_emoji} Возможности модели `{model_settings['model_name']}`:**
         {capabilities_text}
         """)
 
     with col2:
+        chart_emoji3 = "📊"
         st.markdown(f"""
-        **📊 Текущие настройки:**
+        **{chart_emoji3} Текущие настройки:**
         - **Max tokens:** {model_settings['max_tokens']} (ограничение)
         - **Temperature:** {model_settings['temperature']} (точность)
         - **Timeout:** {model_settings['timeout']} секунд
@@ -383,10 +399,12 @@ try:
 
     # Информация о последнем обновлении
     if 'last_updated' in model_settings:
-        st.info(f"🕒 Настройки обновлены: {model_settings['last_updated']}")
-    
+        clock_emoji = "🕒"
+        st.info(f"{clock_emoji} Настройки обновлены: {model_settings['last_updated']}")
+
     if 'note' in model_settings:
-        st.warning(f"⚠️ {model_settings['note']}")
+        warning_emoji = "⚠️"
+        st.warning(f"{warning_emoji} {model_settings['note']}")
     
     # ===== НАСТРОЙКИ КОНТЕКСТА =====
     st.markdown("---")
@@ -510,13 +528,18 @@ try:
     
     # Информация о текущих настройках
     st.markdown("---")
+    clipboard_emoji = "📋"
+    context_tokens = f"{max_context_tokens:,}"
+    desc_tokens = f"{max_description_tokens:,}"
+    tech_tokens = f"{max_tech_tokens:,}"
+    fields_count = len(selected_fields)
     st.info(f"""
-    **📋 Текущие настройки контекста:**
-    - **Общий лимит:** {max_context_tokens:,} токенов
-    - **Описание:** {max_description_tokens:,} токенов  
-    - **Технические детали:** {max_tech_tokens:,} токенов
+    **{clipboard_emoji} Текущие настройки контекста:**
+    - **Общий лимит:** {context_tokens} токенов
+    - **Описание:** {desc_tokens} токенов
+    - **Технические детали:** {tech_tokens} токенов
     - **Стратегия:** {strategy}
-    - **Приоритетных полей:** {len(selected_fields)}
+    - **Приоритетных полей:** {fields_count}
     """)
 
 except Exception as e:

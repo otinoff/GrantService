@@ -23,9 +23,6 @@ except ImportError as e:
     st.info("Запустите через launcher.py / Run via launcher.py")
     st.stop()
 
-Страница для просмотра исследований Researcher Agent
-"""
-
 import streamlit as st
 import sys
 import os

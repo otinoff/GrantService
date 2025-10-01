@@ -23,9 +23,6 @@ except ImportError as e:
     st.info("Запустите через launcher.py / Run via launcher.py")
     st.stop()
 
-General analytics page for GrantService admin panel
-"""
-
 import streamlit as st
 import sys
 import pandas as pd

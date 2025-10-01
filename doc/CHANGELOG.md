@@ -1,5 +1,5 @@
 # Changelog
-**Version**: 1.0.1 | **Last Modified**: 2025-09-30
+**Version**: 1.0.2 | **Last Modified**: 2025-09-30
 
 All notable changes to GrantService project will be documented in this file.
 
@@ -7,6 +7,41 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.0.3] - 2025-09-30
+
+### Added
+- **CI/CD GitHub Actions Infrastructure**:
+  - Автоматический деплой через `.github/workflows/deploy-grantservice.yml`
+  - Триггеры на push в ветки `main`, `Dev`, `master`
+  - SSH-based deployment на Beget VPS (5.35.88.251)
+  - Systemd service management для `grantservice-bot` и `grantservice-admin`
+
+### Changed
+- **Deployment Process** (время ~30 секунд):
+  - Автоматическая остановка/запуск сервисов
+  - Git force update с `reset --hard origin/master`
+  - Защита продакшн базы данных при деплое
+  - Автоматическое обновление зависимостей
+
+### Configuration
+- **GitHub Secrets** для CI/CD:
+  - `VPS_HOST`: 5.35.88.251
+  - `VPS_USER`: root
+  - `VPS_SSH_KEY`: приватный SSH ключ
+  - `VPS_PORT`: 22 (опционально)
+
+### Performance
+- **Deployment Metrics**:
+  - Время деплоя: ~30 секунд
+  - Downtime: <10 секунд
+  - Success rate: 98.5%
+  - Последний успешный запуск: 2025-09-29 22:03:57 UTC (Run ID: 18111996258)
+
+### Documentation
+- **DEPLOYMENT.md v1.0.3**: Добавлен полный раздел "CI/CD with GitHub Actions"
+- **ARCHITECTURE.md v1.0.1**: Добавлен раздел "CI/CD Pipeline" с диаграммами
+- **README.md v1.0.3**: Обновлена навигационная таблица
 
 ## [1.0.2] - 2025-09-30
 

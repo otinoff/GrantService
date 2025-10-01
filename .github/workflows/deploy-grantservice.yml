@@ -27,16 +27,31 @@ jobs:
           
           # Переход в директорию проекта
           cd /var/GrantService
-          
-          # Сохранение локальных изменений (если есть)
-          git stash clear
-          
+
+          # ВАЖНО: Резервное копирование БД ПЕРЕД любыми git операциями
+          echo "Backing up production database..."
+          if [ -f "data/grantservice.db" ]; then
+            cp data/grantservice.db data/grantservice.db.backup
+            echo "✓ Database backed up to data/grantservice.db.backup"
+          else
+            echo "⚠ Warning: Production database not found at data/grantservice.db"
+          fi
+
+          # Защита директории data/ от git clean
+          echo "Protecting data directory..."
+          if [ -d "data" ]; then
+            # Временно перемещаем data/ за пределы репозитория
+            mv data /tmp/grantservice_data_safe
+            echo "✓ Data directory moved to safe location"
+          fi
+
           # Настройка git для работы без аутентификации
           git config pull.rebase false
-          
+
           # Принудительное обновление из репозитория
           echo "Force updating from GitHub..."
           git fetch --all
+
           # Определяем ветку и обновляемся из неё
           BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
           echo "Current branch: $BRANCH_NAME"
@@ -47,18 +62,33 @@ jobs:
             echo "Updating to latest Dev..."
             git reset --hard origin/Dev
           fi
-          git clean -fd
-          
+
+          # Очистка только git-tracked файлов, БЕЗ untracked
+          git clean -fdX  # Только игнорируемые файлы, не трогает untracked
+
+          # Восстановление data/ обратно
+          echo "Restoring data directory..."
+          if [ -d "/tmp/grantservice_data_safe" ]; then
+            mv /tmp/grantservice_data_safe data
+            echo "✓ Data directory restored"
+          fi
+
           # Проверяем, что обновление прошло успешно
           CURRENT_COMMIT=$(git rev-parse HEAD)
           echo "Updated to commit: $CURRENT_COMMIT"
-          
-          # Проверяем и защищаем рабочую базу данных
-          echo "Protecting production database..."
-          if [ -f "/var/GrantService/data/grantservice.db" ]; then
-            echo "Production database exists and is protected"
+
+          # Финальная проверка БД
+          echo "Verifying production database..."
+          if [ -f "data/grantservice.db" ]; then
+            DB_SIZE=$(du -h data/grantservice.db | cut -f1)
+            echo "✓ Production database intact: $DB_SIZE"
           else
-            echo "Warning: Production database not found"
+            echo "✗ ERROR: Production database missing after update!"
+            if [ -f "data/grantservice.db.backup" ]; then
+              echo "Restoring from backup..."
+              cp data/grantservice.db.backup data/grantservice.db
+              echo "✓ Database restored from backup"
+            fi
           fi
           
           # Проверка, что файлы обновлены
