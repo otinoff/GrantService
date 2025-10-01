@@ -116,6 +116,10 @@ jobs:
           cd /var/GrantService
           python3 scripts/init_auth_roles.py || true
           python3 scripts/fix_authorization.py || true
+
+          # Обновление systemd сервисов при необходимости
+          echo "Updating systemd services if needed..."
+          bash scripts/setup_systemd_services.sh || true
           
           # Запуск сервисов
           echo "Starting services..."

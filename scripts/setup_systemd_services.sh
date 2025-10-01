@@ -35,7 +35,7 @@ Type=simple
 User=root
 WorkingDirectory=/var/GrantService
 Environment="PATH=/usr/bin:/usr/local/bin"
-ExecStart=/usr/bin/python3 -m streamlit run /var/GrantService/streamlit_app.py --server.port 8501 --server.address 0.0.0.0
+ExecStart=/usr/bin/python3 -m streamlit run /var/GrantService/web-admin/app_main.py --server.port 8501 --server.address 0.0.0.0
 Restart=always
 RestartSec=10
 
