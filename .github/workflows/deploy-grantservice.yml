@@ -37,6 +37,15 @@ jobs:
             echo "⚠ Warning: Production database not found at data/grantservice.db"
           fi
 
+          # Защита критичных файлов конфигурации
+          echo "Protecting config/.env (bot token)..."
+          if [ -f "config/.env" ]; then
+            cp config/.env /tmp/grantservice_env_safe
+            echo "✓ Bot token backed up"
+          else
+            echo "⚠ Warning: config/.env not found - bot may fail to start!"
+          fi
+
           # Защита директории data/ от git clean
           echo "Protecting data directory..."
           if [ -d "data" ]; then
@@ -71,6 +80,15 @@ jobs:
           if [ -d "/tmp/grantservice_data_safe" ]; then
             mv /tmp/grantservice_data_safe data
             echo "✓ Data directory restored"
+          fi
+
+          # Восстановление config/.env
+          echo "Restoring config/.env (bot token)..."
+          if [ -f "/tmp/grantservice_env_safe" ]; then
+            mkdir -p config
+            cp /tmp/grantservice_env_safe config/.env
+            chmod 600 config/.env
+            echo "✓ Bot token restored"
           fi
 
           # Проверяем, что обновление прошло успешно
