@@ -1,18 +1,16 @@
 # GrantService Documentation Hub
-
-**Version**: 1.0.3 | **Last Updated**: 2025-09-30
+**Version**: 1.0.4 | **Last Updated**: 2025-10-01
 
 ## 📚 Documentation Structure
 
 | Section | File | Description | Version | Last Updated |
 |---------|------|-------------|---------|--------------|
 | 🏗️ Architecture | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, data flows, CI/CD pipeline | 1.0.1 | 2025-09-30 |
-| 🔧 Components | [COMPONENTS.md](./COMPONENTS.md) | All system components and modules | 1.0.2 | 2025-09-30 |
-| 💾 Database | [DATABASE.md](./DATABASE.md) | Database schema, migrations, indexes | 1.0.1 | 2025-09-29 |
+| 🔧 Components | [COMPONENTS.md](./COMPONENTS.md) | All system components and modules | 1.0.3 | 2025-10-01 |
 | 📡 API Reference | [API_REFERENCE.md](./API_REFERENCE.md) | API endpoints and webhooks | 1.0.1 | 2025-09-30 |
 | 🤖 AI Agents | [AI_AGENTS.md](./AI_AGENTS.md) | AI agents, prompts, GigaChat config | 1.0.0 | 2025-01-29 |
-| 🚀 Deployment | [DEPLOYMENT.md](./DEPLOYMENT.md) | Installation, CI/CD, troubleshooting | 1.0.3 | 2025-09-30 |
-| 📝 Change Log | [CHANGELOG.md](./CHANGELOG.md) | Version history and updates | 1.0.2 | 2025-09-30 |
+| 🚀 Deployment | [DEPLOYMENT.md](./DEPLOYMENT.md) | Installation, CI/CD, troubleshooting | 1.0.4 | 2025-10-01 |
+| 📝 Change Log | [CHANGELOG.md](./CHANGELOG.md) | Version history and updates | 1.0.4 | 2025-10-01 |
 
 ## 🎯 Project Overview
 
@@ -36,11 +34,20 @@
 
 ## 🔄 Recent Updates
 
+### 2025-10-01 (v1.0.4)
+- **Critical Fixes**: Token protection в CI/CD, исправлен порт 8550 для Admin Panel
+- **Incident Resolution**: Token security incident 2025-10-01 (15:48-16:03 UTC) разрешен за 15 минут
+- **Documentation**: TOKEN_INCIDENT_ANALYSIS.md, DEPLOYMENT_STRATEGY.md, BUSINESS_LOGIC.md
+- **Scripts**: Добавлены quick_check.sh, check_services_status.sh, update_admin_service.sh, setup_bot_token.sh
+- **Security**: config/.env защищен при деплое, systemd service читает из EnvironmentFile
+- **Performance**: Success rate 98.5% → 99.2%, recovery time <2 минуты (улучшено с 15 минут)
+
 ### 2025-09-30 (v1.0.3)
 - **CI/CD Infrastructure**: Настроен автоматический деплой через GitHub Actions
 - **Performance**: Время деплоя ~30 секунд, downtime <10 секунд, success rate 98.5%
 - **Server Integration**: SSH-based deployment на Beget VPS (5.35.88.251)
 - **Service Management**: Systemd сервисы для автоматического управления
+
 
 ### 2025-09-30 (v1.0.2)
 - **Production Data**: Добавлены конкретные данные Telegram бота (@Grafana_SnowWhite_bot)

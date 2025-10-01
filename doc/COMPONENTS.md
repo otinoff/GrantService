@@ -1,5 +1,5 @@
 # System Components
-**Version**: 1.0.2 | **Last Modified**: 2025-09-30
+**Version**: 1.0.3 | **Last Modified**: 2025-10-01
 
 ## Table of Contents
 - [Telegram Bot](#telegram-bot)
@@ -132,7 +132,7 @@ readiness_score = notifier.check_readiness()  # Возвращает 92.3%
 - **Path**: `/web-admin/`
 - **Technology**: Streamlit
 - **Main File**: `streamlit_app.py`
-- **Port**: 8501 (default)
+- **Port**: 8550 (production) / 8501 (default local) - See [DEPLOYMENT.md v1.0.4](./DEPLOYMENT.md#port-allocation-v104)
 
 ### Structure
 ```
@@ -459,6 +459,9 @@ python scripts/health_check.py
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.0.3 | 2025-10-01 | Updated Web Admin Panel port to 8550 (production) |
+| 1.0.2 | 2025-09-30 | Updated AdminNotifier documentation with v2.1.4 improvements |
+| 1.0.1 | 2025-09-29 | Added AdminNotifier class documentation |
 | 1.0.0 | 2025-01-29 | Initial components documentation |
 
 ---

@@ -1,5 +1,5 @@
 # Deployment Guide
-**Version**: 1.0.3 | **Last Modified**: 2025-09-30
+**Version**: 1.0.4 | **Last Modified**: 2025-10-01
 
 ## Table of Contents
 - [Requirements](#requirements)
@@ -69,7 +69,7 @@ black==23.7.0
 ```bash
 # .env file
 # Telegram Configuration
-TELEGRAM_BOT_TOKEN=your_bot_token_here
+TELEGRAM_BOT_TOKEN=your_bot_token_here  # CRITICAL: Protected during CI/CD (backed up before git operations)
 TELEGRAM_ADMIN_ID=your_admin_id
 TELEGRAM_WEBHOOK_URL=https://yourdomain.com/webhook
 
@@ -91,7 +91,7 @@ GIGACHAT_SCOPE=GIGACHAT_API_PERS
 
 # Admin Panel Configuration
 ADMIN_SECRET_KEY=generate_strong_secret_key_here
-STREAMLIT_PORT=8501
+STREAMLIT_PORT=8550  # Port 8550 allocated for GrantService on production (v1.0.4)
 STREAMLIT_SERVER_ADDRESS=0.0.0.0
 
 # Redis Configuration (optional)
@@ -596,6 +596,76 @@ ssh-copy-id -i ~/.ssh/id_rsa.pub root@5.35.88.251
 9. **Status Check**: Проверка статуса сервисов
 
 #### Защита данных при деплое:
+
+### Config Protection in CI/CD (v1.0.4)
+
+**Critical**: Since v1.0.4, `config/.env` (bot token) is protected during deployment:
+
+```bash
+# Protection sequence in GitHub Actions workflow:
+
+# 1. Backup config/.env BEFORE any git operations
+if [ -f "config/.env" ]; then
+  cp config/.env /tmp/grantservice_env_safe
+  echo "✓ Bot token backed up"
+fi
+
+# 2. Perform git operations (pull or reset)
+if git merge-base --is-ancestor HEAD origin/master; then
+  git pull origin master  # Safe fast-forward
+else
+  git reset --hard origin/master  # Only when diverged
+fi
+
+# 3. Restore config/.env AFTER git operations
+if [ -f "/tmp/grantservice_env_safe" ]; then
+  mkdir -p config
+  cp /tmp/grantservice_env_safe config/.env
+  chmod 600 config/.env
+  echo "✓ Bot token restored"
+fi
+
+# 4. Verify token is not a placeholder
+if grep -q "YOUR_BOT_TOKEN" config/.env 2>/dev/null; then
+  echo "✗ Token is placeholder - check config!"
+  exit 1
+fi
+```
+
+**Why this is critical**:
+- `config/.env` is in `.gitignore` (never in Git)
+- `git reset --hard` removes untracked files
+- Without protection, bot loses token and fails to start
+- **Incident 2025-10-01**: Token was lost, bot restarted every 10 seconds
+- **Resolution**: Restored from backup in 15 minutes
+
+See: [Token Incident Analysis](./TOKEN_INCIDENT_ANALYSIS.md)
+
+### Port Allocation (v1.0.4)
+
+**Production server** (5.35.88.251) runs multiple Streamlit apps:
+
+| Application | Port | Status |
+|-------------|------|--------|
+| Other apps | 8503-8504, 8510, 8520-8521 | Occupied |
+| **GrantService Admin** | **8550** | **Allocated (v1.0.4)** |
+
+**Configuration**:
+```bash
+# Systemd service
+ExecStart=/var/GrantService/venv/bin/streamlit run --server.port 8550 web-admin/app_main.py
+
+# Nginx proxy
+location / {
+    proxy_pass http://localhost:8550;
+}
+
+# Environment variable
+STREAMLIT_PORT=8550  # In config/.env
+```
+
+**IMPORTANT**: Port 8550 is specifically allocated for GrantService. Do NOT change without coordinating with other services on the server.
+
 ```bash
 # КРИТИЧНО: Защита БД выполняется в 3 этапа
 
@@ -1026,6 +1096,7 @@ async def process_request():
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.0.4 | 2025-10-01 | Critical: Config protection, Port 8550, Smart pull deployment |
 | 1.0.3 | 2025-09-30 | Added CI/CD with GitHub Actions documentation |
 | 1.0.2 | 2025-09-30 | Added production Telegram bot configuration |
 | 1.0.1 | 2025-09-29 | Added admin notifications configuration |
