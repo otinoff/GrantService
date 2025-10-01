@@ -57,23 +57,44 @@ jobs:
           # Настройка git для работы без аутентификации
           git config pull.rebase false
 
-          # Принудительное обновление из репозитория
-          echo "Force updating from GitHub..."
+          # Проверяем наличие локальных изменений
+          echo "Checking for local changes..."
+          if ! git diff-index --quiet HEAD --; then
+            echo "⚠️  Local changes detected, will be overwritten"
+            git status --short
+          fi
+
+          # Обновление из репозитория
+          echo "Updating from GitHub..."
           git fetch --all
 
           # Определяем ветку и обновляемся из неё
           BRANCH_NAME=$(git rev-parse --abbrev-ref HEAD)
           echo "Current branch: $BRANCH_NAME"
+
+          # Безопасное обновление: сначала пробуем pull, при конфликтах - reset
           if [ "$BRANCH_NAME" = "master" ]; then
             echo "Updating to latest master..."
-            git reset --hard origin/master
+            if git merge-base --is-ancestor HEAD origin/master; then
+              # Fast-forward возможен - безопасный pull
+              git pull origin master
+            else
+              # Есть расхождения - нужен reset
+              echo "⚠️  Diverged from origin, forcing reset..."
+              git reset --hard origin/master
+            fi
           else
             echo "Updating to latest Dev..."
-            git reset --hard origin/Dev
+            if git merge-base --is-ancestor HEAD origin/Dev; then
+              git pull origin Dev
+            else
+              echo "⚠️  Diverged from origin, forcing reset..."
+              git reset --hard origin/Dev
+            fi
           fi
 
-          # Очистка только git-tracked файлов, БЕЗ untracked
-          git clean -fdX  # Только игнорируемые файлы, не трогает untracked
+          # Очистка только ignored файлов (не трогаем untracked)
+          git clean -fdX  # Только .pyc, __pycache__ и т.д.
 
           # Восстановление data/ обратно
           echo "Restoring data directory..."
