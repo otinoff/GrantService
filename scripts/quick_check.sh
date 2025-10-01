@@ -21,8 +21,8 @@ else
 fi
 
 # Проверка порта
-echo -n "🌐 Port 8501: "
-if ss -tuln | grep -q ":8501 "; then
+echo -n "🌐 Port 8550: "
+if ss -tuln | grep -q ":8550 "; then
     echo "✓ Open"
 else
     echo "✗ Closed"

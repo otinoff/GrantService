@@ -98,10 +98,10 @@ echo ""
 echo "2️⃣  Network Ports"
 echo "-----------------------------------"
 
-port_8501=0
+port_8550=0
 port_80=0
 
-check_port "8501" "Streamlit" || port_8501=1
+check_port "8550" "Streamlit" || port_8550=1
 check_port "80" "Nginx" || port_80=1
 echo ""
 
@@ -186,7 +186,7 @@ echo "6️⃣  Service Availability"
 echo "-----------------------------------"
 
 echo -n "🌐 Streamlit HTTP: "
-if curl -s -o /dev/null -w "%{http_code}" http://localhost:8501 | grep -q "200\|302"; then
+if curl -s -o /dev/null -w "%{http_code}" http://localhost:8550 | grep -q "200\|302"; then
     echo -e "${GREEN}✓ Responding${NC}"
 else
     echo -e "${RED}✗ Not responding${NC}"
@@ -201,7 +201,7 @@ echo "========================================"
 echo "  Summary"
 echo "========================================"
 
-total_issues=$((bot_status + admin_status + port_8501 + files_ok))
+total_issues=$((bot_status + admin_status + port_8550 + files_ok))
 
 if [ $total_issues -eq 0 ]; then
     echo -e "${GREEN}✅ All systems operational!${NC}"
