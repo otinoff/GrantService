@@ -14,6 +14,7 @@ Type=simple
 User=root
 WorkingDirectory=/var/GrantService/telegram-bot
 Environment="PATH=/usr/bin:/usr/local/bin"
+EnvironmentFile=-/var/GrantService/config/.env
 ExecStart=/usr/bin/python3 /var/GrantService/telegram-bot/main.py
 Restart=always
 RestartSec=10
