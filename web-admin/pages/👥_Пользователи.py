@@ -14,14 +14,8 @@ import pandas as pd
 import json
 
 # PATH SETUP
-current_file = Path(__file__).resolve()
-web_admin_dir = current_file.parent.parent
-base_dir = web_admin_dir.parent
-
-if str(web_admin_dir) not in sys.path:
-    sys.path.insert(0, str(web_admin_dir))
-if str(base_dir) not in sys.path:
-    sys.path.insert(0, str(base_dir))
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import setup_paths
 
 # IMPORTS
 try:
@@ -44,13 +38,21 @@ st.set_page_config(page_title="Пользователи", page_icon="👥", layo
 logger = setup_logger('users_page')
 
 # DATABASE
+import os
+
+# Определяем путь к базе данных в зависимости от платформы
+if os.name == 'nt':  # Windows
+    DB_PATH = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+else:  # Linux/Unix
+    DB_PATH = "/var/GrantService/data/grantservice.db"
+
 @st.cache_resource
 def get_database():
     return AdminDatabase()
 
 @st.cache_resource
 def get_grant_database():
-    return GrantServiceDatabase()
+    return GrantServiceDatabase(DB_PATH)
 
 db = get_database()
 grant_db = get_grant_database()
@@ -65,6 +67,7 @@ def get_users_metrics():
         completed = len([u for u in users_progress if u['progress']['status'] == 'completed'])
         in_progress = len([u for u in users_progress if u['progress']['status'] == 'in_progress'])
         avg_prog = sum([u['progress']['progress_percent'] for u in users_progress]) / len(users_progress) if users_progress else 0
+
         return {
             'total_users': total,
             'completed_users': completed,
@@ -93,7 +96,7 @@ def get_all_questionnaires():
                 FROM sessions s
                 LEFT JOIN users u ON s.telegram_id = u.telegram_id
                 WHERE s.anketa_id IS NOT NULL
-                ORDER BY s.created_at DESC
+                ORDER BY s.started_at DESC
                 LIMIT 100
             """)
             results = cursor.fetchall()
@@ -358,10 +361,10 @@ try:
     metrics = get_users_metrics()
 
     # TABS
-    tab_names = ["Все пользователи", "Анкеты", "Поиск"]
-    selected_tab = render_tabs(tab_names, icons=["📋", "📝", "🔍"])
+    tab1, tab2, tab3 = st.tabs(["📋 Все пользователи", "📝 Анкеты", "🔍 Поиск"])
 
-    if selected_tab == "Все пользователи":
+    with tab1:
+
         users_emoji = "👥"
         st.markdown(f"### {users_emoji} Все пользователи")
 
@@ -431,7 +434,7 @@ try:
         # Детализация выбранного пользователя
         render_user_details()
 
-    elif selected_tab == "Анкеты":
+    with tab2:
         form_emoji = "📝"
         st.markdown(f"### {form_emoji} Анкеты")
 
@@ -564,7 +567,7 @@ try:
                                 key=f"download_json_{anketa.get('id')}"
                             )
 
-    elif selected_tab == "Поиск":
+    with tab3:
         search_icon = "🔍"
         st.markdown(f"### {search_icon} Расширенный поиск")
 

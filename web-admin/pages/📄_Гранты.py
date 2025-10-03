@@ -27,14 +27,8 @@ from typing import Dict, List, Optional, Any
 # PATH SETUP
 # =============================================================================
 
-current_file = Path(__file__).resolve()
-web_admin_dir = current_file.parent.parent
-project_root = web_admin_dir.parent
-
-if str(web_admin_dir) not in sys.path:
-    sys.path.insert(0, str(web_admin_dir))
-if str(project_root) not in sys.path:
-    sys.path.insert(0, str(project_root))
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import setup_paths
 
 # =============================================================================
 # IMPORTS
@@ -92,7 +86,7 @@ def get_grants_statistics(_db):
         ).fetchone()[0]
 
         sent = conn.execute(
-            "SELECT COUNT(DISTINCT grant_id) FROM sent_documents"
+            "SELECT COUNT(DISTINCT grant_application_id) FROM sent_documents"
         ).fetchone()[0]
 
         return {
@@ -405,6 +399,12 @@ def render_applications_table(df):
         return
 
     # Prepare display DataFrame
+    # Safe datetime conversion with error handling
+    created_at_series = pd.to_datetime(df['created_at'], errors='coerce')
+    created_at_formatted = created_at_series.apply(
+        lambda x: x.strftime('%d.%m.%Y %H:%M') if pd.notna(x) else 'N/A'
+    )
+
     display_df = pd.DataFrame({
         'ID': df['id'],
         'Номер': df['application_number'],
@@ -412,7 +412,7 @@ def render_applications_table(df):
         'Пользователь': df['first_name'] + ' ' + df['last_name'],
         'Статус': df['status'],
         'Балл': df['quality_score'].fillna(0),
-        'Создано': pd.to_datetime(df['created_at']).dt.strftime('%d.%m.%Y %H:%M')
+        'Создано': created_at_formatted
     })
 
     # Display table
@@ -620,80 +620,188 @@ def render_tab_send():
 
     if df_unsent.empty:
         empty_emoji = "📭"
-        st.info(f"{empty_emoji} Нет грантов готовых к отправке")
-        return
+        st.info(f"{empty_emoji} Нет грантов готовых к отправке из системы")
+    else:
+        # Select grant
+        grant_options = {
+            f"{row['grant_id']} - {row['grant_title']} (@{row['username']})": row['grant_id']
+            for idx, row in df_unsent.iterrows()
+        }
 
-    # Select grant
-    grant_options = {
-        f"{row['grant_id']} - {row['grant_title']} (@{row['username']})": row['grant_id']
-        for idx, row in df_unsent.iterrows()
-    }
+        selected_grant_label = st.selectbox("Выберите грант", list(grant_options.keys()))
+        selected_grant_id = grant_options[selected_grant_label]
 
-    selected_grant_label = st.selectbox("Выберите грант", list(grant_options.keys()))
-    selected_grant_id = grant_options[selected_grant_label]
+        # Get grant details
+        grant = get_grant_details(db, selected_grant_id)
 
-    # Get grant details
-    grant = get_grant_details(db, selected_grant_id)
+        if grant:
+            preview_emoji = "🔍"
+            st.markdown(f"### {preview_emoji} Предпросмотр")
 
-    if grant:
-        preview_emoji = "🔍"
-        st.markdown(f"### {preview_emoji} Предпросмотр")
-
-        col1, col2 = st.columns([3, 1])
-
-        with col1:
-            st.markdown(f"**Название:** {grant['title']}")
-            st.markdown(f"**ID:** {grant['grant_id']}")
-            st.markdown(f"**Создан:** {grant['created_at']}")
-
-        with col2:
-            st.metric("Качество", f"{grant['quality_score']}/10")
-
-        # Content preview
-        content_emoji = "📄"
-        with st.expander(f"{content_emoji} Просмотр содержания", expanded=False):
-            preview_content = grant['content'][:500] + "..." if len(grant['content']) > 500 else grant['content']
-            st.markdown(preview_content)
-
-        st.markdown("---")
-
-        # Send form
-        with st.form("send_grant_form"):
-            message = st.text_area("Сообщение пользователю (опционально)",
-                                  placeholder="Ваш грант готов!")
-
-            col1, col2 = st.columns(2)
+            col1, col2 = st.columns([3, 1])
 
             with col1:
-                send_button_emoji = "📤"
-                submitted = st.form_submit_button(f"{send_button_emoji} Отправить пользователю",
-                                                  type="primary",
-                                                  use_container_width=True)
+                st.markdown(f"**Название:** {grant['title']}")
+                st.markdown(f"**ID:** {grant['grant_id']}")
+                st.markdown(f"**Создан:** {grant['created_at']}")
 
             with col2:
-                download_emoji = "💾"
-                download_button = st.form_submit_button(f"{download_emoji} Скачать PDF",
-                                                       use_container_width=True)
+                st.metric("Качество", f"{grant['quality_score']}/10")
 
-            if submitted:
-                # Get user_id from grant
-                row = df_unsent[df_unsent['grant_id'] == selected_grant_id].iloc[0]
+            # Content preview
+            content_emoji = "📄"
+            with st.expander(f"{content_emoji} Просмотр содержания", expanded=False):
+                preview_content = grant['content'][:500] + "..." if len(grant['content']) > 500 else grant['content']
+                st.markdown(preview_content)
 
+            st.markdown("---")
+
+            # Send form
+            with st.form("send_grant_form"):
+                message = st.text_area("Сообщение пользователю (опционально)",
+                                      placeholder="Ваш грант готов!")
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    send_button_emoji = "📤"
+                    submitted = st.form_submit_button(f"{send_button_emoji} Отправить пользователю",
+                                                      type="primary",
+                                                      use_container_width=True)
+
+                with col2:
+                    download_emoji = "💾"
+                    download_button = st.form_submit_button(f"{download_emoji} Скачать PDF",
+                                                           use_container_width=True)
+
+                if submitted:
+                    # Get user_id from grant
+                    row = df_unsent[df_unsent['grant_id'] == selected_grant_id].iloc[0]
+
+                    try:
+                        success = send_grant_to_telegram(selected_grant_id, row['user_id'])
+                        if success:
+                            st.success("✅ Грант успешно отправлен!")
+                            st.balloons()
+                            st.cache_data.clear()
+                            st.rerun()
+                        else:
+                            st.error("❌ Ошибка отправки")
+                    except Exception as e:
+                        st.error(f"❌ Ошибка: {e}")
+
+                if download_button:
+                    warning_emoji = "⚠️"
+                    st.info(f"{warning_emoji} MVP: Генерация PDF в разработке")
+
+    # ===========================================================================
+    # MANUAL FILE UPLOAD AND SEND
+    # ===========================================================================
+
+    st.markdown("---")
+    st.markdown("### 📎 Ручная отправка готового гранта")
+    st.markdown("**Загрузите готовый файл гранта и отправьте его пользователю**")
+
+    with st.form("manual_send_form"):
+        # File upload
+        uploaded_file = st.file_uploader(
+            "Выберите файл гранта",
+            type=['pdf', 'docx', 'doc'],
+            help="Поддерживаются форматы: PDF, DOCX, DOC"
+        )
+
+        # User selection
+        conn = get_db_connection()
+        users_query = """
+        SELECT telegram_id, username, first_name, last_name
+        FROM users
+        ORDER BY first_name, last_name
+        """
+        users_df = pd.read_sql_query(users_query, conn)
+
+        if not users_df.empty:
+            user_options = {
+                f"{row['first_name']} {row['last_name']} (@{row['username']}) - ID: {row['telegram_id']}": row['telegram_id']
+                for idx, row in users_df.iterrows()
+            }
+
+            selected_user_label = st.selectbox("Выберите пользователя", list(user_options.keys()))
+            selected_user_id = user_options[selected_user_label]
+
+            # Admin comment
+            admin_comment = st.text_area(
+                "Комментарий администратора (опционально)",
+                placeholder="📄 Готовая грантовая заявка от GrantService"
+            )
+
+            # Submit button
+            submit_manual = st.form_submit_button(
+                "📤 Загрузить и отправить пользователю",
+                type="primary",
+                use_container_width=True
+            )
+
+            if submit_manual and uploaded_file:
                 try:
-                    success = send_grant_to_telegram(selected_grant_id, row['user_id'])
-                    if success:
-                        st.success("✅ Грант успешно отправлен!")
-                        st.balloons()
-                        st.cache_data.clear()
-                        st.rerun()
-                    else:
-                        st.error("❌ Ошибка отправки")
-                except Exception as e:
-                    st.error(f"❌ Ошибка: {e}")
+                    # Save uploaded file
+                    import os
+                    from datetime import datetime
 
-            if download_button:
-                warning_emoji = "⚠️"
-                st.info(f"{warning_emoji} MVP: Генерация PDF в разработке")
+                    ready_grants_dir = Path(__file__).parent.parent.parent / "data" / "ready_grants"
+                    ready_grants_dir.mkdir(exist_ok=True)
+
+                    # Generate filename with timestamp
+                    timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+                    file_extension = uploaded_file.name.split('.')[-1]
+                    saved_filename = f"manual_grant_{timestamp}.{file_extension}"
+                    file_path = ready_grants_dir / saved_filename
+
+                    # Save file
+                    with open(file_path, 'wb') as f:
+                        f.write(uploaded_file.read())
+
+                    # Generate application_id
+                    application_id = f"MANUAL-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+
+                    # Insert into sent_documents
+                    conn = get_db_connection()
+                    cursor = conn.cursor()
+
+                    comment = admin_comment if admin_comment else "📄 Готовая грантовая заявка от GrantService"
+
+                    cursor.execute("""
+                        INSERT INTO sent_documents
+                        (user_id, grant_application_id, file_path, file_name, file_size, admin_comment, delivery_status, admin_user)
+                        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                    """, (
+                        selected_user_id,
+                        application_id,
+                        str(file_path),
+                        uploaded_file.name,
+                        os.path.getsize(file_path),
+                        comment,
+                        'pending',
+                        'web-admin'
+                    ))
+
+                    conn.commit()
+
+                    st.success(f"✅ Файл загружен и добавлен в очередь отправки!")
+                    st.info(f"📁 Сохранён как: {saved_filename}")
+                    st.info(f"👤 Будет отправлен пользователю: {selected_user_label}")
+                    st.balloons()
+
+                    logger.info(f"Manual grant uploaded: {saved_filename} for user {selected_user_id}")
+
+                except Exception as e:
+                    st.error(f"❌ Ошибка при загрузке: {e}")
+                    logger.error(f"Error uploading manual grant: {e}", exc_info=True)
+
+            elif submit_manual and not uploaded_file:
+                st.warning("⚠️ Пожалуйста, выберите файл для загрузки")
+
+        else:
+            st.warning("⚠️ Нет пользователей в базе данных")
 
 # =============================================================================
 # TAB 4: АРХИВ

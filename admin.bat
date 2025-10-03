@@ -17,20 +17,7 @@ if %errorlevel% neq 0 (
     exit /b 1
 )
 
-REM Test environment first
-echo Testing environment setup...
-python launcher.py --test >nul 2>&1
-if %errorlevel% neq 0 (
-    echo [WARNING] Environment test failed. Running detailed test...
-    echo.
-    python launcher.py --test
-    echo.
-    echo [!] Fix the issues above before launching
-    pause
-    exit /b 1
-)
-
-echo Environment OK
+echo NOTE: Database will be automatically synced from production
 echo.
 echo Launching admin panel...
 echo URL: http://localhost:8501

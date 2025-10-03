@@ -7,6 +7,8 @@ Cross-platform launcher with proper environment setup
 
 import sys
 import os
+import platform
+import subprocess
 from pathlib import Path
 
 # Add core module to path FIRST before any other imports
@@ -17,13 +19,59 @@ sys.path.insert(0, str(launcher_dir))
 from core import setup_environment, get_path_manager, get_config
 
 
+def sync_database_on_startup():
+    """
+    Automatically sync production database to local machine on startup
+    Only runs on Windows local development, not on production server
+    """
+    # Only sync on Windows local machines
+    if platform.system() != "Windows":
+        return
+
+    # Configuration
+    SERVER = "root@5.35.88.251"
+    REMOTE_DB = "/var/GrantService/data/grantservice.db"
+    LOCAL_DB = launcher_dir / "data" / "grantservice.db"
+
+    print("Syncing database from production...")
+
+    try:
+        # Use scp to download database
+        result = subprocess.run(
+            ["scp", f"{SERVER}:{REMOTE_DB}", str(LOCAL_DB)],
+            capture_output=True,
+            timeout=15  # 15 second timeout
+        )
+
+        if result.returncode == 0:
+            # Get database size
+            db_size_mb = LOCAL_DB.stat().st_size / (1024 * 1024)
+            print(f"[OK] Database synced successfully ({db_size_mb:.1f} MB)")
+        else:
+            print(f"[WARNING] Database sync failed (working with local copy)")
+            if result.stderr:
+                print(f"  Error: {result.stderr.decode('utf-8', errors='ignore').strip()}")
+
+    except subprocess.TimeoutExpired:
+        print("[WARNING] Database sync timeout (working with local copy)")
+    except FileNotFoundError:
+        print("[WARNING] scp command not found (working with local copy)")
+    except Exception as e:
+        print(f"[WARNING] Database sync error: {e} (working with local copy)")
+
+    print("")  # Empty line for readability
+
+
 def setup_and_launch():
     """Setup environment and launch the admin panel"""
-    
+
     print("=" * 60)
     print("GRANTSERVICE ADMIN LAUNCHER")
     print("=" * 60)
-    
+
+    # Sync database from production (Windows only)
+    sync_database_on_startup()
+
     # Setup environment
     print("Setting up environment...")
     env = setup_environment(verbose=True)

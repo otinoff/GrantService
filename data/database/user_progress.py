@@ -6,8 +6,15 @@
 
 import sqlite3
 import json
+import os
 from typing import Dict, List, Optional, Tuple
 from .models import GrantServiceDatabase
+
+# Определяем путь к базе данных в зависимости от платформы
+if os.name == 'nt':  # Windows
+    DB_PATH = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
+else:  # Linux/Unix
+    DB_PATH = "/var/GrantService/data/grantservice.db"
 
 def get_user_progress(telegram_id: int) -> Dict:
     """
@@ -20,7 +27,7 @@ def get_user_progress(telegram_id: int) -> Dict:
         'status': str
     }
     """
-    db = GrantServiceDatabase()
+    db = GrantServiceDatabase(DB_PATH)
     
     with db.connect() as conn:
         cursor = conn.cursor()
@@ -115,7 +122,7 @@ def get_user_answers(telegram_id: int) -> Dict:
     Получить все ответы пользователя на вопросы анкеты
     Возвращает: {field_name: answer, ...}
     """
-    db = GrantServiceDatabase()
+    db = GrantServiceDatabase(DB_PATH)
     
     with db.connect() as conn:
         cursor = conn.cursor()
@@ -161,7 +168,7 @@ def get_current_question_info(telegram_id: int) -> Dict:
     progress = get_user_progress(telegram_id)
     current_question_number = progress['current_question']
     
-    db = GrantServiceDatabase()
+    db = GrantServiceDatabase(DB_PATH)
     
     with db.connect() as conn:
         cursor = conn.cursor()
@@ -195,22 +202,22 @@ def get_all_users_progress() -> List[Dict]:
     """
     Получить прогресс всех пользователей
     """
-    db = GrantServiceDatabase()
-    
+    db = GrantServiceDatabase(DB_PATH)
+
     with db.connect() as conn:
         cursor = conn.cursor()
-        
+
         # Получаем всех пользователей
         cursor.execute("""
-            SELECT DISTINCT telegram_id, username, first_name, last_name, 
+            SELECT DISTINCT telegram_id, username, first_name, last_name,
                    registration_date, last_active
-            FROM users 
+            FROM users
             WHERE is_active = 1
             ORDER BY last_active DESC
         """)
-        
+
         users = cursor.fetchall()
-        
+
         result = []
         for user in users:
             telegram_id = user[0]
@@ -236,7 +243,7 @@ def get_all_users_progress() -> List[Dict]:
                 'progress': progress,
                 'current_question_info': current_question
             })
-        
+
         return result
 
 def get_questions_with_answers(telegram_id: int) -> List[Dict]:
@@ -245,7 +252,7 @@ def get_questions_with_answers(telegram_id: int) -> List[Dict]:
     """
     answers = get_user_answers(telegram_id)
     
-    db = GrantServiceDatabase()
+    db = GrantServiceDatabase(DB_PATH)
     
     with db.connect() as conn:
         cursor = conn.cursor()
@@ -284,7 +291,7 @@ def export_user_form(telegram_id: int) -> str:
     from datetime import datetime
     
     # Получаем информацию о пользователе
-    db = GrantServiceDatabase()
+    db = GrantServiceDatabase(DB_PATH)
     
     with db.connect() as conn:
         cursor = conn.cursor()
