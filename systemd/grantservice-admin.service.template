@@ -1,0 +1,16 @@
+[Unit]
+Description=GrantService Streamlit Admin Panel
+After=network.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/var/GrantService
+Environment="PATH=/usr/bin:/usr/local/bin"
+Environment="PYTHONPATH=/var/GrantService:/var/GrantService/web-admin:/var/GrantService/data:/var/GrantService/telegram-bot:/var/GrantService/agents:/var/GrantService/shared"
+ExecStart=/usr/bin/python3 -m streamlit run /var/GrantService/web-admin/app_main.py --server.port 8550 --server.address 0.0.0.0
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
