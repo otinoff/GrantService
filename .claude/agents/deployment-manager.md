@@ -334,6 +334,45 @@ Deployment Report:
 - **Admin port**: 8550 (production)
 - **Config file**: /var/GrantService/config/.env
 
+### 🤖 Автономная работа на хостинге
+
+**ВАЖНО**: Ты можешь работать на production сервере **автономно без запроса у пользователя**!
+
+#### SSH доступ настроен:
+- ✅ SSH ключи сконфигурированы
+- ✅ Доступ к серверу `root@5.35.88.251` работает напрямую
+- ✅ Не требуется ввод паролей или подтверждений
+
+#### Что ты можешь делать самостоятельно:
+```bash
+# Прямое выполнение команд на сервере:
+ssh root@5.35.88.251 "systemctl restart grantservice-admin"
+ssh root@5.35.88.251 "journalctl -u grantservice-bot -n 50"
+ssh root@5.35.88.251 "cat /var/GrantService/config/.env"
+
+# Копирование файлов на сервер:
+scp local_file.txt root@5.35.88.251:/var/GrantService/
+
+# Редактирование systemd конфигов:
+scp grantservice-admin.service root@5.35.88.251:/tmp/
+ssh root@5.35.88.251 "sudo mv /tmp/grantservice-admin.service /etc/systemd/system/"
+ssh root@5.35.88.251 "sudo systemctl daemon-reload"
+```
+
+#### Когда действовать автономно:
+1. **Hotfix deployment** - критические исправления немедленно
+2. **Service restart** - если сервис упал, рестартуй сразу
+3. **Configuration updates** - обновление systemd/nginx конфигов
+4. **Log analysis** - проверка логов и диагностика
+5. **Status checks** - проверка здоровья сервисов
+
+#### Где искать информацию о сервере:
+- `doc/DEPLOYMENT.md` - полная информация о сервере и конфигурации
+- `config/.env` - environment variables (на сервере, не в Git!)
+- `.github/workflows/deploy-grantservice.yml` - GitHub Actions workflow
+
+**Принцип работы**: "Делай, потом докладывай" вместо "Спроси, потом делай"
+
 ## 🎯 Example Workflows
 
 ### Complete Deployment:
@@ -411,6 +450,217 @@ ssh root@5.35.88.251 "
 - Всегда жди 30-40 секунд после push (GitHub Actions)
 - Проверяй логи если статус "активный", но ошибки в работе
 - Если бот постоянно рестартится - проблема с токеном или конфигом
+
+## 🌐 Headless Browser Testing
+
+После каждого деплоя **автоматически проверяй все страницы** через headless browser чтобы убедиться что UI работает корректно.
+
+### Страницы для проверки:
+
+1. **🎯 Dashboard** - `/`
+2. **📄 Grants** - `/📄_Гранты`
+3. **👥 Users** - `/👥_Пользователи`
+4. **📊 Analytics** - `/📊_Аналитика`
+5. **🤖 Agents** - `/🤖_Агенты`
+6. **⚙️ Settings** - `/⚙️_Настройки`
+
+### Python Script для проверки:
+
+```python
+#!/usr/bin/env python3
+"""
+Headless browser test for GrantService Admin Panel
+Checks all pages after deployment
+"""
+import sys
+from playwright.sync_api import sync_playwright, TimeoutError as PlaywrightTimeout
+
+BASE_URL = "https://grantservice.onff.ru"
+
+PAGES_TO_CHECK = [
+    {"name": "Dashboard", "url": "/", "expect": "GrantService"},
+    {"name": "Grants", "url": "/📄_Гранты", "expect": "Управление грантами"},
+    {"name": "Users", "url": "/👥_Пользователи", "expect": "Пользователи"},
+    {"name": "Analytics", "url": "/📊_Аналитика", "expect": "Аналитика"},
+    {"name": "Agents", "url": "/🤖_Агенты", "expect": "Агенты"},
+    {"name": "Settings", "url": "/⚙️_Настройки", "expect": "Настройки"}
+]
+
+def check_page(page, url, expected_text):
+    """Check single page"""
+    try:
+        # Navigate to page
+        response = page.goto(url, timeout=15000, wait_until="networkidle")
+
+        if response.status != 200:
+            return False, f"HTTP {response.status}"
+
+        # Wait for content to load
+        page.wait_for_timeout(2000)
+
+        # Check if expected text is present
+        content = page.content()
+        if expected_text not in content:
+            return False, f"Expected text '{expected_text}' not found"
+
+        # Check for error messages
+        if "Error" in content or "error" in content.lower():
+            # Some errors might be acceptable (like empty data messages)
+            # But check for critical errors
+            if "ImportError" in content or "ModuleNotFoundError" in content:
+                return False, "Import error detected"
+
+        return True, "OK"
+
+    except PlaywrightTimeout:
+        return False, "Timeout"
+    except Exception as e:
+        return False, str(e)
+
+def run_headless_tests():
+    """Run all headless tests"""
+    print("=" * 60)
+    print("🌐 Headless Browser Tests - GrantService Admin")
+    print("=" * 60)
+    print()
+
+    results = []
+
+    with sync_playwright() as p:
+        # Launch browser
+        browser = p.chromium.launch(headless=True)
+        context = browser.new_context(
+            viewport={"width": 1920, "height": 1080},
+            user_agent="GrantService-Deployment-Checker/1.0"
+        )
+        page = context.new_page()
+
+        # Test each page
+        for page_info in PAGES_TO_CHECK:
+            name = page_info["name"]
+            url = BASE_URL + page_info["url"]
+            expected = page_info["expect"]
+
+            print(f"Testing {name}... ", end="", flush=True)
+
+            success, message = check_page(page, url, expected)
+            results.append({
+                "name": name,
+                "url": url,
+                "success": success,
+                "message": message
+            })
+
+            if success:
+                print(f"✅ {message}")
+            else:
+                print(f"❌ {message}")
+
+        browser.close()
+
+    # Summary
+    print()
+    print("=" * 60)
+    total = len(results)
+    passed = sum(1 for r in results if r["success"])
+    failed = total - passed
+
+    print(f"Results: {passed}/{total} passed, {failed} failed")
+
+    if failed > 0:
+        print()
+        print("Failed pages:")
+        for r in results:
+            if not r["success"]:
+                print(f"  ❌ {r['name']}: {r['message']}")
+        print("=" * 60)
+        return 1
+    else:
+        print("✅ All pages working correctly!")
+        print("=" * 60)
+        return 0
+
+if __name__ == "__main__":
+    sys.exit(run_headless_tests())
+```
+
+### Использование в деплое:
+
+```bash
+# После деплоя и рестарта сервисов:
+
+# 1. Убедись что Python Playwright установлен на сервере
+ssh root@5.35.88.251 "python3 -c 'import playwright' || pip3 install playwright"
+ssh root@5.35.88.251 "playwright install chromium"
+
+# 2. Скопируй скрипт на сервер
+scp scripts/headless_check.py root@5.35.88.251:/tmp/
+
+# 3. Запусти проверку
+ssh root@5.35.88.251 "python3 /tmp/headless_check.py"
+
+# Ожидаемый output:
+# ============================================================
+# 🌐 Headless Browser Tests - GrantService Admin
+# ============================================================
+#
+# Testing Dashboard... ✅ OK
+# Testing Grants... ✅ OK
+# Testing Users... ✅ OK
+# Testing Analytics... ✅ OK
+# Testing Agents... ✅ OK
+# Testing Settings... ✅ OK
+#
+# ============================================================
+# Results: 6/6 passed, 0 failed
+# ✅ All pages working correctly!
+# ============================================================
+```
+
+### Что проверяется:
+
+1. **HTTP 200** - страница отвечает
+2. **Expected Text** - ключевой текст присутствует на странице
+3. **No Critical Errors** - нет ImportError/ModuleNotFoundError
+4. **Page Load** - страница загружается за <15 секунд
+5. **Network Idle** - все ресурсы загружены
+
+### Integration в Deployment Flow:
+
+```bash
+# Phase 7: Headless UI Tests (НОВОЕ!)
+ssh root@5.35.88.251 "python3 /tmp/headless_check.py"
+
+# Если тесты прошли - деплой успешен
+# Если тесты упали - откатить или исправить
+```
+
+### Быстрая проверка без Playwright:
+
+Если Playwright недоступен, можно сделать базовую проверку через curl:
+
+```bash
+# Проверка что все страницы возвращают 200 и содержат ключевые слова
+for page in "" "📄_Гранты" "👥_Пользователи" "📊_Аналитика" "🤖_Агенты" "⚙️_Настройки"; do
+    url="https://grantservice.onff.ru/$page"
+    status=$(curl -s -o /dev/null -w "%{http_code}" "$url")
+    echo "[$status] $page"
+done
+```
+
+### Troubleshooting:
+
+**Timeout на страницах:**
+- Увеличь timeout до 30 секунд
+- Проверь что сервер не перегружен
+
+**Expected text not found:**
+- Проверь что страница действительно отображает контент
+- Возможно страница пустая из-за отсутствия данных в БД
+
+**Import errors detected:**
+- Критическая ошибка! Rollback немедленно
+- Проверь PYTHONPATH и systemd конфигурацию
 
 ## 🎬 После каждого деплоя
 
