@@ -7,71 +7,37 @@
 import streamlit as st
 import sys
 import os
-
-# Simple imports without path manipulation
-# The environment will be set up by the launcher
+from datetime import datetime
+import json
 
 # Authorization check
 try:
     from utils.auth import is_user_authorized
     if not is_user_authorized():
-        st.error("⛔ Не авторизован / Not authorized")
-        st.info("Пожалуйста, используйте бота для получения токена / Please use the bot to get a token")
+        st.error("⛔ Не авторизован. Перейдите на страницу 🔐 Вход")
         st.stop()
 except ImportError as e:
-    st.error(f"❌ Ошибка импорта / Import error: {e}")
-    st.info("Запустите через launcher.py / Run via launcher.py")
+    st.error(f"❌ Ошибка импорта модуля авторизации: {e}")
     st.stop()
 
-import streamlit as st
-import sys
-import os
-from datetime import datetime
-import json
-
-import streamlit as st
-import sys
-import os
-
-# Добавляем пути кроссплатформенно
+# Добавляем пути к модулям
 current_dir = os.path.dirname(os.path.abspath(__file__))
 parent_dir = os.path.dirname(current_dir)  # web-admin
 grandparent_dir = os.path.dirname(parent_dir)  # GrantService
-sys.path.insert(0, grandparent_dir)  # Для импорта config и data
-sys.path.insert(0, parent_dir)  # Для импорта utils
-
-# Проверка авторизации
-from utils.auth import is_user_authorized
-
-if not is_user_authorized():
-    # Импортируем страницу входа
-    import importlib.util
-    spec = importlib.util.spec_from_file_location(
-        "login_page",
-        os.path.join(current_dir, "🔐_Вход.py")
-    )
-    login_module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(login_module)
-    login_module.show_login_page()
-    st.stop()
-# Добавляем пути к модулям
-sys.path.append(os.path.join(grandparent_dir, 'telegram-bot'))
-sys.path.append(os.path.join(grandparent_dir, 'data'))
+sys.path.insert(0, os.path.join(grandparent_dir, 'telegram-bot'))
+sys.path.insert(0, os.path.join(grandparent_dir, 'agents'))
 
 # Импорты агентов и сервисов
 try:
     from services.llm_router import LLMRouter, LLMProvider
     from services.gigachat_service import GigaChatService
     from services.local_llm_service import LocalLLMService
-    # Импорт агентов из общей папки
-    sys.path.append(os.path.join(grandparent_dir, 'agents'))
     from agents.researcher_agent import ResearcherAgent
-    from database.prompts import (
+    from data.database.prompts import (
         get_prompts_by_agent, get_prompt_by_name, format_prompt,
         create_prompt, update_prompt, delete_prompt, get_all_categories
     )
-    # Импорт базы данных для работы с анкетами
-    from data.database.models import GrantServiceDatabase
+    from data.database import GrantServiceDatabase
     AGENTS_AVAILABLE = True
     PROMPTS_AVAILABLE = True
     DATABASE_AVAILABLE = True

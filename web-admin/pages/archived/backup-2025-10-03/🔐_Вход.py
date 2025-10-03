@@ -81,22 +81,13 @@ def show_login_page():
         except AttributeError:
             query_params = st.experimental_get_query_params()  # Streamlit < 1.30
             token = query_params.get('token', [None])[0] if isinstance(query_params.get('token', None), list) else query_params.get('token', None)
-        st.info(f"🔍 Получен токен из URL: {token[:20] if token else 'None'}")
-        
+
         if token:
             # Пытаемся авторизоваться по токену
-            st.info(f"🔍 Проверяем токен: {token[:20]}...")
-            
             user = validate_login_token(token)
-            st.info(f"👤 Получены данные пользователя: {user}")
-            
+
             if user:
-                st.info(f"👤 Найден пользователь: {user['telegram_id']}")
-                st.info(f"📝 Имя: {user['first_name']}")
-                st.info(f"✅ Активен: {user['is_active']}")
-                
                 has_access = check_user_access(user['telegram_id'])
-                st.info(f"🔐 Проверка доступа: {'разрешен' if has_access else 'запрещен'}")
                 
                 if has_access:
                     st.success("✅ Авторизация успешна!")

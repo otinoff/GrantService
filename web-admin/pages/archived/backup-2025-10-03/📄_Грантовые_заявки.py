@@ -32,16 +32,14 @@ except ImportError as e:
 
 # Прямое подключение к БД без импорта модулей
 import sqlite3
-import os
+from pathlib import Path
 
-# Определяем путь к БД в зависимости от ОС
-if os.name == 'nt':  # Windows
-    db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
-else:  # Linux/Unix
-    db_path = "/var/GrantService/data/grantservice.db"
+# Определяем путь к БД относительно текущего файла (кроссплатформенно)
+current_file = Path(__file__).resolve()
+db_path = current_file.parent.parent.parent / "data" / "grantservice.db"
 
 # Проверяем существование файла БД
-if not os.path.exists(db_path):
+if not db_path.exists():
     st.error(f"❌ База данных не найдена по пути: {db_path}")
     st.stop()
 
@@ -60,7 +58,7 @@ def get_grant_applications():
     """Получить все грантовые заявки из БД"""
     try:
         # Прямое подключение к БД
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(str(db_path))
         cursor = conn.cursor()
         
         # Получаем заявки с информацией о пользователях

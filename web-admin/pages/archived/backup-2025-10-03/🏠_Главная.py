@@ -99,8 +99,11 @@ col1, col2 = st.columns(2)
 @log_performance(logger)
 def check_telegram_bot():
     """Проверка статуса Telegram бота"""
+    bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+    if not bot_token:
+        raise ValueError("TELEGRAM_BOT_TOKEN not set in environment")
     response = requests.get(
-        f"https://api.telegram.org/bot{os.getenv('TELEGRAM_BOT_TOKEN', '7685915842:AAGcW0kgtljyIob8enM3zvFSLuZ-BZzcPOo')}/getMe",
+        f"https://api.telegram.org/bot{bot_token}/getMe",
         timeout=5
     )
     return response
