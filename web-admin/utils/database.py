@@ -29,7 +29,7 @@ except ImportError:
     # Fallback - paths не критичны для работы БД
     paths = None
 
-from data.database import GrantServiceDatabase as Database, get_total_users, get_sessions_by_date_range, get_completed_applications, get_all_sessions, insert_agent_prompt, update_agent_prompt, delete_agent_prompt
+from data.database import GrantServiceDatabase as Database, get_total_users, get_sessions_by_date_range, get_completed_applications, get_all_sessions, insert_agent_prompt, update_agent_prompt, delete_agent_prompt, get_researcher_logs as get_researcher_logs_db
 
 # Импортируем logger
 try:
@@ -189,7 +189,8 @@ class AdminDatabase:
     def get_researcher_logs(self, user_id=None, status=None, limit=100):
         """Получение логов исследователя"""
         try:
-            return self.db.get_researcher_logs(user_id, status, limit)
+            # Используем импортированную функцию вместо метода объекта
+            return get_researcher_logs_db(limit=limit)
         except Exception as e:
             logger.error(f"Error getting researcher logs: {e}", exc_info=True)
             return []

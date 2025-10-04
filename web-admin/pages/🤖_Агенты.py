@@ -66,6 +66,12 @@ except ImportError as e:
     st.warning(f"⚠️ AdminDatabase not available: {e}")
 
 try:
+    from utils.postgres_helper import execute_query
+except ImportError as e:
+    st.warning(f"⚠️ postgres_helper not available: {e}")
+    execute_query = None
+
+try:
     from utils.ui_helpers import render_page_header, render_metric_cards, render_tabs
 except ImportError as e:
     st.warning(f"⚠️ UI helpers not available: {e}")
@@ -208,7 +214,7 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
     try:
         if agent_type == 'interviewer':
             # Get from sessions table
-            result = _db.execute_query("""
+            result = execute_query("""
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN completion_status = 'completed' THEN 1 END) as completed,
@@ -220,7 +226,7 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
             return result[0] if result else {}
 
         elif agent_type == 'auditor':
-            result = _db.execute_query("""
+            result = execute_query("""
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN approval_status = 'approved' THEN 1 END) as approved,
@@ -232,7 +238,7 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
             return result[0] if result else {}
 
         elif agent_type == 'planner':
-            result = _db.execute_query("""
+            result = execute_query("""
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN data_mapping_complete = 1 THEN 1 END) as complete_mappings,
@@ -252,7 +258,7 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
             }
 
         elif agent_type == 'writer':
-            result = _db.execute_query("""
+            result = execute_query("""
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
@@ -280,7 +286,7 @@ def get_researcher_investigations(_db, filters: dict = None):
 def get_writer_generated_texts(_db, filters: dict = None):
     """Get list of writer generated texts"""
     try:
-        result = _db.execute_query("""
+        result = execute_query("""
             SELECT
                 id, grant_id, user_id, status,
                 created_at, updated_at, quality_score
