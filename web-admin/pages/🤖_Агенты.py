@@ -221,7 +221,7 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
                     ROUND(AVG(progress_percentage), 1) as avg_progress,
                     ROUND(AVG(session_duration_minutes), 1) as avg_duration_min
                 FROM sessions
-                WHERE started_at >= datetime('now', '-30 days')
+                WHERE started_at >= NOW() - INTERVAL '30 days'
             """)
             return result[0] if result else {}
 
@@ -233,7 +233,7 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
                     COUNT(CASE WHEN approval_status = 'needs_revision' THEN 1 END) as needs_revision,
                     ROUND(AVG(average_score), 2) as avg_score
                 FROM auditor_results
-                WHERE created_at >= datetime('now', '-30 days')
+                WHERE created_at >= NOW() - INTERVAL '30 days'
             """)
             return result[0] if result else {}
 
@@ -241,10 +241,10 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
             result = execute_query("""
                 SELECT
                     COUNT(*) as total,
-                    COUNT(CASE WHEN data_mapping_complete = 1 THEN 1 END) as complete_mappings,
+                    COUNT(CASE WHEN data_mapping_complete = TRUE THEN 1 END) as complete_mappings,
                     ROUND(AVG(sections_count), 1) as avg_sections
                 FROM planner_structures
-                WHERE created_at >= datetime('now', '-30 days')
+                WHERE created_at >= NOW() - INTERVAL '30 days'
             """)
             return result[0] if result else {}
 
@@ -265,7 +265,7 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
                     COUNT(CASE WHEN status = 'draft' THEN 1 END) as draft,
                     ROUND(AVG(quality_score), 2) as avg_quality_score
                 FROM grants
-                WHERE created_at >= datetime('now', '-30 days')
+                WHERE created_at >= NOW() - INTERVAL '30 days'
             """)
             return result[0] if result else {}
 
