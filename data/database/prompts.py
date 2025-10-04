@@ -1,51 +1,62 @@
 """
 Система управления промптами агентов в базе данных
 """
-import sqlite3
 import json
+import os
+import psycopg2
 from typing import Dict, List, Optional, Any
 from datetime import datetime
 
-def init_prompts_tables(db_path: str = "/var/GrantService/data/grantservice.db"):
+def get_db_connection():
+    """Получить подключение к PostgreSQL из переменных окружения"""
+    return psycopg2.connect(
+        host=os.getenv('PGHOST', 'localhost'),
+        port=int(os.getenv('PGPORT', '5432')),
+        database=os.getenv('PGDATABASE', 'grantservice'),
+        user=os.getenv('PGUSER', 'postgres'),
+        password=os.getenv('PGPASSWORD', 'root')
+    )
+
+def init_prompts_tables(db_path: str = None):
     """Инициализация таблиц для промптов"""
-    conn = sqlite3.connect(db_path)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     # Таблица категорий промптов
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS prompt_categories (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         name VARCHAR(100) NOT NULL UNIQUE,
         description TEXT,
         agent_type VARCHAR(50) NOT NULL,
-        is_active BOOLEAN DEFAULT 1,
+        is_active BOOLEAN DEFAULT TRUE,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
-    
+
     # Таблица промптов
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS agent_prompts (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         category_id INTEGER NOT NULL,
         name VARCHAR(100) NOT NULL,
         description TEXT,
         prompt_template TEXT NOT NULL,
         variables TEXT, -- JSON список переменных
         default_values TEXT, -- JSON с дефолтными значениями
-        is_active BOOLEAN DEFAULT 1,
+        is_active BOOLEAN DEFAULT TRUE,
         priority INTEGER DEFAULT 0,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         FOREIGN KEY (category_id) REFERENCES prompt_categories(id)
     )
     """)
-    
+
     # Таблица версий промптов (для истории изменений)
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS prompt_versions (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        id SERIAL PRIMARY KEY,
         prompt_id INTEGER NOT NULL,
         prompt_template TEXT NOT NULL,
         variables TEXT,
@@ -56,13 +67,14 @@ def init_prompts_tables(db_path: str = "/var/GrantService/data/grantservice.db")
         FOREIGN KEY (prompt_id) REFERENCES agent_prompts(id)
     )
     """)
-    
+
     conn.commit()
+    cursor.close()
     conn.close()
 
-def insert_default_prompts(db_path: str = "/var/GrantService/data/grantservice.db"):
+def insert_default_prompts(db_path: str = None):
     """Вставка дефолтных промптов"""
-    conn = sqlite3.connect(db_path)
+    conn = get_db_connection()
     cursor = conn.cursor()
     
     # Категории промптов
@@ -85,8 +97,9 @@ def insert_default_prompts(db_path: str = "/var/GrantService/data/grantservice.d
     
     for category_name, description, agent_type in categories:
         cursor.execute("""
-        INSERT OR IGNORE INTO prompt_categories (name, description, agent_type)
-        VALUES (?, ?, ?)
+        INSERT INTO prompt_categories (name, description, agent_type)
+        VALUES (%s, %s, %s)
+        ON CONFLICT (name) DO NOTHING
         """, (category_name, description, agent_type))
     
     # Дефолтные промпты
@@ -129,35 +142,40 @@ def insert_default_prompts(db_path: str = "/var/GrantService/data/grantservice.d
     
     for category_name, name, template, variables in default_prompts:
         # Получаем ID категории
-        cursor.execute("SELECT id FROM prompt_categories WHERE name = ?", (category_name,))
-        category_id = cursor.fetchone()[0]
-        
-        # Вставляем промпт
-        cursor.execute("""
-        INSERT OR IGNORE INTO agent_prompts 
-        (category_id, name, description, prompt_template, variables, priority)
-        VALUES (?, ?, ?, ?, ?, ?)
-        """, (category_id, name, name, template, json.dumps(variables), 0))
-    
+        cursor.execute("SELECT id FROM prompt_categories WHERE name = %s", (category_name,))
+        result = cursor.fetchone()
+        if result:
+            category_id = result[0]
+
+            # Вставляем промпт
+            cursor.execute("""
+            INSERT INTO agent_prompts
+            (category_id, name, description, prompt_template, variables, priority)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            ON CONFLICT DO NOTHING
+            """, (category_id, name, name, template, json.dumps(variables), 0))
+
     conn.commit()
+    cursor.close()
     conn.close()
 
-def get_prompt_by_name(prompt_name: str, db_path: str = "/var/GrantService/data/grantservice.db") -> Optional[Dict]:
+def get_prompt_by_name(prompt_name: str, db_path: str = None) -> Optional[Dict]:
     """Получить промпт по названию"""
-    conn = sqlite3.connect(db_path)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
     SELECT p.id, p.name, p.description, p.prompt_template, p.variables, p.default_values,
            c.name as category_name, c.agent_type
     FROM agent_prompts p
     JOIN prompt_categories c ON p.category_id = c.id
-    WHERE p.name = ? AND p.is_active = 1
+    WHERE p.name = %s AND p.is_active = TRUE
     """, (prompt_name,))
-    
+
     result = cursor.fetchone()
+    cursor.close()
     conn.close()
-    
+
     if result:
         return {
             'id': result[0],
@@ -171,23 +189,24 @@ def get_prompt_by_name(prompt_name: str, db_path: str = "/var/GrantService/data/
         }
     return None
 
-def get_prompts_by_agent(agent_type: str, db_path: str = "/var/GrantService/data/grantservice.db") -> List[Dict]:
+def get_prompts_by_agent(agent_type: str, db_path: str = None) -> List[Dict]:
     """Получить все промпты для конкретного агента"""
-    conn = sqlite3.connect(db_path)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
     SELECT p.id, p.name, p.description, p.prompt_template, p.variables, p.default_values,
            c.name as category_name, c.agent_type, p.priority
     FROM agent_prompts p
     JOIN prompt_categories c ON p.category_id = c.id
-    WHERE c.agent_type = ? AND p.is_active = 1
+    WHERE c.agent_type = %s AND p.is_active = TRUE
     ORDER BY p.priority DESC, p.name
     """, (agent_type,))
-    
+
     results = cursor.fetchall()
+    cursor.close()
     conn.close()
-    
+
     prompts = []
     for result in results:
         prompts.append({
@@ -201,26 +220,27 @@ def get_prompts_by_agent(agent_type: str, db_path: str = "/var/GrantService/data
             'agent_type': result[7],
             'priority': result[8]
         })
-    
+
     return prompts
 
-def get_prompts_by_category(category_name: str, db_path: str = "/var/GrantService/data/grantservice.db") -> List[Dict]:
+def get_prompts_by_category(category_name: str, db_path: str = None) -> List[Dict]:
     """Получить промпты по категории"""
-    conn = sqlite3.connect(db_path)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
     SELECT p.id, p.name, p.description, p.prompt_template, p.variables, p.default_values,
            c.name as category_name, c.agent_type, p.priority
     FROM agent_prompts p
     JOIN prompt_categories c ON p.category_id = c.id
-    WHERE c.name = ? AND p.is_active = 1
+    WHERE c.name = %s AND p.is_active = TRUE
     ORDER BY p.priority DESC, p.name
     """, (category_name,))
-    
+
     results = cursor.fetchall()
+    cursor.close()
     conn.close()
-    
+
     prompts = []
     for result in results:
         prompts.append({
@@ -234,129 +254,133 @@ def get_prompts_by_category(category_name: str, db_path: str = "/var/GrantServic
             'agent_type': result[7],
             'priority': result[8]
         })
-    
+
     return prompts
 
-def create_prompt(category_name: str, name: str, description: str, prompt_template: str, 
-                 variables: List[str] = None, default_values: Dict = None, 
-                 priority: int = 0, db_path: str = "/var/GrantService/data/grantservice.db") -> bool:
+def create_prompt(category_name: str, name: str, description: str, prompt_template: str,
+                 variables: List[str] = None, default_values: Dict = None,
+                 priority: int = 0, db_path: str = None) -> bool:
     """Создать новый промпт"""
     try:
-        conn = sqlite3.connect(db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Получаем ID категории
-        cursor.execute("SELECT id FROM prompt_categories WHERE name = ?", (category_name,))
+        cursor.execute("SELECT id FROM prompt_categories WHERE name = %s", (category_name,))
         category_result = cursor.fetchone()
-        
+
         if not category_result:
+            cursor.close()
             conn.close()
             return False
-        
+
         category_id = category_result[0]
-        
+
         # Вставляем промпт
         cursor.execute("""
-        INSERT INTO agent_prompts 
+        INSERT INTO agent_prompts
         (category_id, name, description, prompt_template, variables, default_values, priority)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-        """, (category_id, name, description, prompt_template, 
+        VALUES (%s, %s, %s, %s, %s, %s, %s)
+        """, (category_id, name, description, prompt_template,
               json.dumps(variables or []), json.dumps(default_values or {}), priority))
-        
+
         conn.commit()
+        cursor.close()
         conn.close()
         return True
-        
+
     except Exception as e:
         print(f"Ошибка создания промпта: {e}")
         return False
 
-def update_prompt(prompt_id: int, name: str = None, description: str = None, 
-                 prompt_template: str = None, variables: List[str] = None, 
+def update_prompt(prompt_id: int, name: str = None, description: str = None,
+                 prompt_template: str = None, variables: List[str] = None,
                  default_values: Dict = None, priority: int = None,
-                 db_path: str = "/var/GrantService/data/grantservice.db") -> bool:
+                 db_path: str = None) -> bool:
     """Обновить промпт"""
     try:
-        conn = sqlite3.connect(db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
-        
+
         # Сначала сохраняем версию
         cursor.execute("""
-        SELECT prompt_template, variables, default_values FROM agent_prompts WHERE id = ?
+        SELECT prompt_template, variables, default_values FROM agent_prompts WHERE id = %s
         """, (prompt_id,))
-        
+
         current = cursor.fetchone()
         if current:
             # Получаем номер следующей версии
             cursor.execute("""
-            SELECT MAX(version_number) FROM prompt_versions WHERE prompt_id = ?
+            SELECT MAX(version_number) FROM prompt_versions WHERE prompt_id = %s
             """, (prompt_id,))
-            
+
             version_result = cursor.fetchone()
             next_version = (version_result[0] or 0) + 1
-            
+
             # Сохраняем версию
             cursor.execute("""
-            INSERT INTO prompt_versions 
+            INSERT INTO prompt_versions
             (prompt_id, prompt_template, variables, default_values, version_number)
-            VALUES (?, ?, ?, ?, ?)
+            VALUES (%s, %s, %s, %s, %s)
             """, (prompt_id, current[0], current[1], current[2], next_version))
-        
+
         # Обновляем промпт
         update_fields = []
         update_values = []
-        
+
         if name is not None:
-            update_fields.append("name = ?")
+            update_fields.append("name = %s")
             update_values.append(name)
-        
+
         if description is not None:
-            update_fields.append("description = ?")
+            update_fields.append("description = %s")
             update_values.append(description)
-        
+
         if prompt_template is not None:
-            update_fields.append("prompt_template = ?")
+            update_fields.append("prompt_template = %s")
             update_values.append(prompt_template)
-        
+
         if variables is not None:
-            update_fields.append("variables = ?")
+            update_fields.append("variables = %s")
             update_values.append(json.dumps(variables))
-        
+
         if default_values is not None:
-            update_fields.append("default_values = ?")
+            update_fields.append("default_values = %s")
             update_values.append(json.dumps(default_values))
-        
+
         if priority is not None:
-            update_fields.append("priority = ?")
+            update_fields.append("priority = %s")
             update_values.append(priority)
-        
+
         if update_fields:
             update_fields.append("updated_at = CURRENT_TIMESTAMP")
             update_values.append(prompt_id)
-            
-            query = f"UPDATE agent_prompts SET {', '.join(update_fields)} WHERE id = ?"
+
+            query = f"UPDATE agent_prompts SET {', '.join(update_fields)} WHERE id = %s"
             cursor.execute(query, update_values)
-        
+
         conn.commit()
+        cursor.close()
         conn.close()
         return True
-        
+
     except Exception as e:
         print(f"Ошибка обновления промпта: {e}")
         return False
 
-def delete_prompt(prompt_id: int, db_path: str = "/var/GrantService/data/grantservice.db") -> bool:
+def delete_prompt(prompt_id: int, db_path: str = None) -> bool:
     """Удалить промпт (мягкое удаление)"""
     try:
-        conn = sqlite3.connect(db_path)
+        conn = get_db_connection()
         cursor = conn.cursor()
-        
-        cursor.execute("UPDATE agent_prompts SET is_active = 0 WHERE id = ?", (prompt_id,))
-        
+
+        cursor.execute("UPDATE agent_prompts SET is_active = FALSE WHERE id = %s", (prompt_id,))
+
         conn.commit()
+        cursor.close()
         conn.close()
         return True
-        
+
     except Exception as e:
         print(f"Ошибка удаления промпта: {e}")
         return False
@@ -374,20 +398,21 @@ def format_prompt(prompt_template: str, variables: Dict[str, Any]) -> str:
         print(f"Ошибка форматирования промпта: {e}")
         return prompt_template
 
-def get_all_categories(db_path: str = "/var/GrantService/data/grantservice.db") -> List[Dict]:
+def get_all_categories(db_path: str = None) -> List[Dict]:
     """Получить все категории промптов"""
-    conn = sqlite3.connect(db_path)
+    conn = get_db_connection()
     cursor = conn.cursor()
-    
+
     cursor.execute("""
     SELECT id, name, description, agent_type, is_active, created_at
     FROM prompt_categories
     ORDER BY agent_type, name
     """)
-    
+
     results = cursor.fetchall()
+    cursor.close()
     conn.close()
-    
+
     categories = []
     for result in results:
         categories.append({
@@ -398,5 +423,5 @@ def get_all_categories(db_path: str = "/var/GrantService/data/grantservice.db") 
             'is_active': bool(result[4]),
             'created_at': result[5]
         })
-    
+
     return categories

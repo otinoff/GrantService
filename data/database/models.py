@@ -1,14 +1,18 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Модели базы данных GrantService
+Модели базы данных GrantService для PostgreSQL 18
 """
 
-import sqlite3
-import json
 import os
+import psycopg2
+import psycopg2.extras
+import json
+import logging
 from datetime import datetime, timezone, timedelta
 from typing import List, Dict, Any, Optional
+
+logger = logging.getLogger(__name__)
 
 def get_kuzbass_time():
     """Получить текущее время в часовом поясе Кемерово (GMT+7)"""
@@ -23,1467 +27,651 @@ def get_kuzbass_time():
         return kuzbass_time.isoformat()
 
 class GrantServiceDatabase:
-    def __init__(self, db_path: str = "/var/GrantService/data/grantservice.db"):
-        self.db_path = db_path
-        self.init_database()
-    
+    """Класс для работы с PostgreSQL базой данных GrantService"""
+
+    def __init__(self, connection_params: Optional[Dict[str, Any]] = None):
+        """
+        Инициализация подключения к PostgreSQL
+
+        Args:
+            connection_params: Параметры подключения. Если None, берутся из переменных окружения
+        """
+        if connection_params is None:
+            # Читаем из переменных окружения
+            self.connection_params = {
+                'host': os.getenv('PGHOST', 'localhost'),
+                'port': int(os.getenv('PGPORT', '5432')),
+                'database': os.getenv('PGDATABASE', 'grantservice'),
+                'user': os.getenv('PGUSER', 'postgres'),
+                'password': os.getenv('PGPASSWORD', 'root')
+            }
+        else:
+            self.connection_params = connection_params
+
+        logger.info(f"PostgreSQL connection configured: {self.connection_params['host']}:{self.connection_params['port']}/{self.connection_params['database']}")
+
+        # Проверяем подключение
+        self._test_connection()
+
+    def _test_connection(self):
+        """Проверка подключения к БД"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("SELECT version();")
+                version = cursor.fetchone()[0]
+                logger.info(f"Connected to PostgreSQL: {version[:50]}...")
+                cursor.close()
+        except Exception as e:
+            logger.error(f"Failed to connect to PostgreSQL: {e}")
+            raise
+
     def connect(self):
-        """Создание соединения с БД"""
-        return sqlite3.connect(self.db_path)
-    
+        """Создание соединения с PostgreSQL"""
+        return psycopg2.connect(**self.connection_params)
+
     def init_database(self):
-        """Инициализация базы данных и создание таблиц"""
-        # Создаем директорию если не существует
-        os.makedirs(os.path.dirname(self.db_path), exist_ok=True)
-        
-        with sqlite3.connect(self.db_path) as conn:
+        """
+        Инициализация базы данных
+
+        ВАЖНО: Таблицы уже созданы через миграцию!
+        Эта функция только проверяет наличие таблиц.
+        """
+        logger.info("Checking database schema...")
+
+        with self.connect() as conn:
             cursor = conn.cursor()
-            
-            # Таблица вопросов интервью
+
+            # Проверяем наличие основных таблиц
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS interview_questions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    question_number INTEGER NOT NULL,
-                    question_text TEXT NOT NULL,
-                    field_name VARCHAR(100) NOT NULL,
-                    question_type VARCHAR(50) DEFAULT 'text',
-                    options TEXT, -- JSON строка для вариантов ответов
-                    hint_text TEXT,
-                    is_required BOOLEAN DEFAULT 1,
-                    follow_up_question TEXT,
-                    validation_rules TEXT, -- JSON строка для правил валидации
-                    is_active BOOLEAN DEFAULT 1,
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                ORDER BY table_name;
             """)
-            
-            # Таблица пользователей
+
+            tables = [row[0] for row in cursor.fetchall()]
+            logger.info(f"Found {len(tables)} tables in database")
+
+            required_tables = [
+                'users', 'sessions', 'interview_questions',
+                'grant_applications', 'agent_prompts'
+            ]
+
+            missing_tables = [t for t in required_tables if t not in tables]
+
+            if missing_tables:
+                logger.warning(f"Missing tables: {missing_tables}")
+                logger.warning("Please run schema migration first!")
+            else:
+                logger.info("All required tables present")
+
+            cursor.close()
+
+    # ========== ВСПОМОГАТЕЛЬНЫЕ МЕТОДЫ ==========
+
+    def _dict_row(self, cursor, row):
+        """Преобразовать row в словарь"""
+        if row is None:
+            return None
+        return dict(zip([desc[0] for desc in cursor.description], row))
+
+    def _dict_rows(self, cursor, rows):
+        """Преобразовать список rows в список словарей"""
+        if not rows:
+            return []
+        columns = [desc[0] for desc in cursor.description]
+        return [dict(zip(columns, row)) for row in rows]
+
+    # ========== СВОЙСТВА ДЛЯ ОБРАТНОЙ СОВМЕСТИМОСТИ ==========
+
+    @property
+    def db_path(self):
+        """Обратная совместимость - возвращает строку подключения"""
+        return f"postgresql://{self.connection_params['user']}@{self.connection_params['host']}:{self.connection_params['port']}/{self.connection_params['database']}"
+
+    # ========== МЕТОДЫ ДЛЯ РАБОТЫ С USERS ==========
+
+    def create_user(self, telegram_id: int, username: str = None,
+                   first_name: str = None, last_name: str = None) -> int:
+        """Создать нового пользователя"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
             cursor.execute("""
-                CREATE TABLE IF NOT EXISTS users (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    telegram_id BIGINT UNIQUE NOT NULL,
-                    username VARCHAR(100),
-                    first_name VARCHAR(100),
-                    last_name VARCHAR(100),
-                    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    last_active TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    total_sessions INTEGER DEFAULT 0,
-                    completed_applications INTEGER DEFAULT 0,
-                    is_active BOOLEAN DEFAULT 1,
-                    login_token VARCHAR(255)  -- Токен для авторизации в админке
-                )
-            """)
-            
-            # Таблица сессий
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS sessions (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    telegram_id BIGINT NOT NULL,
-                    anketa_id VARCHAR(20) UNIQUE, -- ID анкеты в формате #AN-YYYYMMDD-username-001
-                    current_step VARCHAR(50),
-                    status VARCHAR(30) DEFAULT 'active',
-                    conversation_history TEXT, -- JSON строка
-                    collected_data TEXT, -- JSON строка
-                    interview_data TEXT, -- JSON строка
-                    audit_result TEXT, -- JSON строка
-                    plan_structure TEXT, -- JSON строка
-                    final_document TEXT,
-                    project_name VARCHAR(300),
-                    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP,
-                    last_activity TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    total_messages INTEGER DEFAULT 0,
-                    ai_requests_count INTEGER DEFAULT 0,
-                    FOREIGN KEY (telegram_id) REFERENCES users(telegram_id)
-                )
-            """)
-            
-            # Таблица логов исследователя
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS researcher_logs (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id INTEGER,
-                    session_id INTEGER,
-                    query_text TEXT NOT NULL,
-                    perplexity_response TEXT,
-                    sources TEXT, -- JSON строка
-                    usage_stats TEXT, -- JSON строка
-                    cost REAL DEFAULT 0.0,
-                    status VARCHAR(20) DEFAULT 'success',
-                    error_message TEXT,
-                    credit_balance REAL DEFAULT 0.0, -- Новое поле для баланса
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
-            
-            # Проверяем, есть ли поле credit_balance в таблице researcher_logs
-            cursor.execute("PRAGMA table_info(researcher_logs)")
-            columns = [column[1] for column in cursor.fetchall()]
-            
-            # Добавляем поле credit_balance если его нет
-            if 'credit_balance' not in columns:
-                cursor.execute("ALTER TABLE researcher_logs ADD COLUMN credit_balance REAL DEFAULT 0.0")
-                print("Добавлено поле credit_balance в таблицу researcher_logs")
-            
-            # Проверяем, есть ли поле anketa_id в таблице sessions
-            cursor.execute("PRAGMA table_info(sessions)")
-            columns = [column[1] for column in cursor.fetchall()]
-            
-            # Добавляем поле anketa_id если его нет
-            if 'anketa_id' not in columns:
-                cursor.execute("ALTER TABLE sessions ADD COLUMN anketa_id VARCHAR(20)")
-                print("Добавлено поле anketa_id в таблицу sessions")
-            
-            # Проверяем, есть ли поле login_token в таблице users
-            cursor.execute("PRAGMA table_info(users)")
-            columns = [column[1] for column in cursor.fetchall()]
-            
-            # Добавляем поле login_token если его нет
-            if 'login_token' not in columns:
-                cursor.execute("ALTER TABLE users ADD COLUMN login_token VARCHAR(255)")
-                print("Добавлено поле login_token в таблицу users")
-            
-            # Таблица исследований Researcher Agent
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS researcher_research (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    research_id VARCHAR(50) UNIQUE NOT NULL, -- ID исследования в формате #RS-YYYYMMDD-username-001-AN-anketa_id
-                    anketa_id VARCHAR(20) NOT NULL, -- ID анкеты в формате #AN-YYYYMMDD-username-001
-                    user_id BIGINT NOT NULL, -- Telegram ID пользователя
-                    username VARCHAR(100), -- Username пользователя
-                    first_name VARCHAR(100), -- Имя пользователя
-                    last_name VARCHAR(100), -- Фамилия пользователя
-                    session_id INTEGER, -- ID сессии из таблицы sessions
-                    research_type VARCHAR(50) DEFAULT 'comprehensive', -- Тип исследования
-                    llm_provider VARCHAR(50) NOT NULL, -- Использованный LLM провайдер
-                    model VARCHAR(50), -- Использованная модель
-                    status VARCHAR(30) DEFAULT 'pending', -- Статус: pending, processing, completed, error
-                    research_results TEXT, -- JSON с результатами исследования
-                    metadata TEXT, -- JSON с метаданными (токены, время, стоимость)
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    completed_at TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(telegram_id),
-                    FOREIGN KEY (session_id) REFERENCES sessions(id)
-                )
-            """)
-            
-            # Таблица готовых грантов
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS grants (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    grant_id VARCHAR(50) UNIQUE NOT NULL, -- ID гранта в формате #GR-YYYYMMDD-username-001-AN-anketa_id
-                    anketa_id VARCHAR(20) NOT NULL, -- ID анкеты в формате #AN-YYYYMMDD-username-001
-                    research_id VARCHAR(50) NOT NULL, -- ID исследования в формате #RS-YYYYMMDD-username-001-AN-anketa_id
-                    user_id BIGINT NOT NULL, -- Telegram ID пользователя
-                    username VARCHAR(100), -- Username пользователя
-                    first_name VARCHAR(100), -- Имя пользователя
-                    last_name VARCHAR(100), -- Фамилия пользователя
-                    grant_title VARCHAR(200), -- Название гранта
-                    grant_content TEXT, -- Полное содержание гранта
-                    grant_sections TEXT, -- JSON с разделами гранта
-                    metadata TEXT, -- JSON с метаданными (токены, время, стоимость)
-                    llm_provider VARCHAR(50) NOT NULL, -- Использованный LLM провайдер
-                    model VARCHAR(50), -- Использованная модель
-                    status VARCHAR(30) DEFAULT 'draft', -- Статус: draft, completed, submitted, approved, rejected
-                    quality_score INTEGER DEFAULT 0, -- Оценка качества (0-10)
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    submitted_at TIMESTAMP, -- Дата отправки
-                    FOREIGN KEY (user_id) REFERENCES users(telegram_id),
-                    FOREIGN KEY (anketa_id) REFERENCES sessions(anketa_id),
-                    FOREIGN KEY (research_id) REFERENCES researcher_research(research_id)
-                )
-            """)
-            
-            # Таблица грантовых заявок
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS grant_applications (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    application_number VARCHAR(50) UNIQUE NOT NULL,
-                    title VARCHAR(500) NOT NULL,
-                    content_json TEXT NOT NULL, -- JSON строка с полным содержанием заявки
-                    summary TEXT, -- Краткое описание заявки
-                    status VARCHAR(30) DEFAULT 'draft', -- draft, submitted, approved, rejected
-                    user_id INTEGER, -- Связь с пользователем (если из Telegram)
-                    session_id INTEGER, -- Связь с сессией (если из Telegram)
-                    admin_user VARCHAR(100), -- Имя администратора (если из веб-админки)
-                    quality_score REAL DEFAULT 0.0, -- Оценка качества заявки
-                    llm_provider VARCHAR(50), -- Какой LLM использовался
-                    model_used VARCHAR(100), -- Какая модель использовалась
-                    processing_time REAL DEFAULT 0.0, -- Время создания в секундах
-                    tokens_used INTEGER DEFAULT 0, -- Количество использованных токенов
-                    grant_fund VARCHAR(200), -- Грантодатель
-                    requested_amount DECIMAL(15,2), -- Запрашиваемая сумма
-                    project_duration INTEGER, -- Длительность проекта в месяцах
-                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    FOREIGN KEY (user_id) REFERENCES users(id),
-                    FOREIGN KEY (session_id) REFERENCES sessions(id)
-                )
-            """)
-            
-            # Таблица промптов агентов (удалена - теперь используется prompts.py)
-            # cursor.execute("""
-            #     CREATE TABLE IF NOT EXISTS agent_prompts (
-            #         id INTEGER PRIMARY KEY AUTOINCREMENT,
-            #         agent_type VARCHAR(50) NOT NULL,
-            #         prompt_name VARCHAR(100) NOT NULL,
-            #         prompt_content TEXT NOT NULL,
-            #         prompt_type VARCHAR(20) DEFAULT 'system',
-            #         order_num INTEGER DEFAULT 1,
-            #         temperature REAL DEFAULT 0.7,
-            #         max_tokens INTEGER DEFAULT 2000,
-            #         model_name VARCHAR(50) DEFAULT 'GigaChat-Pro',
-            #         is_active BOOLEAN DEFAULT 1,
-            #         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-            #         updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-            #     )
-            # """)
-            
-            # Создаем индексы для быстрого поиска
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_anketa_id ON sessions(anketa_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sessions_telegram_id ON sessions(telegram_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_research_research_id ON researcher_research(research_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_research_anketa_id ON researcher_research(anketa_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_research_user_id ON researcher_research(user_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_research_date ON researcher_research(created_at)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_research_status ON researcher_research(status)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_research_provider ON researcher_research(llm_provider)")
-            
-            # Индексы для таблицы grants
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_grants_grant_id ON grants(grant_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_grants_anketa_id ON grants(anketa_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_grants_research_id ON grants(research_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_grants_user_id ON grants(user_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_grants_date ON grants(created_at)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_grants_status ON grants(status)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_grants_provider ON grants(llm_provider)")
-            
-            # Таблица отправленных документов
-            cursor.execute("""
-                CREATE TABLE IF NOT EXISTS sent_documents (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    user_id BIGINT NOT NULL, -- Telegram ID получателя
-                    grant_application_id TEXT, -- Номер грантовой заявки
-                    file_path TEXT NOT NULL, -- Путь к файлу
-                    file_name TEXT NOT NULL, -- Имя файла
-                    file_size INTEGER DEFAULT 0, -- Размер файла в байтах
-                    admin_comment TEXT, -- Комментарий администратора
-                    delivery_status VARCHAR(20) DEFAULT 'pending', -- pending, sent, delivered, failed
-                    sent_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-                    delivered_at TIMESTAMP,
-                    error_message TEXT, -- Сообщение об ошибке, если доставка неуспешна
-                    telegram_message_id INTEGER, -- ID сообщения в Telegram для отслеживания
-                    admin_user VARCHAR(100), -- Кто отправил
-                    FOREIGN KEY (user_id) REFERENCES users(telegram_id),
-                    FOREIGN KEY (grant_application_id) REFERENCES grant_applications(application_number)
-                )
-            """)
-            
-            # Индексы для таблицы sent_documents
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sent_documents_user_id ON sent_documents(user_id)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sent_documents_status ON sent_documents(delivery_status)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sent_documents_date ON sent_documents(sent_at)")
-            cursor.execute("CREATE INDEX IF NOT EXISTS idx_sent_documents_grant_id ON sent_documents(grant_application_id)")
-            
+                INSERT INTO users (telegram_id, username, first_name, last_name)
+                VALUES (%s, %s, %s, %s)
+                ON CONFLICT (telegram_id) DO UPDATE
+                SET last_active = CURRENT_TIMESTAMP
+                RETURNING id
+            """, (telegram_id, username, first_name, last_name))
+
+            user_id = cursor.fetchone()[0]
             conn.commit()
-            print("База данных инициализирована")
-    
-    # ===== МЕТОДЫ ДЛЯ РАБОТЫ С ТОКЕНАМИ АВТОРИЗАЦИИ =====
-    
-    def generate_login_token(self) -> str:
-        """Генерирует новый токен для входа в панель"""
-        import secrets
-        import time
-        
-        # Формат: tokenTIMESTAMPRANDOM_HEX (без подчеркиваний, 47 символов)
-        # token(5) + timestamp(10) + random_hex(32) = 47 символов
-        timestamp = int(time.time())
-        random_hex = secrets.token_hex(16)  # 32 символа hex
-        return f"token{timestamp}{random_hex}"
-    
-    def get_or_create_login_token(self, telegram_id: int) -> Optional[str]:
-        """Получает существующий токен пользователя или создает новый (по telegram_id)"""
+            cursor.close()
+
+            return user_id
+
+    def register_user(self, telegram_id: int, username: str = None,
+                     first_name: str = None, last_name: str = None) -> bool:
+        """
+        Зарегистрировать пользователя (обратная совместимость для create_user)
+        """
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            self.create_user(telegram_id, username, first_name, last_name)
+            logger.info(f"User {telegram_id} registered successfully")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to register user {telegram_id}: {e}")
+            return False
+
+    def get_user_by_telegram_id(self, telegram_id: int) -> Optional[Dict]:
+        """Получить пользователя по telegram_id"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM users WHERE telegram_id = %s
+            """, (telegram_id,))
+
+            row = cursor.fetchone()
+            cursor.close()
+
+            return self._dict_row(cursor, row) if row else None
+
+    def get_all_users(self) -> List[Dict]:
+        """Получить всех пользователей"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM users
+                ORDER BY created_at DESC
+            """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            return self._dict_rows(cursor, rows)
+
+    def get_users_statistics(self) -> Dict[str, Any]:
+        """Получить статистику пользователей"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            # Общее количество пользователей
+            cursor.execute("SELECT COUNT(*) FROM users")
+            total_users = cursor.fetchone()[0]
+
+            # Активные за последние 7 дней
+            cursor.execute("""
+                SELECT COUNT(*) FROM users
+                WHERE last_active > NOW() - INTERVAL '7 days'
+            """)
+            active_users = cursor.fetchone()[0]
+
+            # Новые пользователи за последние 30 дней
+            cursor.execute("""
+                SELECT COUNT(*) FROM users
+                WHERE created_at > NOW() - INTERVAL '30 days'
+            """)
+            new_users = cursor.fetchone()[0]
+
+            cursor.close()
+
+            return {
+                'total_users': total_users,
+                'active_users_7d': active_users,
+                'new_users_30d': new_users
+            }
+
+    # ========== МЕТОДЫ ДЛЯ РАБОТЫ С SESSIONS ==========
+
+    def create_session(self, telegram_id: int) -> int:
+        """Создать новую сессию"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                INSERT INTO sessions (telegram_id, status, current_step)
+                VALUES (%s, 'active', 'started')
+                RETURNING id
+            """, (telegram_id,))
+
+            session_id = cursor.fetchone()[0]
+            conn.commit()
+            cursor.close()
+
+            logger.info(f"Created session {session_id} for telegram_id {telegram_id}")
+            return session_id
+
+    def get_session_by_id(self, session_id: int) -> Optional[Dict]:
+        """Получить сессию по ID"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM sessions WHERE id = %s
+            """, (session_id,))
+
+            row = cursor.fetchone()
+            cursor.close()
+
+            return self._dict_row(cursor, row) if row else None
+
+    def get_user_sessions(self, telegram_id: int, limit: int = 10) -> List[Dict]:
+        """Получить сессии пользователя"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM sessions
+                WHERE telegram_id = %s
+                ORDER BY started_at DESC
+                LIMIT %s
+            """, (telegram_id, limit))
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            return self._dict_rows(cursor, rows)
+
+    def get_active_sessions(self) -> List[Dict]:
+        """Получить все активные сессии"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM sessions
+                WHERE status = 'active'
+                ORDER BY last_activity DESC
+            """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            return self._dict_rows(cursor, rows)
+
+    def get_completed_sessions(self) -> List[Dict]:
+        """Получить все завершенные сессии"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM sessions
+                WHERE status = 'completed'
+                ORDER BY completed_at DESC
+            """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            return self._dict_rows(cursor, rows)
+
+    def get_session_progress(self, session_id: int) -> Dict[str, Any]:
+        """Получить прогресс сессии"""
+        session = self.get_session_by_id(session_id)
+        if not session:
+            return {}
+
+        # Подсчитываем количество отвеченных вопросов
+        answers_data = session.get('answers_data', {})
+        if isinstance(answers_data, str):
+            import json
+            answers_data = json.loads(answers_data) if answers_data else {}
+
+        total_questions = len(self.get_active_questions())
+        answered_questions = len(answers_data)
+
+        return {
+            'session_id': session_id,
+            'current_step': session.get('current_step'),
+            'status': session.get('status'),
+            'total_questions': total_questions,
+            'answered_questions': answered_questions,
+            'progress_percent': int((answered_questions / total_questions * 100)) if total_questions > 0 else 0,
+            'answers': answers_data
+        }
+
+    def get_user_answers(self, session_id: int) -> List[Dict[str, Any]]:
+        """Получить ответы пользователя"""
+        session = self.get_session_by_id(session_id)
+        if not session:
+            return []
+
+        answers_data = session.get('answers_data', {})
+        if isinstance(answers_data, str):
+            import json
+            answers_data = json.loads(answers_data) if answers_data else {}
+
+        # Преобразуем в список
+        answers_list = []
+        for question_id, answer_text in answers_data.items():
+            question = self.get_question_by_number(int(question_id))
+            answers_list.append({
+                'question_id': int(question_id),
+                'question_text': question.get('question_text') if question else '',
+                'answer_text': answer_text,
+                'session_id': session_id
+            })
+
+        return answers_list
+
+    def save_user_answer(self, session_id: int, question_id: int, answer_text: str) -> bool:
+        """Сохранить ответ пользователя"""
+        try:
+            with self.connect() as conn:
                 cursor = conn.cursor()
-                
-                # Проверяем, есть ли уже токен у пользователя (по telegram_id)
+
+                # Получаем текущие ответы
                 cursor.execute("""
-                    SELECT login_token FROM users WHERE telegram_id = ?
-                """, (telegram_id,))
-                
-                result = cursor.fetchone()
-                print(f"Проверка токена для пользователя с telegram_id {telegram_id}: {result}")
-                
-                if result and result[0]:
-                    token = result[0]
-                    print(f"Найден токен: {token[:20]}...")
-                    # Проверяем срок действия токена (24 часа)
-                    try:
-                        import time
-                        token_timestamp = None
-                        
-                        # Проверяем формат с подчеркиваниями
-                        if '_' in token:
-                            parts = token.split('_')
-                            if len(parts) >= 3:
-                                token_timestamp = int(parts[1])
-                        # Проверяем формат без подчеркиваний
-                        elif token.startswith('token') and len(token) == 47:
-                            try:
-                                timestamp_str = token[5:15]  # позиции 5-14 (10 цифр)
-                                if timestamp_str.isdigit():
-                                    token_timestamp = int(timestamp_str)
-                            except (ValueError, IndexError):
-                                pass
-                        
-                        if token_timestamp:
-                            current_time = int(time.time())
-                            # Токен действителен 24 часа (86400 секунд)
-                            if current_time - token_timestamp < 86400:
-                                print(f"Токен действителен для пользователя с telegram_id {telegram_id}")
-                                return token
-                            else:
-                                print(f"Токен истек для пользователя с telegram_id {telegram_id}")
-                    except (ValueError, IndexError) as e:
-                        print(f"Невалидный формат токена для пользователя с telegram_id {telegram_id}: {e}")
-                        pass  # Невалидный формат токена
-                
-                # Генерируем новый токен
-                new_token = self.generate_login_token()
-                print(f"Генерируем новый токен для пользователя с telegram_id {telegram_id}: {new_token[:20]}...")
-                
-                # Обновляем токен в БД (по telegram_id)
+                    SELECT answers_data FROM sessions WHERE id = %s
+                """, (session_id,))
+
+                row = cursor.fetchone()
+                if not row:
+                    logger.error(f"Session {session_id} not found")
+                    return False
+
+                answers_data = row[0] or {}
+                if isinstance(answers_data, str):
+                    answers_data = json.loads(answers_data) if answers_data else {}
+
+                # Добавляем новый ответ
+                answers_data[str(question_id)] = answer_text
+
+                # Обновляем сессию
                 cursor.execute("""
-                    UPDATE users SET login_token = ? WHERE telegram_id = ?
-                """, (new_token, telegram_id))
-                
+                    UPDATE sessions
+                    SET answers_data = %s,
+                        last_activity = CURRENT_TIMESTAMP,
+                        total_messages = total_messages + 1
+                    WHERE id = %s
+                """, (json.dumps(answers_data), session_id))
+
                 conn.commit()
-                print(f"Токен обновлен для пользователя с telegram_id {telegram_id}")
-                return new_token
-                
+                cursor.close()
+
+                logger.info(f"Answer saved for session {session_id}, question {question_id}")
+                return True
+
         except Exception as e:
-            print(f"Ошибка получения/создания токена для пользователя {telegram_id}: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-    
-    def validate_login_token(self, token: str) -> Optional[Dict[str, Any]]:
-        """Проверяет токен и возвращает данные пользователя если токен валиден"""
-        import time
-        
-        try:
-            print("="*60)
-            print("ДЕТАЛЬНАЯ ПРОВЕРКА ТОКЕНА")
-            print("-"*60)
-            
-            if not token:
-                print("❌ ОШИБКА: Пустой токен")
-                print("="*60)
-                return None
-            
-            # Выводим полную информацию о токене
-            print(f"📍 Полный токен (длина {len(token)}): {token}")
-            
-            # Проверяем два возможных формата токена
-            token_timestamp = None
-            token_hash = None
-            
-            # Формат 1: token_timestamp_hash (с подчеркиваниями)
-            if '_' in token:
-                parts = token.split('_')
-                print(f"📍 Обнаружен формат с подчеркиваниями, частей: {len(parts)}")
-                if len(parts) >= 3:
-                    print(f"✅ Формат токена с подчеркиваниями (token_timestamp_hash)")
-                    try:
-                        token_timestamp = int(parts[1])
-                        token_hash = parts[2]
-                    except (ValueError, IndexError):
-                        pass
-            
-            # Формат 2: tokenTIMESTAMPHASH (без подчеркиваний, фиксированные позиции)
-            if not token_timestamp and token.startswith('token') and len(token) == 47:
-                print(f"📍 Обнаружен формат без подчеркиваний (длина 47)")
-                try:
-                    # Позиции: token(5) + timestamp(10) + hash(32) = 47
-                    timestamp_str = token[5:15]  # позиции 5-14 (10 цифр)
-                    token_hash = token[15:47]    # позиции 15-46 (32 символа)
-                    
-                    # Проверяем, что timestamp состоит из цифр
-                    if timestamp_str.isdigit():
-                        token_timestamp = int(timestamp_str)
-                        print(f"✅ Успешно извлечен timestamp: {token_timestamp}")
-                        print(f"✅ Успешно извлечен hash: {token_hash[:16]}...")
-                except (ValueError, IndexError) as e:
-                    print(f"❌ Ошибка парсинга формата без подчеркиваний: {e}")
-            
-            # Проверяем, удалось ли извлечь timestamp
-            if not token_timestamp:
-                print(f"❌ ОШИБКА: Не удалось извлечь timestamp из токена!")
-                print(f"   Токен не соответствует ни одному из форматов:")
-                print(f"   1. token_timestamp_hash (с подчеркиваниями)")
-                print(f"   2. tokenTIMESTAMPHASH (без подчеркиваний, 47 символов)")
-                print("="*60)
-                return None
-            
-            # Проверяем срок действия токена
-            current_time = int(time.time())
-            time_diff = current_time - token_timestamp
-            print(f"📍 Timestamp токена: {token_timestamp}")
-            print(f"📍 Текущее время: {current_time}")
-            print(f"📍 Разница: {time_diff} секунд ({time_diff//3600} часов)")
-            
-            # Токен действителен 24 часа (86400 секунд)
-            if time_diff >= 86400:
-                print(f"❌ Токен истек! Прошло {time_diff//3600} часов (лимит 24 часа)")
-                print("="*60)
-                return None
-            
-            print("✅ Токен не истек (действителен 24 часа)")
-            
-            # Ищем пользователя с таким токеном
-            print("🔍 Поиск пользователя в базе данных...")
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Сначала проверим, есть ли вообще пользователи с токенами
-                cursor.execute("SELECT COUNT(*) FROM users WHERE login_token IS NOT NULL")
-                total_with_tokens = cursor.fetchone()[0]
-                print(f"📍 Всего пользователей с токенами: {total_with_tokens}")
-                
-                # Теперь ищем конкретный токен
-                cursor.execute("""
-                    SELECT id, telegram_id, username, first_name, last_name, is_active
-                    FROM users WHERE login_token = ?
-                """, (token,))
-                
-                result = cursor.fetchone()
-                
-                if result:
-                    columns = [description[0] for description in cursor.description]
-                    user_data = dict(zip(columns, result))
-                    # ВАЖНО: Добавляем telegram_id как user_id для совместимости с auth.py
-                    user_data['user_id'] = user_data['telegram_id']
-                    print(f"✅ УСПЕХ! Найден пользователь:")
-                    print(f"   ID: {user_data['id']}")
-                    print(f"   Telegram ID: {user_data['telegram_id']}")
-                    print(f"   Username: {user_data['username']}")
-                    print(f"   Имя: {user_data['first_name']} {user_data['last_name']}")
-                    print(f"   Активен: {user_data['is_active']}")
-                    print("="*60)
-                    return user_data
-                else:
-                    print("❌ Пользователь с таким токеном НЕ найден в БД")
-                    
-                    # Для отладки покажем первые несколько токенов из БД
-                    cursor.execute("SELECT id, SUBSTR(login_token, 1, 40) FROM users WHERE login_token IS NOT NULL LIMIT 3")
-                    existing = cursor.fetchall()
-                    if existing:
-                        print("📍 Примеры токенов в БД (первые 40 символов):")
-                        for uid, token_part in existing:
-                            print(f"   User {uid}: {token_part}...")
-                    print("="*60)
-                    return None
-                    
-        except Exception as e:
-            print(f"❌ Ошибка проверки токена: {e}")
-            import traceback
-            traceback.print_exc()
-            print("="*60)
-            return None
-    
-    def refresh_login_token(self, telegram_id: int) -> Optional[str]:
-        """Принудительно обновляет токен пользователя (по telegram_id)"""
-        try:
-            new_token = self.generate_login_token()
-            print(f"Обновление токена для пользователя с telegram_id {telegram_id}: {new_token[:20]}...")
-            
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    UPDATE users SET login_token = ? WHERE telegram_id = ?
-                """, (new_token, telegram_id))
-                
-                conn.commit()
-                print(f"Токен обновлен для пользователя с telegram_id {telegram_id}")
-                return new_token
-                
-        except Exception as e:
-            print(f"Ошибка обновления токена для пользователя {telegram_id}: {e}")
-            import traceback
-            traceback.print_exc()
-            return None
-    
-    # Метод get_agent_prompts удален - теперь используется prompts.py
-    # def get_agent_prompts(self, agent_type: str = None) -> List[Dict[str, Any]]:
-    #     """Получить промпты агентов"""
-    #     try:
-    #         with sqlite3.connect(self.db_path) as conn:
-    #             cursor = conn.cursor()
-    #             
-    #             if agent_type:
-    #                 cursor.execute("""
-    #                     SELECT * FROM agent_prompts 
-    #                     WHERE agent_type = ? AND is_active = 1
-    #                     ORDER BY order_num, id
-    #                 """, (agent_type,))
-    #                 else:
-    #                     cursor.execute("""
-    #                         SELECT * FROM agent_prompts 
-    #                         WHERE is_active = 1
-    #                         ORDER BY agent_type, order_num, id
-    #                     """)
-    #                 
-    #                 columns = [description[0] for description in cursor.description]
-    #                 prompts = []
-    #                 for row in cursor.fetchall():
-    #                     prompt = dict(zip(columns, row))
-    #                     prompts.append(prompt)
-    #                 
-    #                 return prompts
-    #         except Exception as e:
-    #             print(f"❌ Ошибка получения промптов агента {agent_type}: {e}")
-    #             return []
+            logger.error(f"Failed to save answer: {e}")
+            return False
+
+    def validate_answer(self, question_id: int, answer: str) -> Dict[str, Any]:
+        """Валидация ответа"""
+        question = self.get_question_by_number(question_id)
+        if not question:
+            return {
+                'is_valid': False,
+                'message': f'Вопрос {question_id} не найден'
+            }
+
+        # Базовая валидация - проверяем, что ответ не пустой
+        if not answer or not answer.strip():
+            return {
+                'is_valid': False,
+                'message': 'Ответ не может быть пустым'
+            }
+
+        # Проверяем минимальную длину (если указана в вопросе)
+        min_length = question.get('min_length', 1)
+        if len(answer.strip()) < min_length:
+            return {
+                'is_valid': False,
+                'message': f'Ответ слишком короткий. Минимум {min_length} символов.'
+            }
+
+        # Проверяем максимальную длину (если указана)
+        max_length = question.get('max_length', 10000)
+        if len(answer) > max_length:
+            return {
+                'is_valid': False,
+                'message': f'Ответ слишком длинный. Максимум {max_length} символов.'
+            }
+
+        return {
+            'is_valid': True,
+            'message': 'Ответ принят'
+        }
+
+    # ========== МЕТОДЫ ДЛЯ РАБОТЫ С INTERVIEW QUESTIONS ==========
+
+    def get_question_by_number(self, question_number: int) -> Optional[Dict]:
+        """Получить вопрос по номеру"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM interview_questions
+                WHERE question_number = %s AND is_active = TRUE
+            """, (question_number,))
+
+            row = cursor.fetchone()
+            cursor.close()
+
+            return self._dict_row(cursor, row) if row else None
+
+    def get_active_questions(self) -> List[Dict]:
+        """Получить все активные вопросы"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM interview_questions
+                WHERE is_active = TRUE
+                ORDER BY question_number
+            """)
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            return self._dict_rows(cursor, rows)
+
+    def insert_default_questions(self):
+        """Вставить вопросы по умолчанию (если их нет)"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            # Проверяем, есть ли вопросы
+            cursor.execute("SELECT COUNT(*) FROM interview_questions")
+            count = cursor.fetchone()[0]
+
+            if count == 0:
+                logger.info("No questions found, inserting defaults...")
+                # Вставка вопросов по умолчанию здесь
+                # TODO: Добавить стандартные вопросы
+            else:
+                logger.info(f"Found {count} questions in database")
+
+            cursor.close()
+
+    # ========== МЕТОДЫ ДЛЯ РАБОТЫ С GRANT APPLICATIONS ==========
 
     def save_grant_application(self, application_data: Dict[str, Any]) -> str:
-        """Сохранить грантовую заявку в базу данных и отправить уведомление администраторам"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
+        """Сохранить грантовую заявку"""
+        with self.connect() as conn:
+            cursor = conn.cursor()
 
-                # Используем переданный номер заявки или генерируем новый
-                if 'application_number' in application_data and application_data['application_number']:
-                    application_number = application_data['application_number']
-                else:
-                    import uuid
-                    application_number = f"GA-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
+            # Генерация номера заявки
+            if 'application_number' in application_data:
+                application_number = application_data['application_number']
+            else:
+                import uuid
+                application_number = f"GA-{datetime.now().strftime('%Y%m%d')}-{str(uuid.uuid4())[:8].upper()}"
 
-                # Извлекаем данные из application_data
-                title = application_data.get('title', 'Без названия')
+            cursor.execute("""
+                INSERT INTO grant_applications (
+                    application_number, session_id, status, content_json
+                )
+                VALUES (%s, %s, %s, %s)
+                RETURNING application_number
+            """, (
+                application_number,
+                application_data.get('session_id'),
+                application_data.get('status', 'draft'),
+                json.dumps(application_data.get('content', {}))
+            ))
 
-                # Попробуем разные варианты содержимого заявки
-                if 'content_json' in application_data:
-                    content_json = application_data['content_json']
-                elif 'application' in application_data:
-                    content_json = json.dumps(application_data.get('application', {}), ensure_ascii=False, indent=2)
-                else:
-                    # Если ни того, ни другого нет, сохраняем все данные как есть
-                    content_json = json.dumps(application_data, ensure_ascii=False, indent=2)
+            result = cursor.fetchone()[0]
+            conn.commit()
+            cursor.close()
 
-                summary = application_data.get('summary', '')[:500]  # Ограничиваем длину
-                admin_user = application_data.get('admin_user', 'system')
-                quality_score = application_data.get('quality_score', 0.0)
-                llm_provider = application_data.get('provider_used', application_data.get('provider', 'unknown'))
-                model_used = application_data.get('model_used', 'unknown')
-                processing_time = application_data.get('processing_time', 0.0)
-                tokens_used = application_data.get('tokens_used', 0)
+            logger.info(f"Grant application {result} saved successfully")
+            return result
 
-                # Извлекаем дополнительную информацию из содержания заявки
-                application_content = application_data.get('application', {})
-                grant_fund = application_data.get('grant_fund', '')
-                requested_amount = application_data.get('requested_amount', 0.0)
-                project_duration = application_data.get('project_duration', 12)
-
-                # Добавляем session_id и user_id из application_data
-                session_id = application_data.get('session_id')
-                user_id = application_data.get('user_id')
-
-                cursor.execute("""
-                    INSERT INTO grant_applications (
-                        application_number, title, content_json, summary,
-                        admin_user, quality_score, llm_provider, model_used,
-                        processing_time, tokens_used, grant_fund, requested_amount,
-                        project_duration, user_id, session_id, created_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    application_number, title, content_json, summary,
-                    admin_user, quality_score, llm_provider, model_used,
-                    processing_time, tokens_used, grant_fund, requested_amount,
-                    project_duration, user_id, session_id, get_kuzbass_time()
-                ))
-
-                conn.commit()
-                print(f"Заявка сохранена с номером: {application_number}")
-
-                # Отправляем уведомление администраторам о новой заявке
-                try:
-                    # Получаем данные пользователя если есть user_id
-                    user_data = None
-                    if user_id:
-                        cursor.execute("""
-                            SELECT telegram_id, username, first_name, last_name
-                            FROM users
-                            WHERE id = ?
-                        """, (user_id,))
-                        user_row = cursor.fetchone()
-                        if user_row:
-                            user_data = {
-                                'telegram_id': user_row[0],
-                                'username': user_row[1],
-                                'first_name': user_row[2],
-                                'last_name': user_row[3]
-                            }
-
-                    # Если user_data нет, пробуем получить через session_id
-                    if not user_data and session_id:
-                        cursor.execute("""
-                            SELECT u.telegram_id, u.username, u.first_name, u.last_name
-                            FROM sessions s
-                            JOIN users u ON s.telegram_id = u.telegram_id
-                            WHERE s.id = ?
-                        """, (session_id,))
-                        user_row = cursor.fetchone()
-                        if user_row:
-                            user_data = {
-                                'telegram_id': user_row[0],
-                                'username': user_row[1],
-                                'first_name': user_row[2],
-                                'last_name': user_row[3]
-                            }
-
-                    # Подготавливаем данные для уведомления
-                    notification_data = {
-                        'application_number': application_number,
-                        'title': title,
-                        'grant_fund': grant_fund,
-                        'requested_amount': requested_amount,
-                        'project_duration': project_duration,
-                        'created_at': get_kuzbass_time()
-                    }
-
-                    # Импортируем и используем модуль уведомлений
-                    import sys
-                    import os
-                    # Добавляем путь к модулю если его нет
-                    bot_utils_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 'telegram-bot', 'utils')
-                    if bot_utils_path not in sys.path:
-                        sys.path.append(bot_utils_path)
-
-                    from admin_notifications import get_notifier
-
-                    notifier = get_notifier()
-                    if notifier:
-                        # Отправляем уведомление (синхронно)
-                        success = notifier.send_notification_sync(notification_data, user_data)
-                        if success:
-                            print(f"✅ Уведомление о заявке {application_number} отправлено администраторам")
-                        else:
-                            print(f"⚠️ Не удалось отправить уведомление о заявке {application_number}")
-                    else:
-                        print("⚠️ Модуль уведомлений недоступен (нет токена бота)")
-
-                except Exception as notify_error:
-                    # Ошибка отправки уведомления не должна препятствовать сохранению заявки
-                    print(f"⚠️ Ошибка отправки уведомления: {notify_error}")
-
-                return application_number
-
-        except Exception as e:
-            print(f"Ошибка сохранения заявки: {e}")
-            return ""
-    
-    def get_all_applications(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
+    def get_all_applications(self, limit: int = 100, offset: int = 0) -> List[Dict]:
         """Получить список всех заявок"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT id, application_number, title, summary, status,
-                           admin_user, quality_score, llm_provider, model_used,
-                           grant_fund, requested_amount, project_duration,
-                           created_at, updated_at
-                    FROM grant_applications 
-                    ORDER BY created_at DESC
-                    LIMIT ? OFFSET ?
-                """, (limit, offset))
-                
-                columns = [desc[0] for desc in cursor.description]
-                applications = []
-                
-                for row in cursor.fetchall():
-                    app_dict = dict(zip(columns, row))
-                    applications.append(app_dict)
-                
-                return applications
-                
-        except Exception as e:
-            print(f"Ошибка получения заявок: {e}")
-            return []
-    
-    def get_application_by_number(self, application_number: str) -> Optional[Dict[str, Any]]:
-        """Получить заявку по номеру"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT * FROM grant_applications 
-                    WHERE application_number = ?
-                """, (application_number,))
-                
-                row = cursor.fetchone()
-                if row:
-                    columns = [desc[0] for desc in cursor.description]
-                    app_dict = dict(zip(columns, row))
-                    
-                    # Десериализуем JSON содержимое
-                    try:
-                        app_dict['content'] = json.loads(app_dict['content_json'])
-                    except:
-                        app_dict['content'] = {}
-                    
-                    return app_dict
-                
-                return None
-                
-        except Exception as e:
-            print(f"Ошибка получения заявки {application_number}: {e}")
-            return None
-    
-    def update_application_status(self, application_number: str, status: str) -> bool:
-        """Обновить статус заявки"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    UPDATE grant_applications 
-                    SET status = ?, updated_at = ?
-                    WHERE application_number = ?
-                """, (status, get_kuzbass_time(), application_number))
-                
-                conn.commit()
-                return cursor.rowcount > 0
-                
-        except Exception as e:
-            print(f"Ошибка обновления статуса заявки {application_number}: {e}")
-            return False
-    
-    def get_applications_statistics(self) -> Dict[str, Any]:
-        """Получить статистику по заявкам"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Общее количество
-                cursor.execute("SELECT COUNT(*) FROM grant_applications")
-                total_count = cursor.fetchone()[0]
-                
-                # По статусам
-                cursor.execute("""
-                    SELECT status, COUNT(*) 
-                    FROM grant_applications 
-                    GROUP BY status
-                """)
-                status_counts = dict(cursor.fetchall())
-                
-                # По провайдерам LLM
-                cursor.execute("""
-                    SELECT llm_provider, COUNT(*) 
-                    FROM grant_applications 
-                    GROUP BY llm_provider
-                """)
-                provider_counts = dict(cursor.fetchall())
-                
-                # Средняя оценка качества
-                cursor.execute("SELECT AVG(quality_score) FROM grant_applications")
-                avg_quality = cursor.fetchone()[0] or 0.0
-                
-                return {
-                    'total_applications': total_count,
-                    'status_distribution': status_counts,
-                    'provider_distribution': provider_counts,
-                    'average_quality_score': round(avg_quality, 2)
-                }
-                
-        except Exception as e:
-            print(f"Ошибка получения статистики заявок: {e}")
-            return {}
-    
-    # ===== МЕТОДЫ ДЛЯ РАБОТЫ С АНКЕТАМИ =====
-    
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT * FROM grant_applications
+                ORDER BY created_at DESC
+                LIMIT %s OFFSET %s
+            """, (limit, offset))
+
+            rows = cursor.fetchall()
+            cursor.close()
+
+            return self._dict_rows(cursor, rows)
+
+    # ========== МЕТОДЫ ДЛЯ РАБОТЫ С АНКЕТАМИ ==========
+
     def generate_anketa_id(self, user_data: Dict[str, Any]) -> str:
         """Генерация ID анкеты в формате #AN-YYYYMMDD-username-001"""
-        from datetime import datetime
-        
         date_str = datetime.now().strftime("%Y%m%d")
         user_identifier = self._get_user_identifier(user_data)
-        
+
         # Получаем следующий номер анкеты для пользователя за сегодня
         next_number = self._get_next_anketa_number(user_identifier, date_str)
-        
+
         return f"#AN-{date_str}-{user_identifier}-{next_number:03d}"
-    
+
     def _get_user_identifier(self, user_data: Dict[str, Any]) -> str:
         """Получить идентификатор пользователя (username или telegram_id)"""
         if user_data.get('username'):
             return user_data['username']  # Без @
         else:
             return str(user_data['telegram_id'])
-    
+
     def _get_next_anketa_number(self, user_identifier: str, date_str: str) -> int:
         """Получить следующий номер анкеты для пользователя за день"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self.connect() as conn:
                 cursor = conn.cursor()
-                
-                # Ищем максимальный номер анкет для пользователя за сегодня
+
                 cursor.execute("""
-                    SELECT MAX(CAST(SUBSTR(anketa_id, -3) AS INTEGER))
-                    FROM sessions 
-                    WHERE anketa_id LIKE ?
+                    SELECT COUNT(*) FROM sessions
+                    WHERE anketa_id LIKE %s
                 """, (f"#AN-{date_str}-{user_identifier}-%",))
-                
-                result = cursor.fetchone()
-                max_number = result[0] if result[0] else 0
-                
-                return max_number + 1
+
+                count = cursor.fetchone()[0]
+                cursor.close()
+
+                return count + 1
         except Exception as e:
-            print(f"Ошибка получения следующего номера анкеты: {e}")
+            logger.error(f"Error getting next anketa number: {e}")
             return 1
-    
+
     def save_anketa(self, anketa_data: Dict[str, Any]) -> str:
         """Сохранить анкету и вернуть anketa_id"""
         try:
             anketa_id = self.generate_anketa_id(anketa_data['user_data'])
-            
-            with sqlite3.connect(self.db_path) as conn:
+            session_id = anketa_data['session_id']
+            telegram_id = anketa_data['user_data'].get('telegram_id')
+
+            with self.connect() as conn:
                 cursor = conn.cursor()
-                
+
+                # Обновляем сессию
                 cursor.execute("""
-                    UPDATE sessions 
-                    SET anketa_id = ?, 
-                        interview_data = ?,
-                        status = ?,
-                        completed_at = ?
-                    WHERE id = ?
+                    UPDATE sessions
+                    SET anketa_id = %s,
+                        interview_data = %s,
+                        status = %s,
+                        completed_at = %s
+                    WHERE id = %s
                 """, (
                     anketa_id,
                     json.dumps(anketa_data['interview_data']),
                     'completed',
-                    get_kuzbass_time(),
-                    anketa_data['session_id']
+                    datetime.now(),
+                    session_id
                 ))
-                
+
+                # Получаем user_id
+                cursor.execute("""
+                    SELECT id FROM users WHERE telegram_id = %s
+                """, (telegram_id,))
+                user_row = cursor.fetchone()
+
+                if user_row:
+                    user_id = user_row[0]
+
+                    # Создаем запись в grant_applications
+                    project_name = anketa_data['interview_data'].get('project_name', 'Новый проект')
+
+                    cursor.execute("""
+                        INSERT INTO grant_applications
+                        (user_id, session_id, application_number, title, content_json, status, created_at)
+                        VALUES (%s, %s, %s, %s, %s, %s, CURRENT_TIMESTAMP)
+                    """, (
+                        user_id,
+                        session_id,
+                        anketa_id,
+                        project_name,
+                        json.dumps(anketa_data['interview_data']),
+                        'draft'
+                    ))
+
+                    logger.info(f"Создана заявка в grant_applications для anketa_id: {anketa_id}")
+                else:
+                    logger.warning(f"Пользователь с telegram_id {telegram_id} не найден при создании grant_application")
+
                 conn.commit()
-                print(f"Анкета сохранена: {anketa_id}")
+                cursor.close()
+
+                logger.info(f"Анкета сохранена: {anketa_id}")
                 return anketa_id
-                
+
         except Exception as e:
-            print(f"Ошибка сохранения анкеты: {e}")
+            logger.error(f"Ошибка сохранения анкеты: {e}")
             return None
-    
+
     def get_session_by_anketa_id(self, anketa_id: str) -> Optional[Dict[str, Any]]:
         """Получить сессию по ID анкеты"""
         try:
-            with sqlite3.connect(self.db_path) as conn:
+            with self.connect() as conn:
                 cursor = conn.cursor()
-                
+
                 cursor.execute("""
                     SELECT s.*, u.username, u.first_name, u.last_name
                     FROM sessions s
                     LEFT JOIN users u ON s.telegram_id = u.telegram_id
-                    WHERE s.anketa_id = ?
+                    WHERE s.anketa_id = %s
                 """, (anketa_id,))
-                
-                result = cursor.fetchone()
-                if result:
-                    columns = [description[0] for description in cursor.description]
-                    session_data = dict(zip(columns, result))
-                    
-                    # Парсим JSON поля
-                    if session_data.get('interview_data'):
-                        session_data['interview_data'] = json.loads(session_data['interview_data'])
-                    
-                    return session_data
-                return None
-                
-        except Exception as e:
-            print(f"Ошибка получения сессии по anketa_id {anketa_id}: {e}")
-            return None
-    
-    def get_all_sessions(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
-        """Получить все сессии с пагинацией"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT s.*, u.username, u.first_name, u.last_name
-                    FROM sessions s
-                    LEFT JOIN users u ON s.telegram_id = u.telegram_id
-                    ORDER BY s.started_at DESC
-                    LIMIT ? OFFSET ?
-                """, (limit, offset))
-                
-                results = cursor.fetchall()
-                columns = [description[0] for description in cursor.description]
-                
-                sessions = []
-                for result in results:
-                    session_data = dict(zip(columns, result))
-                    
-                    # Парсим JSON поля
-                    for json_field in ['conversation_history', 'collected_data', 'interview_data', 'audit_result', 'plan_structure']:
-                        if session_data.get(json_field):
-                            try:
-                                session_data[json_field] = json.loads(session_data[json_field])
-                            except:
-                                pass  # Оставляем как строку если не JSON
-                    
-                    sessions.append(session_data)
-                
-                return sessions
-                
-        except Exception as e:
-            print(f"Ошибка получения всех сессий: {e}")
-            return []
-    
-    # ===== МЕТОДЫ ДЛЯ РАБОТЫ С ИССЛЕДОВАНИЯМИ =====
-    
-    def generate_research_id(self, user_data: Dict[str, Any], anketa_id: str) -> str:
-        """Генерация ID исследования в формате #RS-YYYYMMDD-username-001-AN-anketa_id"""
-        from datetime import datetime
-        
-        date_str = datetime.now().strftime("%Y%m%d")
-        user_identifier = self._get_user_identifier(user_data)
-        
-        # Получаем следующий номер исследования для пользователя за сегодня
-        next_number = self._get_next_research_number(user_identifier, date_str)
-        
-        return f"#RS-{date_str}-{user_identifier}-{next_number:03d}-AN-{anketa_id}"
-    
-    def _get_next_research_number(self, user_identifier: str, date_str: str) -> int:
-        """Получить следующий номер исследования для пользователя за день"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Ищем максимальный номер исследований для пользователя за сегодня
-                cursor.execute("""
-                    SELECT MAX(CAST(SUBSTR(research_id, -3) AS INTEGER))
-                    FROM researcher_research 
-                    WHERE research_id LIKE ?
-                """, (f"#RS-{date_str}-{user_identifier}-%",))
-                
-                result = cursor.fetchone()
-                max_number = result[0] if result[0] else 0
-                
-                return max_number + 1
-        except Exception as e:
-            print(f"Ошибка получения следующего номера исследования: {e}")
-            return 1
-    
-    def save_research_results(self, research_data: Dict[str, Any]) -> str:
-        """Сохранить результаты исследования и вернуть research_id"""
-        try:
-            research_id = self.generate_research_id(
-                research_data['user_data'], 
-                research_data['anketa_id']
-            )
-            
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT INTO researcher_research 
-                    (research_id, anketa_id, user_id, username, first_name, last_name, 
-                     session_id, research_type, llm_provider, model, status, 
-                     research_results, metadata, created_at, completed_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    research_id,
-                    research_data['anketa_id'],
-                    research_data['user_data']['telegram_id'],
-                    research_data['user_data'].get('username'),
-                    research_data['user_data'].get('first_name'),
-                    research_data['user_data'].get('last_name'),
-                    research_data.get('session_id'),
-                    research_data.get('research_type', 'comprehensive'),
-                    research_data['llm_provider'],
-                    research_data.get('model'),
-                    'completed',
-                    json.dumps(research_data['research_results']),
-                    json.dumps(research_data.get('metadata', {})),
-                    get_kuzbass_time(),
-                    get_kuzbass_time()
-                ))
-                
-                conn.commit()
-                print(f"Исследование сохранено: {research_id}")
-                return research_id
-                
-        except Exception as e:
-            print(f"Ошибка сохранения исследования: {e}")
-            return None
-    
-    def get_research_by_id(self, research_id: str) -> Optional[Dict[str, Any]]:
-        """Получить исследование по ID"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT * FROM researcher_research WHERE research_id = ?
-                """, (research_id,))
-                
-                result = cursor.fetchone()
-                if result:
-                    columns = [description[0] for description in cursor.description]
-                    research_data = dict(zip(columns, result))
-                    
-                    # Парсим JSON поля
-                    if research_data.get('research_results'):
-                        research_data['research_results'] = json.loads(research_data['research_results'])
-                    if research_data.get('metadata'):
-                        research_data['metadata'] = json.loads(research_data['metadata'])
-                    
-                    return research_data
-                return None
-                
-        except Exception as e:
-            print(f"Ошибка получения исследования {research_id}: {e}")
-            return None
-    
-    def get_research_by_anketa_id(self, anketa_id: str) -> List[Dict[str, Any]]:
-        """Получить все исследования по ID анкеты"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT * FROM researcher_research 
-                    WHERE anketa_id = ? 
-                    ORDER BY created_at DESC
-                """, (anketa_id,))
-                
-                results = cursor.fetchall()
-                columns = [description[0] for description in cursor.description]
-                
-                research_list = []
-                for row in results:
-                    research_data = dict(zip(columns, row))
-                    
-                    # Парсим JSON поля
-                    if research_data.get('research_results'):
-                        research_data['research_results'] = json.loads(research_data['research_results'])
-                    if research_data.get('metadata'):
-                        research_data['metadata'] = json.loads(research_data['metadata'])
-                    
-                    research_list.append(research_data)
-                
-                return research_list
-                
-        except Exception as e:
-            print(f"Ошибка получения исследований для анкеты {anketa_id}: {e}")
-            return []
-    
-    def get_all_research(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
-        """Получить все исследования с пагинацией"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT * FROM researcher_research 
-                    ORDER BY created_at DESC 
-                    LIMIT ? OFFSET ?
-                """, (limit, offset))
-                
-                results = cursor.fetchall()
-                columns = [description[0] for description in cursor.description]
-                
-                research_list = []
-                for row in results:
-                    research_data = dict(zip(columns, row))
-                    
-                    # Парсим JSON поля
-                    if research_data.get('research_results'):
-                        research_data['research_results'] = json.loads(research_data['research_results'])
-                    if research_data.get('metadata'):
-                        research_data['metadata'] = json.loads(research_data['metadata'])
-                    
-                    research_list.append(research_data)
-                
-                return research_list
-                
-        except Exception as e:
-            print(f"Ошибка получения списка исследований: {e}")
-            return []
-    
-    def get_research_statistics(self) -> Dict[str, Any]:
-        """Получить статистику по исследованиям"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Общее количество
-                cursor.execute("SELECT COUNT(*) FROM researcher_research")
-                total_count = cursor.fetchone()[0]
-                
-                # По статусам
-                cursor.execute("""
-                    SELECT status, COUNT(*) 
-                    FROM researcher_research 
-                    GROUP BY status
-                """)
-                status_counts = dict(cursor.fetchall())
-                
-                # По провайдерам LLM
-                cursor.execute("""
-                    SELECT llm_provider, COUNT(*) 
-                    FROM researcher_research 
-                    GROUP BY llm_provider
-                """)
-                provider_counts = dict(cursor.fetchall())
-                
-                # По пользователям
-                cursor.execute("""
-                    SELECT username, COUNT(*) 
-                    FROM researcher_research 
-                    WHERE username IS NOT NULL
-                    GROUP BY username
-                    ORDER BY COUNT(*) DESC
-                    LIMIT 10
-                """)
-                user_counts = dict(cursor.fetchall())
-                
-                return {
-                    'total_research': total_count,
-                    'status_distribution': status_counts,
-                    'provider_distribution': provider_counts,
-                    'top_users': user_counts
-                }
-                
-        except Exception as e:
-            print(f"Ошибка получения статистики исследований: {e}")
-            return {}
 
-    def generate_grant_id(self, user_data: Dict[str, Any], anketa_id: str) -> str:
-        """Генерирует уникальный ID для гранта"""
-        user_identifier = self._get_user_identifier(user_data)
-        date_str = datetime.now().strftime("%Y%m%d")
-        number = self._get_next_grant_number(user_identifier, date_str)
-        return f"#GR-{date_str}-{user_identifier}-{number:03d}-AN-{anketa_id}"
+                row = cursor.fetchone()
+                cursor.close()
 
-    def _get_next_grant_number(self, user_identifier: str, date_str: str) -> int:
-        """Получает следующий номер гранта для пользователя и даты"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT COUNT(*) FROM grants 
-                    WHERE user_id = ? AND grant_id LIKE ?
-                """, (user_identifier, f"#GR-{date_str}-{user_identifier}-%"))
-                count = cursor.fetchone()[0]
-                return count + 1
-        except Exception as e:
-            print(f"Ошибка получения номера гранта: {e}")
-            return 1
+                return self._dict_row(cursor, row) if row else None
 
-    def save_grant(self, grant_data: Dict[str, Any]) -> str:
-        """Сохраняет грант в базу данных"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                
-                # Генерируем ID гранта
-                grant_id = self.generate_grant_id(grant_data['user_data'], grant_data['anketa_id'])
-                
-                # Подготавливаем данные для вставки
-                grant_record = {
-                    'grant_id': grant_id,
-                    'anketa_id': grant_data['anketa_id'],
-                    'research_id': grant_data['research_id'],
-                    'user_id': grant_data['user_data']['telegram_id'],
-                    'username': grant_data['user_data'].get('username'),
-                    'first_name': grant_data['user_data'].get('first_name'),
-                    'last_name': grant_data['user_data'].get('last_name'),
-                    'grant_title': grant_data.get('grant_title', ''),
-                    'grant_content': grant_data.get('grant_content', ''),
-                    'grant_sections': json.dumps(grant_data.get('grant_sections', {}), ensure_ascii=False),
-                    'metadata': json.dumps(grant_data.get('metadata', {}), ensure_ascii=False),
-                    'llm_provider': grant_data.get('llm_provider', 'gigachat'),
-                    'model': grant_data.get('model', ''),
-                    'status': grant_data.get('status', 'draft'),
-                    'quality_score': grant_data.get('quality_score', 0)
-                }
-                
-                # Вставляем запись
-                cursor.execute("""
-                    INSERT INTO grants (
-                        grant_id, anketa_id, research_id, user_id, username, 
-                        first_name, last_name, grant_title, grant_content, 
-                        grant_sections, metadata, llm_provider, model, 
-                        status, quality_score
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    grant_record['grant_id'],
-                    grant_record['anketa_id'],
-                    grant_record['research_id'],
-                    grant_record['user_id'],
-                    grant_record['username'],
-                    grant_record['first_name'],
-                    grant_record['last_name'],
-                    grant_record['grant_title'],
-                    grant_record['grant_content'],
-                    grant_record['grant_sections'],
-                    grant_record['metadata'],
-                    grant_record['llm_provider'],
-                    grant_record['model'],
-                    grant_record['status'],
-                    grant_record['quality_score']
-                ))
-                
-                conn.commit()
-                print(f"Грант сохранен: {grant_id}")
-                return grant_id
-                
         except Exception as e:
-            print(f"Ошибка сохранения гранта: {e}")
+            logger.error(f"Ошибка получения сессии по anketa_id: {e}")
             return None
 
-    def get_grant_by_id(self, grant_id: str) -> Optional[Dict[str, Any]]:
-        """Получить грант по ID"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute("SELECT * FROM grants WHERE grant_id = ?", (grant_id,))
-                result = cursor.fetchone()
-                
-                if result:
-                    columns = [description[0] for description in cursor.description]
-                    grant_data = dict(zip(columns, result))
-                    
-                    # Парсим JSON поля
-                    if grant_data.get('grant_sections'):
-                        try:
-                            grant_data['grant_sections'] = json.loads(grant_data['grant_sections'])
-                        except:
-                            grant_data['grant_sections'] = {}
-                    
-                    if grant_data.get('metadata'):
-                        try:
-                            grant_data['metadata'] = json.loads(grant_data['metadata'])
-                        except:
-                            grant_data['metadata'] = {}
-                    
-                    return grant_data
-                return None
-                
-        except Exception as e:
-            print(f"Ошибка получения гранта: {e}")
-            return None
 
-    def get_all_grants(self, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
-        """Получить все гранты с пагинацией"""
-        try:
-            with self.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    SELECT g.*, s.username, s.first_name, s.last_name
-                    FROM grants g
-                    LEFT JOIN sessions s ON g.anketa_id = s.anketa_id
-                    ORDER BY g.created_at DESC
-                    LIMIT ? OFFSET ?
-                """, (limit, offset))
-                results = cursor.fetchall()
-                
-                grants = []
-                for row in results:
-                    columns = [description[0] for description in cursor.description]
-                    grant_data = dict(zip(columns, row))
-                    
-                    # Парсим JSON поля
-                    if grant_data.get('grant_sections'):
-                        try:
-                            grant_data['grant_sections'] = json.loads(grant_data['grant_sections'])
-                        except:
-                            grant_data['grant_sections'] = {}
-                    
-                    if grant_data.get('metadata'):
-                        try:
-                            grant_data['metadata'] = json.loads(grant_data['metadata'])
-                        except:
-                            grant_data['metadata'] = {}
-                    
-                    grants.append(grant_data)
-                
-                return grants
-                
-        except Exception as e:
-            print(f"Ошибка получения всех грантов: {e}")
-            return []
-
-    # ===== МЕТОДЫ ДЛЯ РАБОТЫ С ОТПРАВЛЕННЫМИ ДОКУМЕНТАМИ =====
-    
-    def save_sent_document(self, document_data: Dict[str, Any]) -> int:
-        """Сохранить информацию об отправленном документе"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    INSERT INTO sent_documents (
-                        user_id, grant_application_id, file_path, file_name,
-                        file_size, admin_comment, delivery_status, admin_user,
-                        sent_at
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    document_data['user_id'],
-                    document_data.get('grant_application_id'),
-                    document_data['file_path'],
-                    document_data['file_name'],
-                    document_data.get('file_size', 0),
-                    document_data.get('admin_comment', ''),
-                    'pending',
-                    document_data.get('admin_user', 'system'),
-                    get_kuzbass_time()
-                ))
-                
-                document_id = cursor.lastrowid
-                conn.commit()
-                print(f"Документ зарегистрирован для отправки: ID {document_id}")
-                return document_id
-                
-        except Exception as e:
-            print(f"Ошибка сохранения информации о документе: {e}")
-            return 0
-    
-    def update_document_delivery_status(self, document_id: int, status: str,
-                                       telegram_message_id: int = None,
-                                       error_message: str = None) -> bool:
-        """Обновить статус доставки документа"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                # Подготавливаем данные для обновления
-                update_data = {
-                    'status': status,
-                    'telegram_message_id': telegram_message_id,
-                    'error_message': error_message
-                }
-                
-                # Если статус "delivered", устанавливаем время доставки
-                if status == 'delivered':
-                    update_data['delivered_at'] = get_kuzbass_time()
-                
-                # Формируем SQL запрос
-                set_clause = "delivery_status = ?"
-                params = [status]
-                
-                if telegram_message_id:
-                    set_clause += ", telegram_message_id = ?"
-                    params.append(telegram_message_id)
-                    
-                if error_message:
-                    set_clause += ", error_message = ?"
-                    params.append(error_message)
-                    
-                if status == 'delivered':
-                    set_clause += ", delivered_at = ?"
-                    params.append(update_data['delivered_at'])
-                
-                params.append(document_id)
-                
-                cursor.execute(f"""
-                    UPDATE sent_documents
-                    SET {set_clause}
-                    WHERE id = ?
-                """, params)
-                
-                conn.commit()
-                return cursor.rowcount > 0
-                
-        except Exception as e:
-            print(f"Ошибка обновления статуса документа {document_id}: {e}")
-            return False
-    
-    def get_sent_documents(self, user_id: int = None, limit: int = 100, offset: int = 0) -> List[Dict[str, Any]]:
-        """Получить список отправленных документов"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                if user_id:
-                    cursor.execute("""
-                        SELECT sd.*, u.username, u.first_name, u.last_name,
-                               ga.title as grant_title
-                        FROM sent_documents sd
-                        LEFT JOIN users u ON sd.user_id = u.telegram_id
-                        LEFT JOIN grant_applications ga ON sd.grant_application_id = ga.application_number
-                        WHERE sd.user_id = ?
-                        ORDER BY sd.sent_at DESC
-                        LIMIT ? OFFSET ?
-                    """, (user_id, limit, offset))
-                else:
-                    cursor.execute("""
-                        SELECT sd.*, u.username, u.first_name, u.last_name,
-                               ga.title as grant_title
-                        FROM sent_documents sd
-                        LEFT JOIN users u ON sd.user_id = u.telegram_id
-                        LEFT JOIN grant_applications ga ON sd.grant_application_id = ga.application_number
-                        ORDER BY sd.sent_at DESC
-                        LIMIT ? OFFSET ?
-                    """, (limit, offset))
-                
-                columns = [desc[0] for desc in cursor.description]
-                documents = []
-                
-                for row in cursor.fetchall():
-                    doc_dict = dict(zip(columns, row))
-                    documents.append(doc_dict)
-                
-                return documents
-                
-        except Exception as e:
-            print(f"Ошибка получения списка отправленных документов: {e}")
-            return []
-    
-    def get_users_for_sending(self) -> List[Dict[str, Any]]:
-        """Получить список пользователей для отправки документов"""
-        try:
-            with sqlite3.connect(self.db_path) as conn:
-                cursor = conn.cursor()
-                
-                cursor.execute("""
-                    SELECT telegram_id, username, first_name, last_name,
-                           total_sessions, completed_applications, last_active
-                    FROM users
-                    WHERE is_active = 1
-                    ORDER BY last_active DESC
-                """)
-                
-                columns = [desc[0] for desc in cursor.description]
-                users = []
-                
-                for row in cursor.fetchall():
-                    user_dict = dict(zip(columns, row))
-                    # Создаем отображаемое имя
-                    display_name = ""
-                    if user_dict['first_name']:
-                        display_name += user_dict['first_name']
-                    if user_dict['last_name']:
-                        display_name += f" {user_dict['last_name']}"
-                    if user_dict['username']:
-                        display_name += f" (@{user_dict['username']})"
-                    if not display_name.strip():
-                        display_name = f"ID: {user_dict['telegram_id']}"
-                    
-                    user_dict['display_name'] = display_name.strip()
-                    users.append(user_dict)
-                
-                return users
-                
-        except Exception as e:
-            print(f"Ошибка получения списка пользователей: {e}")
-            return []
-
-def get_connection():
-    """Получить соединение с БД (для внутреннего использования)"""
-    from . import db
-    return sqlite3.connect(db.db_path)
+# Для обратной совместимости - создаем глобальный экземпляр
+# НО только если переменные окружения настроены
+if os.getenv('PGHOST') or os.getenv('DATABASE_URL'):
+    try:
+        db = GrantServiceDatabase()
+        logger.info("Global PostgreSQL database instance created")
+    except Exception as e:
+        logger.error(f"Failed to create global database instance: {e}")
+        db = None
+else:
+    logger.warning("PostgreSQL environment variables not set, db instance not created")
+    db = None

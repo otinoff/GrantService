@@ -15,7 +15,7 @@ import setup_paths
 
 # IMPORTS
 try:
-    from utils.database import AdminDatabase, get_db_connection
+    from utils.database import AdminDatabase
     from utils.ui_helpers import render_page_header, render_metric_cards, render_tabs, show_success_message
     from utils.logger import setup_logger
 except ImportError as e:
@@ -88,7 +88,7 @@ elif selected_tab == "Система":
     with col1:
         st.markdown("**База данных**")
         st.success("✅ Подключена")
-        st.caption("SQLite: grantservice.db")
+        st.caption("PostgreSQL: grantservice")
     
     with col2:
         st.markdown("**Telegram Bot**")
@@ -126,7 +126,7 @@ elif selected_tab == "Система":
     
     with col1:
         st.write(f"**Путь:** {db.db_path if hasattr(db, 'db_path') else 'N/A'}")
-        st.write("**Тип:** SQLite")
+        st.write("**Тип:** PostgreSQL")
     
     with col2:
         if st.button("🔄 Создать backup", use_container_width=True):

@@ -6,10 +6,52 @@ on:
   workflow_dispatch:
 
 jobs:
-  deploy:
+  # Pre-deployment tests
+  test:
     runs-on: ubuntu-latest
-    
     steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.9'
+
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install pytest pytest-asyncio psycopg2-binary python-dotenv
+        pip install -r telegram-bot/requirements.txt || true
+
+    - name: Run integration tests
+      run: |
+        # Run critical integration tests before deployment
+        pytest tests/integration/test_full_application_flow.py::TestFullApplicationFlow::test_complete_application_flow -v || exit 1
+        pytest tests/integration/test_streamlit_users_page.py::TestUsersPageData::test_get_total_users -v || exit 1
+        pytest tests/integration/test_postgresql_migration.py::TestDatabaseConnection::test_can_connect_to_postgresql -v || exit 1
+      continue-on-error: false
+
+    - name: Notify tests failed
+      if: failure()
+      run: |
+        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          -d "chat_id=-4930683040" \
+          -d "parse_mode=HTML" \
+          -d "text=❌ <b>GrantService Tests FAILED</b>%0A%0ADeployment blocked - tests failed.%0ABranch: ${{ github.ref_name }}%0ACommit: ${{ github.sha }}%0A%0A<a href='https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View workflow run</a>"
+
+  # Deployment job (only runs if tests pass)
+  deploy:
+    needs: test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Notify deployment started
+      run: |
+        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          -d "chat_id=-4930683040" \
+          -d "parse_mode=HTML" \
+          -d "text=🚀 <b>GrantService Deployment Started</b>%0A%0ABranch: ${{ github.ref_name }}%0ACommit: ${{ github.sha }}%0AAuthor: ${{ github.actor }}%0A%0ATests: ✅ Passed"
+
     - name: Deploy to VPS
       uses: appleboy/ssh-action@v0.1.5
       with:
@@ -221,5 +263,130 @@ jobs:
           echo "Checking service status..."
           sudo systemctl status grantservice-bot --no-pager
           sudo systemctl status grantservice-admin --no-pager
-          
+
           echo "Deployment completed successfully!"
+
+    # Post-deployment smoke tests
+    - name: Run smoke tests
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || '22' }}
+        script: |
+          echo "Running smoke tests..."
+
+          # Test 1: Check bot process is running
+          if systemctl is-active --quiet grantservice-bot; then
+            echo "✓ Bot service is running"
+          else
+            echo "✗ Bot service is NOT running"
+            exit 1
+          fi
+
+          # Test 2: Check admin panel is running
+          if systemctl is-active --quiet grantservice-admin; then
+            echo "✓ Admin service is running"
+          else
+            echo "✗ Admin service is NOT running"
+            exit 1
+          fi
+
+          # Test 3: Check admin panel HTTP endpoint
+          HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8550/ || echo "000")
+          if [ "$HTTP_CODE" = "200" ] || [ "$HTTP_CODE" = "302" ]; then
+            echo "✓ Admin panel HTTP: $HTTP_CODE"
+          else
+            echo "✗ Admin panel HTTP failed: $HTTP_CODE"
+            exit 1
+          fi
+
+          # Test 4: Check HTTPS endpoint
+          HTTPS_CODE=$(curl -s -o /dev/null -w "%{http_code}" https://grantservice.onff.ru/ || echo "000")
+          if [ "$HTTPS_CODE" = "200" ] || [ "$HTTPS_CODE" = "302" ]; then
+            echo "✓ HTTPS endpoint: $HTTPS_CODE"
+          else
+            echo "✗ HTTPS endpoint failed: $HTTPS_CODE"
+            exit 1
+          fi
+
+          # Test 5: Check database connectivity
+          cd /var/GrantService
+          if python3 -c "from data.database.models import get_db_connection; conn = get_db_connection(); conn.close(); print('✓ Database connection OK')" 2>/dev/null; then
+            echo "✓ Database is accessible"
+          else
+            echo "⚠ Database connection test failed (non-critical)"
+          fi
+
+          # Test 6: Check bot token is valid (not placeholder)
+          if grep -q "YOUR_BOT_TOKEN" config/.env 2>/dev/null; then
+            echo "✗ CRITICAL: Bot token is placeholder!"
+            exit 1
+          else
+            echo "✓ Bot token is configured"
+          fi
+
+          echo "All smoke tests passed!"
+
+    # Notify success
+    - name: Notify deployment success
+      if: success()
+      run: |
+        # Get commit message
+        COMMIT_MSG=$(git log -1 --pretty=format:"%s")
+
+        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          -d "chat_id=-4930683040" \
+          -d "parse_mode=HTML" \
+          -d "text=✅ <b>GrantService Deployment SUCCESS</b>%0A%0A📦 Branch: ${{ github.ref_name }}%0A💬 Commit: ${COMMIT_MSG}%0A👤 Author: ${{ github.actor }}%0A%0A🤖 Bot: Running%0A💻 Admin: Running%0A🌐 HTTPS: OK%0A%0A⏱ Deploy time: ~30s"
+
+    # Notify failure and rollback
+    - name: Rollback on failure
+      if: failure()
+      uses: appleboy/ssh-action@v0.1.5
+      with:
+        host: ${{ secrets.VPS_HOST }}
+        username: ${{ secrets.VPS_USER }}
+        key: ${{ secrets.VPS_SSH_KEY }}
+        port: ${{ secrets.VPS_PORT || '22' }}
+        script: |
+          echo "Deployment failed! Rolling back..."
+
+          cd /var/GrantService
+
+          # Get current and previous commit
+          CURRENT_COMMIT=$(git rev-parse HEAD)
+          PREVIOUS_COMMIT=$(git rev-parse HEAD~1)
+
+          echo "Current commit: $CURRENT_COMMIT"
+          echo "Rolling back to: $PREVIOUS_COMMIT"
+
+          # Rollback to previous commit
+          git reset --hard HEAD~1
+
+          # Clear Python cache
+          find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+          find . -type f -name '*.pyc' -delete 2>/dev/null || true
+
+          # Restart services
+          sudo systemctl restart grantservice-bot
+          sudo systemctl restart grantservice-admin
+
+          sleep 5
+
+          # Check status after rollback
+          if systemctl is-active --quiet grantservice-bot && systemctl is-active --quiet grantservice-admin; then
+            echo "✓ Services restored after rollback"
+          else
+            echo "✗ Services still failing after rollback - manual intervention needed!"
+            exit 1
+          fi
+
+    - name: Notify deployment failure
+      if: failure()
+      run: |
+        curl -X POST "https://api.telegram.org/bot${{ secrets.TELEGRAM_BOT_TOKEN }}/sendMessage" \
+          -d "chat_id=-4930683040" \
+          -d "parse_mode=HTML" \
+          -d "text=❌ <b>GrantService Deployment FAILED</b>%0A%0A⚠️ Automatic rollback executed%0A%0ABranch: ${{ github.ref_name }}%0ACommit: ${{ github.sha }}%0AAuthor: ${{ github.actor }}%0A%0A<a href='https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }}'>View logs</a>%0A%0A⚡️ Manual check required!"

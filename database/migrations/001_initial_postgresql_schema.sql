@@ -89,7 +89,7 @@ CREATE TABLE sessions (
     answers_data JSONB, -- Changed from TEXT to JSONB
     session_duration_minutes INTEGER DEFAULT 0,
     completion_status VARCHAR(20) DEFAULT 'in_progress',
-    anketa_id VARCHAR(20) UNIQUE,
+    anketa_id VARCHAR(50) UNIQUE,
     FOREIGN KEY (telegram_id) REFERENCES users(telegram_id) ON DELETE CASCADE
 );
 
@@ -257,8 +257,8 @@ COMMENT ON TABLE grant_applications IS 'Grant application submissions';
 -- ============================================================
 CREATE TABLE researcher_research (
     id SERIAL PRIMARY KEY,
-    research_id VARCHAR(50) UNIQUE NOT NULL,
-    anketa_id VARCHAR(20) NOT NULL,
+    research_id VARCHAR(100) UNIQUE NOT NULL,
+    anketa_id VARCHAR(50) NOT NULL,
     user_id BIGINT NOT NULL,
     username VARCHAR(100),
     first_name VARCHAR(100),
@@ -293,8 +293,8 @@ COMMENT ON TABLE researcher_research IS 'AI research results for grant applicati
 CREATE TABLE grants (
     id SERIAL PRIMARY KEY,
     grant_id VARCHAR(50) UNIQUE NOT NULL,
-    anketa_id VARCHAR(20) NOT NULL,
-    research_id VARCHAR(50) NOT NULL,
+    anketa_id VARCHAR(50) NOT NULL,
+    research_id VARCHAR(100) NOT NULL,
     user_id BIGINT NOT NULL,
     username VARCHAR(100),
     first_name VARCHAR(100),

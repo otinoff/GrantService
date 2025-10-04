@@ -19,6 +19,40 @@ tools: [Read, Write, Edit, Bash, Grep, Glob, TodoWrite]
 
 ## 📋 Workflow деплоя
 
+### Phase 0: Pre-deployment Testing (ОБЯЗАТЕЛЬНО!)
+```bash
+# ⚠️ КРИТИЧЕСКИ ВАЖНО: ВСЕГДА запускай тесты ПЕРЕД деплоем!
+
+# 1. Запуск полного набора интеграционных тестов
+pytest tests/integration/ -v --tb=short
+
+# 2. Быстрая проверка критичной функциональности (минимум)
+pytest tests/integration/test_full_application_flow.py::TestFullApplicationFlow::test_complete_application_flow -v
+pytest tests/integration/test_streamlit_users_page.py::TestUsersPageData -v
+
+# 3. Проверка миграций БД
+pytest tests/integration/test_postgresql_migration.py -v
+
+# ❌ ЕСЛИ ХОТЯ БЫ ОДИН ТЕСТ УПАЛ - ДЕПЛОЙ ЗАПРЕЩЕН!
+# ✅ Исправь проблему, повтори тесты, только потом деплой
+```
+
+**Почему это критично:**
+- Broken tests = broken production
+- Тесты проверяют основной флоу: создание заявок, сохранение данных
+- Предотвращают деплой критичных багов (например, отсутствие grant_applications)
+- Экономят время на rollback и hotfix
+
+**Минимальный набор тестов перед деплоем:**
+```bash
+# Если нет времени на полный набор - запусти хотя бы эти 3 теста:
+pytest tests/integration/test_full_application_flow.py::TestFullApplicationFlow::test_complete_application_flow -v
+pytest tests/integration/test_streamlit_users_page.py::TestUsersPageData::test_get_total_users -v
+pytest tests/integration/test_postgresql_migration.py::TestDatabaseConnection::test_can_connect_to_postgresql -v
+
+# Ожидаемый результат: 3 passed в течение 10-15 секунд
+```
+
 ### Phase 1: Pre-deployment Checks
 ```bash
 # 1. Проверка локальных изменений
@@ -158,6 +192,8 @@ Agent:
 
 ```python
 todos = [
+    {"content": "Run integration tests", "status": "pending", "activeForm": "Running integration tests"},
+    {"content": "Verify all tests passed", "status": "pending", "activeForm": "Verifying all tests passed"},
     {"content": "Check local changes", "status": "pending", "activeForm": "Checking local changes"},
     {"content": "Create git commit", "status": "pending", "activeForm": "Creating git commit"},
     {"content": "Push to GitHub", "status": "pending", "activeForm": "Pushing to GitHub"},
@@ -172,9 +208,10 @@ todos = [
 ## 🚨 Critical Checks
 
 ### ❌ NEVER deploy if:
+- **Tests failing** - ЛЮБОЙ упавший тест блокирует деплой (критично!)
+- **Tests not run** - если не запустил тесты - НЕ ДЕПЛОЙ
 - `.db` files in staged changes (кроме migrations/*.sql)
 - `config/.env` в staged changes (должен быть в .gitignore)
-- Local tests failing
 - Merge conflicts exist
 
 ### ⚠️ WARNING if:
@@ -379,6 +416,12 @@ ssh root@5.35.88.251 "sudo systemctl daemon-reload"
 ```bash
 # User request: "Deploy latest changes"
 
+# 0. RUN TESTS FIRST (ОБЯЗАТЕЛЬНО!)
+pytest tests/integration/ -v --tb=short
+
+# Если тесты упали - STOP! Исправь проблему, не деплой
+# Если тесты прошли - продолжай
+
 # 1. Check status
 git status
 
@@ -405,6 +448,7 @@ ssh root@5.35.88.251 "
 
 # 7. Report results
 ✅ Deployment successful!
+   - Tests: 77 passed ✓
    - Bot: Running (PID 12345)
    - Admin: Running (Port 8550)
    - HTTPS: 200 OK
@@ -673,6 +717,11 @@ done
 **Deploy time**: Xs
 **Status**: ✅ SUCCESS / ❌ FAILED
 
+**Pre-deployment Tests**:
+- Integration tests: ✓ 77 passed, 0 failed
+- Critical flow: ✓ test_complete_application_flow PASSED
+- User data: ✓ test_get_all_users_progress PASSED
+
 **Services**:
 - Bot: ✓ Running
 - Admin: ✓ Running
@@ -682,6 +731,81 @@ done
 **Rollback needed**: No / Yes (reason)
 ```
 
+## 🧪 Тестирование перед деплоем - Детальная инструкция
+
+### Зачем нужны тесты перед деплоем:
+
+1. **Предотвращение критичных багов** - тесты находят проблемы ДО попадания в production
+2. **Экономия времени** - исправить баг локально быстрее чем делать rollback на сервере
+3. **Уверенность в стабильности** - если тесты прошли, деплой безопасен
+4. **Документация поведения** - тесты показывают как должна работать система
+
+### Какие тесты запускать:
+
+**Минимум (3-5 минут):**
+```bash
+# Основной E2E флоу (создание заявки)
+pytest tests/integration/test_full_application_flow.py::TestFullApplicationFlow::test_complete_application_flow -v
+
+# Данные для админки
+pytest tests/integration/test_streamlit_users_page.py::TestUsersPageData::test_get_total_users -v
+
+# Подключение к БД
+pytest tests/integration/test_postgresql_migration.py::TestDatabaseConnection::test_can_connect_to_postgresql -v
+```
+
+**Рекомендуется (5-10 минут):**
+```bash
+# Полный набор интеграционных тестов
+pytest tests/integration/ -v --tb=short
+```
+
+**Полный набор (10-15 минут):**
+```bash
+# Все тесты включая unit-тесты
+pytest tests/ -v --tb=short
+```
+
+### Что делать если тесты упали:
+
+```python
+# Тест упал - НЕ ДЕПЛОЙ!
+
+# 1. Прочитай error message
+# 2. Найди какой именно тест упал
+# 3. Исправь проблему в коде
+# 4. Повтори тест
+# 5. Когда все тесты зеленые - можно деплоить
+```
+
+### Примеры проблем которые находят тесты:
+
+**Problem 1: Отсутствует grant_application после save_anketa()**
+- Тест: `test_complete_application_flow`
+- Нашел: save_anketa() не создавал запись в grant_applications
+- Фикс: Добавлен INSERT INTO grant_applications
+- Результат: Предотвращен баг в production (заявки не отображались в админке)
+
+**Problem 2: TypeError при парсинге JSONB**
+- Тест: `test_get_all_users_progress`
+- Нашел: json.loads() вызывается на dict вместо string
+- Фикс: Добавлена проверка isinstance(data, dict)
+- Результат: Предотвращен краш админ панели
+
+**Problem 3: Дубликаты ответов**
+- Тест: `test_cannot_answer_same_question_twice`
+- Нашел: Отсутствует UNIQUE constraint
+- Фикс: Создана миграция 002_add_unique_constraint
+- Результат: Предотвращена коррупция данных
+
+### Best Practices:
+
+1. **ВСЕГДА запускай тесты ПЕРЕД git push**
+2. **Не коммить если тесты падают** (исключение: work-in-progress branch)
+3. **Фикси тесты сразу** - не откладывай на потом
+4. **Добавляй новые тесты** при нахождении багов
+5. **Используй --tb=short** для краткого traceback (удобнее читать)
+
 ---
 
-**Remember**: Ты отвечаешь за стабильность production системы. Лучше лишний раз проверить, чем быстро задеплоить и сломать!
+**Remember**: Ты отвечаешь за стабильность production системы. Лучше потратить 5 минут на тесты локально, чем час на rollback и hotfix на проде!

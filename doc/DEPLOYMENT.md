@@ -1,5 +1,5 @@
 # Deployment Guide
-**Version**: 1.0.4 | **Last Modified**: 2025-10-01
+**Version**: 1.1.0 | **Last Modified**: 2025-10-04
 
 ## Table of Contents
 - [Requirements](#requirements)
@@ -33,7 +33,7 @@
 ```bash
 # Core
 Python 3.9+
-PostgreSQL 14+
+PostgreSQL 18+ (v18.0 installed on production)
 Redis 7+ (optional)
 nginx 1.21+
 
@@ -79,8 +79,14 @@ TELEGRAM_BOT_USERNAME=@Grafana_SnowWhite_bot  # Bot username for notifications
 TELEGRAM_BOT_ID=8057176426        # Bot ID: 8057176426 (confirmed in testing)
 ADMIN_GROUP_NAME="Грантсервис"    # Human-readable group name
 
-# Database Configuration
-DATABASE_URL=postgresql://user:password@localhost:5432/grantservice
+# Database Configuration (PostgreSQL 18 - Production)
+DATABASE_URL=postgresql://grantservice:{password}@localhost:5434/grantservice
+DB_TYPE=postgresql
+DB_HOST=localhost
+DB_PORT=5434
+DB_NAME=grantservice
+DB_USER=grantservice
+DB_PASSWORD={stored_in_config_env}
 DATABASE_POOL_SIZE=20
 DATABASE_MAX_OVERFLOW=40
 
@@ -1096,6 +1102,7 @@ async def process_request():
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2025-10-04 | PostgreSQL 18 production setup, updated database configuration |
 | 1.0.4 | 2025-10-01 | Critical: Config protection, Port 8550, Smart pull deployment |
 | 1.0.3 | 2025-09-30 | Added CI/CD with GitHub Actions documentation |
 | 1.0.2 | 2025-09-30 | Added production Telegram bot configuration |

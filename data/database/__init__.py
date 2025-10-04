@@ -7,14 +7,9 @@
 import os
 from .models import GrantServiceDatabase
 
-# Определяем путь к базе данных в зависимости от платформы
-if os.name == 'nt':  # Windows
-    db_path = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
-else:  # Linux/Unix
-    db_path = "/var/GrantService/data/grantservice.db"
-
-# Глобальный экземпляр БД с явным указанием пути
-db = GrantServiceDatabase(db_path)
+# Глобальный экземпляр БД для PostgreSQL
+# Параметры подключения берутся из переменных окружения
+db = GrantServiceDatabase()
 
 # Импортируем классы авторизации
 from .auth import AuthManager, UserRole, UserPermission

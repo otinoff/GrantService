@@ -151,3 +151,50 @@ context.user_data['stage'] = 'interview'
 ## Контекст проекта
 
 Бот является основной точкой входа для пользователей системы GrantService. Цель - сделать процесс подготовки грантовой заявки максимально простым и интуитивным, как общение с опытным консультантом.
+
+## Тестирование после разработки
+
+**ВАЖНО:** После любых изменений в коде бота ОБЯЗАТЕЛЬНО запускай тесты для проверки работоспособности!
+
+### Обязательные тесты
+
+```bash
+# 1. Тесты интеграции с базой данных PostgreSQL
+pytest tests/integration/test_postgresql_migration.py -v
+
+# 2. Тесты полного цикла заявки (E2E)
+pytest tests/integration/test_full_application_flow.py::TestFullApplicationFlow -v
+
+# 3. Тесты бизнес-логики бота
+pytest tests/integration/test_bot_interview_flow.py -v
+
+# 4. Все интеграционные тесты
+pytest tests/integration/ -v
+```
+
+### Быстрая проверка после изменений
+
+```bash
+# Запустить только критичные тесты бота (быстро)
+pytest tests/integration/test_bot_interview_flow.py::TestInterviewProgression -v
+pytest tests/integration/test_full_application_flow.py::TestFullApplicationFlow::test_complete_application_flow -v
+```
+
+### Что проверяют тесты:
+
+- ✅ Создание сессии пользователя
+- ✅ Сохранение ответов на вопросы
+- ✅ Защита от дублирования ответов (UNIQUE constraint)
+- ✅ Автоматическое создание grant_application при save_anketa()
+- ✅ Корректность прогресса заполнения анкеты
+- ✅ Целостность данных между sessions и grant_applications
+
+### Перед коммитом
+
+ВСЕГДА запускай тесты перед git commit:
+
+```bash
+pytest tests/integration/ -v --tb=short
+```
+
+Если тесты падают - исправь проблему ПЕРЕД коммитом!

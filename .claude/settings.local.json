@@ -14,7 +14,22 @@
       "Bash(git commit -m \"$(cat <<''EOF''\nchore: Clean up duplicate files and reorganize project structure\n\n- Remove 5 duplicate page files with broken emoji encoding\n- Remove 11 duplicate archived files with encoding issues  \n- Reorganize documentation: move agent reports to .claude/agents/\n- Add PostgreSQL migration tools and database management scripts\n- Update admin panel pages (6-page refactored structure)\n- Add new Claude Code agents documentation\n\nFinal admin panel structure: 6 pages (Dashboard, Users, Agents, Grants, Analytics, Settings)\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
       "Bash(mkdir:*)",
       "Bash(git mv:*)",
-      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Setup database-manager agent and enforce .md placement rules\n\nDatabase-manager agent setup:\n- Create .claude/agents/database-manager/ structure  \n- Move MIGRATION_GUIDE.md from database/ to agent folder\n- Move README.md (migration package overview) to agent folder\n- Move database_structure.md from data/ to agent folder\n\nGC rules enhancement:\n- Add markdown_placement_rules to gc-rules.yaml\n- Define allowed directories: doc/, .claude/agents/, reports/\n- Define forbidden directories: database/, telegram-bot/, web-admin/, scripts/, data/\n- Action: warn_and_suggest_move (no auto-move)\n- Exceptions: README.md, CHANGELOG.md allowed everywhere\n\nClean up .md files in working directories:\n- Move 8 .md files from forbidden to allowed directories:\n  1. telegram-bot/MENU_SETUP.md → telegram-bot-developer/\n  2. scripts/README_SYNC.md → deployment-manager/\n  3. scripts/README_TESTING.md → test-engineer/\n  4. data/database_structure.md → database-manager/\n  5. web-admin/Assistants/PythonDeveloper_Assistant.md → streamlit-admin-developer/\n  6. web-admin/docs/LOGGING_SYSTEM_v2.md → streamlit-admin-developer/reports/\n  7. web-admin/HOSTING_SETUP.md → streamlit-admin-developer/\n  8. web-admin/pages/README_AGENTS_PAGE.md → streamlit-admin-developer/\n\nResult: Zero .md violations in working directories ✅\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")"
+      "Bash(git commit -m \"$(cat <<''EOF''\nfeat: Setup database-manager agent and enforce .md placement rules\n\nDatabase-manager agent setup:\n- Create .claude/agents/database-manager/ structure  \n- Move MIGRATION_GUIDE.md from database/ to agent folder\n- Move README.md (migration package overview) to agent folder\n- Move database_structure.md from data/ to agent folder\n\nGC rules enhancement:\n- Add markdown_placement_rules to gc-rules.yaml\n- Define allowed directories: doc/, .claude/agents/, reports/\n- Define forbidden directories: database/, telegram-bot/, web-admin/, scripts/, data/\n- Action: warn_and_suggest_move (no auto-move)\n- Exceptions: README.md, CHANGELOG.md allowed everywhere\n\nClean up .md files in working directories:\n- Move 8 .md files from forbidden to allowed directories:\n  1. telegram-bot/MENU_SETUP.md → telegram-bot-developer/\n  2. scripts/README_SYNC.md → deployment-manager/\n  3. scripts/README_TESTING.md → test-engineer/\n  4. data/database_structure.md → database-manager/\n  5. web-admin/Assistants/PythonDeveloper_Assistant.md → streamlit-admin-developer/\n  6. web-admin/docs/LOGGING_SYSTEM_v2.md → streamlit-admin-developer/reports/\n  7. web-admin/HOSTING_SETUP.md → streamlit-admin-developer/\n  8. web-admin/pages/README_AGENTS_PAGE.md → streamlit-admin-developer/\n\nResult: Zero .md violations in working directories ✅\n\n🤖 Generated with [Claude Code](https://claude.com/claude-code)\n\nCo-Authored-By: Claude <noreply@anthropic.com>\nEOF\n)\")",
+      "Bash(psql:*)",
+      "Bash(pg_config:*)",
+      "Bash(set PGPASSWORD=root)",
+      "Bash(python test_postgresql_connection.py:*)",
+      "Bash(timeout:*)",
+      "Bash(cat:*)",
+      "Bash(Select-String -Pattern \"пользователей|вопросов|PostgreSQL|ERROR|ошибка|Ошибка|unable\")",
+      "Bash(python:*)",
+      "Bash(pytest:*)",
+      "Bash(Select-String -Pattern \"PASSED|FAILED|ERROR|test_|пользователей|вопросов|PostgreSQL|unable|ошибка|Ошибка|passed|failed|error\")",
+      "Bash(Get-Process)",
+      "Bash(Select-String -Pattern \"streamlit|python\")",
+      "Bash(Select-Object -First 10)",
+      "Bash(grep:*)",
+      "Bash(done)"
     ],
     "deny": [],
     "ask": []

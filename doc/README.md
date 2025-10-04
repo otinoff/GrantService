@@ -1,5 +1,5 @@
 # GrantService Documentation Hub
-**Version**: 1.0.5 | **Last Updated**: 2025-10-03
+**Version**: 1.0.6 | **Last Updated**: 2025-10-04
 
 ## 📚 Documentation Structure
 
@@ -7,10 +7,11 @@
 |---------|------|-------------|---------|--------------|
 | 🏗️ Architecture | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, data flows, CI/CD pipeline | 1.0.1 | 2025-09-30 |
 | 🔧 Components | [COMPONENTS.md](./COMPONENTS.md) | All system components and modules | 1.0.3 | 2025-10-01 |
+| 🗄️ Database | [DATABASE.md](./DATABASE.md) | Schema, PostgreSQL 18, migrations | 1.1.0 | 2025-10-04 |
 | 📡 API Reference | [API_REFERENCE.md](./API_REFERENCE.md) | API endpoints and webhooks | 1.0.1 | 2025-09-30 |
 | 🤖 AI Agents | [AI_AGENTS.md](./AI_AGENTS.md) | AI agents, prompts, GigaChat config, GC rules | 1.1.0 | 2025-10-03 |
-| 🚀 Deployment | [DEPLOYMENT.md](./DEPLOYMENT.md) | Installation, CI/CD, troubleshooting | 1.0.4 | 2025-10-01 |
-| 📝 Change Log | [CHANGELOG.md](./CHANGELOG.md) | Version history and updates | 1.0.5 | 2025-10-03 |
+| 🚀 Deployment | [DEPLOYMENT.md](./DEPLOYMENT.md) | Installation, CI/CD, PostgreSQL 18 | 1.1.0 | 2025-10-04 |
+| 📝 Change Log | [CHANGELOG.md](./CHANGELOG.md) | Version history and updates | 1.0.6 | 2025-10-04 |
 
 ## 🎯 Project Overview
 
@@ -30,7 +31,7 @@
 - **Backend**: Python 3.9+, FastAPI
 - **Frontend**: Telegram Bot API, Streamlit
 - **AI**: GigaChat API, Claude 3 (для Project Orchestrator)
-- **Database**: PostgreSQL (production), SQLite (development)
+- **Database**: PostgreSQL 18.0 (production), SQLite (development)
 - **Automation**: n8n workflows
 - **Deployment**: Beget VPS, Docker
 - **Agent Management**: Claude Code Agents Architecture

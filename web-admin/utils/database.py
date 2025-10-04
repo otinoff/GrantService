@@ -146,7 +146,13 @@ class AdminDatabase:
             # Группируем по дням
             daily_data = {}
             for session in sessions:
-                date = session['started_at'][:10]  # YYYY-MM-DD
+                # PostgreSQL возвращает datetime объект
+                started_at = session['started_at']
+                if isinstance(started_at, str):
+                    date = started_at[:10]  # YYYY-MM-DD
+                else:
+                    date = started_at.strftime('%Y-%m-%d')
+
                 if date not in daily_data:
                     daily_data[date] = 0
                 daily_data[date] += 1

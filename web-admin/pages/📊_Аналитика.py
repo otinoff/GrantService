@@ -21,7 +21,13 @@ import setup_paths
 
 # IMPORTS
 try:
-    from utils.database import AdminDatabase, get_db_connection
+    from utils.database import AdminDatabase
+    from utils.postgres_helper import (
+        execute_query,
+        execute_query_df,
+        execute_scalar,
+        execute_update
+    )
     from utils.logger import setup_logger, get_log_stats
     from utils.charts import create_daily_chart, create_metrics_cards
 except ImportError as e:
@@ -81,11 +87,8 @@ def load_conversion_funnel(_db):
     """Load conversion funnel data"""
     try:
         # Funnel stages: Registration -> Interview -> Audit -> Plan -> Research -> Text -> Submit
-        conn = get_db_connection()
-        cursor = conn.cursor()
-
         # Get counts for each stage
-        total_users = cursor.execute("SELECT COUNT(*) FROM users").fetchone()[0]
+        total_users = execute_scalar("SELECT COUNT(*) FROM users") or 0
 
         # Mock data for now - TODO: implement real stage tracking
         funnel_data = {

@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-Модуль для работы с вопросами интервью
+Модуль для работы с вопросами интервью (PostgreSQL)
 """
 
 import json
-import sqlite3
 from typing import List, Dict, Any, Optional
 from .models import GrantServiceDatabase, get_kuzbass_time
 from datetime import datetime
@@ -13,7 +12,7 @@ from datetime import datetime
 class InterviewManager:
     def __init__(self, db: GrantServiceDatabase):
         self.db = db
-    
+
     def insert_default_questions(self):
         """Вставка вопросов по умолчанию"""
         default_questions = [
@@ -81,20 +80,20 @@ class InterviewManager:
                 'validation_rules': json.dumps({'min_length': 30})
             }
         ]
-        
-        with sqlite3.connect(self.db.db_path) as conn:
+
+        with self.db.connect() as conn:
             cursor = conn.cursor()
-            
+
             # Проверяем, есть ли уже вопросы
             cursor.execute("SELECT COUNT(*) FROM interview_questions")
             count = cursor.fetchone()[0]
-            
+
             if count == 0:
                 for question in default_questions:
                     cursor.execute("""
-                        INSERT INTO interview_questions 
+                        INSERT INTO interview_questions
                         (question_number, question_text, field_name, question_type, hint_text, is_required, validation_rules)
-                        VALUES (?, ?, ?, ?, ?, ?, ?)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s)
                     """, (
                         question['question_number'],
                         question['question_text'],
@@ -104,105 +103,132 @@ class InterviewManager:
                         question['is_required'],
                         question['validation_rules']
                     ))
-                
+
                 conn.commit()
                 print(f"✅ Добавлено {len(default_questions)} вопросов по умолчанию")
             else:
                 print(f"ℹ️ В базе уже есть {count} вопросов")
-    
+
+            cursor.close()
+
     def get_active_questions(self) -> List[Dict[str, Any]]:
         """Получить все активные вопросы, отсортированные по номеру"""
-        with sqlite3.connect(self.db.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with self.db.connect() as conn:
             cursor = conn.cursor()
-            
+
             cursor.execute("""
-                SELECT * FROM interview_questions 
-                WHERE is_active = 1 
+                SELECT * FROM interview_questions
+                WHERE is_active = TRUE
                 ORDER BY question_number
             """)
-            
+
+            columns = [desc[0] for desc in cursor.description]
             questions = []
+
             for row in cursor.fetchall():
-                question = dict(row)
+                question = dict(zip(columns, row))
                 # Парсим JSON поля
-                if question['options']:
-                    question['options'] = json.loads(question['options'])
-                if question['validation_rules']:
-                    question['validation_rules'] = json.loads(question['validation_rules'])
-                
+                if question.get('options'):
+                    try:
+                        question['options'] = json.loads(question['options'])
+                    except (json.JSONDecodeError, TypeError):
+                        question['options'] = None
+
+                if question.get('validation_rules'):
+                    try:
+                        question['validation_rules'] = json.loads(question['validation_rules'])
+                    except (json.JSONDecodeError, TypeError):
+                        question['validation_rules'] = {}
+
                 questions.append(question)
-            
+
+            cursor.close()
             return questions
-    
+
     def get_question_by_number(self, question_number: int) -> Optional[Dict[str, Any]]:
         """Получить вопрос по номеру"""
-        with sqlite3.connect(self.db.db_path) as conn:
-            conn.row_factory = sqlite3.Row
+        with self.db.connect() as conn:
             cursor = conn.cursor()
-            
+
             cursor.execute("""
-                SELECT * FROM interview_questions 
-                WHERE question_number = ? AND is_active = 1
+                SELECT * FROM interview_questions
+                WHERE question_number = %s AND is_active = TRUE
             """, (question_number,))
-            
+
             row = cursor.fetchone()
+            cursor.close()
+
             if row:
-                question = dict(row)
-                if question['options']:
-                    question['options'] = json.loads(question['options'])
-                if question['validation_rules']:
-                    question['validation_rules'] = json.loads(question['validation_rules'])
+                columns = [desc[0] for desc in cursor.description]
+                question = dict(zip(columns, row))
+
+                if question.get('options'):
+                    try:
+                        question['options'] = json.loads(question['options'])
+                    except (json.JSONDecodeError, TypeError):
+                        question['options'] = None
+
+                if question.get('validation_rules'):
+                    try:
+                        question['validation_rules'] = json.loads(question['validation_rules'])
+                    except (json.JSONDecodeError, TypeError):
+                        question['validation_rules'] = {}
+
                 return question
-            
+
             return None
-    
+
     def validate_answer(self, question_id: int, answer: str) -> Dict[str, Any]:
         """Валидация ответа по правилам из БД"""
-        with sqlite3.connect(self.db.db_path) as conn:
+        with self.db.connect() as conn:
             cursor = conn.cursor()
-            
+
             cursor.execute("""
-                SELECT * FROM interview_questions WHERE id = ?
+                SELECT * FROM interview_questions WHERE id = %s
             """, (question_id,))
-            
+
             row = cursor.fetchone()
+            cursor.close()
+
             if not row:
                 return {"is_valid": False, "message": "Вопрос не найден"}
-            
-            question = {
-                'id': row[0],
-                'question_number': row[1],
-                'question_text': row[2],
-                'field_name': row[3],
-                'question_type': row[4],
-                'options': json.loads(row[5]) if row[5] else None,
-                'hint_text': row[6],
-                'is_required': bool(row[7]),
-                'follow_up_question': row[8],
-                'validation_rules': json.loads(row[9]) if row[9] else {},
-                'is_active': bool(row[10])
-            }
-            
+
+            columns = [desc[0] for desc in cursor.description]
+            question = dict(zip(columns, row))
+
+            # Парсим validation_rules если это JSON string
+            if isinstance(question.get('validation_rules'), str):
+                try:
+                    question['validation_rules'] = json.loads(question['validation_rules'])
+                except (json.JSONDecodeError, TypeError):
+                    question['validation_rules'] = {}
+
+            # Парсим options если это JSON string
+            if isinstance(question.get('options'), str):
+                try:
+                    question['options'] = json.loads(question['options'])
+                except (json.JSONDecodeError, TypeError):
+                    question['options'] = None
+
             # Проверка обязательности
-            if question['is_required'] and not answer.strip():
+            if question.get('is_required') and not answer.strip():
                 return {"is_valid": False, "message": "Это обязательный вопрос"}
-            
+
             # Проверка длины
-            validation_rules = question['validation_rules']
+            validation_rules = question.get('validation_rules', {})
             if 'min_length' in validation_rules and len(answer) < validation_rules['min_length']:
                 return {"is_valid": False, "message": f"Минимальная длина: {validation_rules['min_length']} символов"}
-            
+
             if 'max_length' in validation_rules and len(answer) > validation_rules['max_length']:
                 return {"is_valid": False, "message": f"Максимальная длина: {validation_rules['max_length']} символов"}
-            
+
             # Проверка вариантов
-            if question['question_type'] == 'select' and question['options']:
+            if question.get('question_type') == 'select' and question.get('options'):
                 if answer not in question['options']:
                     return {"is_valid": False, "message": "Выберите один из предложенных вариантов"}
-            
+
             # Проверка числовых значений
-            if question['question_type'] == 'number':
+            if question.get('question_type') == 'number':
                 try:
                     value = float(answer.strip())
                     if 'min_value' in validation_rules and value < validation_rules['min_value']:
@@ -220,53 +246,89 @@ class InterviewManager:
                         "is_valid": False,
                         "message": "Введите числовое значение"
                     }
-            
+
             return {"is_valid": True, "message": "Ответ корректен"}
-    
+
     def update_question(self, question_id: int, data: Dict[str, Any]) -> bool:
         """Обновить вопрос"""
         try:
-            with sqlite3.connect(self.db.db_path) as conn:
+            with self.db.connect() as conn:
                 cursor = conn.cursor()
-                
+
                 # Подготавливаем данные
-                update_data = {
-                    'question_number': data.get('question_number'),
-                    'question_text': data.get('question_text'),
-                    'field_name': data.get('field_name'),
-                    'question_type': data.get('question_type'),
-                    'options': json.dumps(data.get('options')) if data.get('options') else None,
-                    'hint_text': data.get('hint_text'),
-                    'is_required': data.get('is_required', True),
-                    'follow_up_question': data.get('follow_up_question'),
-                    'validation_rules': json.dumps(data.get('validation_rules', {})),
-                    'is_active': data.get('is_active', True),
-                    'updated_at': datetime.now().isoformat()
-                }
-                
-                # Строим SQL запрос
-                set_clause = ", ".join([f"{k} = ?" for k in update_data.keys()])
-                sql = f"UPDATE interview_questions SET {set_clause} WHERE id = ?"
-                
-                cursor.execute(sql, list(update_data.values()) + [question_id])
+                update_fields = []
+                update_values = []
+
+                if 'question_number' in data:
+                    update_fields.append("question_number = %s")
+                    update_values.append(data['question_number'])
+
+                if 'question_text' in data:
+                    update_fields.append("question_text = %s")
+                    update_values.append(data['question_text'])
+
+                if 'field_name' in data:
+                    update_fields.append("field_name = %s")
+                    update_values.append(data['field_name'])
+
+                if 'question_type' in data:
+                    update_fields.append("question_type = %s")
+                    update_values.append(data['question_type'])
+
+                if 'options' in data:
+                    update_fields.append("options = %s")
+                    update_values.append(json.dumps(data['options']) if data['options'] else None)
+
+                if 'hint_text' in data:
+                    update_fields.append("hint_text = %s")
+                    update_values.append(data['hint_text'])
+
+                if 'is_required' in data:
+                    update_fields.append("is_required = %s")
+                    update_values.append(data['is_required'])
+
+                if 'follow_up_question' in data:
+                    update_fields.append("follow_up_question = %s")
+                    update_values.append(data['follow_up_question'])
+
+                if 'validation_rules' in data:
+                    update_fields.append("validation_rules = %s")
+                    update_values.append(json.dumps(data['validation_rules']))
+
+                if 'is_active' in data:
+                    update_fields.append("is_active = %s")
+                    update_values.append(data['is_active'])
+
+                update_fields.append("updated_at = %s")
+                update_values.append(datetime.now())
+
+                # Добавляем question_id в конец
+                update_values.append(question_id)
+
+                sql = f"UPDATE interview_questions SET {', '.join(update_fields)} WHERE id = %s"
+                cursor.execute(sql, update_values)
+
                 conn.commit()
-                
-                return cursor.rowcount > 0
+                success = cursor.rowcount > 0
+                cursor.close()
+
+                return success
         except Exception as e:
             print(f"❌ Ошибка обновления вопроса: {e}")
             return False
-    
+
     def create_question(self, data: Dict[str, Any]) -> int:
         """Создать новый вопрос"""
         try:
-            with sqlite3.connect(self.db.db_path) as conn:
+            with self.db.connect() as conn:
                 cursor = conn.cursor()
-                
+
                 cursor.execute("""
-                    INSERT INTO interview_questions 
-                    (question_number, question_text, field_name, question_type, options, hint_text, 
+                    INSERT INTO interview_questions
+                    (question_number, question_text, field_name, question_type, options, hint_text,
                      is_required, follow_up_question, validation_rules, is_active)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
                 """, (
                     data.get('question_number'),
                     data.get('question_text'),
@@ -279,25 +341,32 @@ class InterviewManager:
                     json.dumps(data.get('validation_rules', {})),
                     data.get('is_active', True)
                 ))
-                
+
+                question_id = cursor.fetchone()[0]
                 conn.commit()
-                return cursor.lastrowid
+                cursor.close()
+
+                return question_id
         except Exception as e:
             print(f"❌ Ошибка создания вопроса: {e}")
             return 0
-    
+
     def delete_question(self, question_id: int) -> bool:
         """Удалить вопрос (мягкое удаление)"""
         try:
-            with sqlite3.connect(self.db.db_path) as conn:
+            with self.db.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    UPDATE interview_questions 
-                    SET is_active = 0, updated_at = ? 
-                    WHERE id = ?
-                """, (datetime.now().isoformat(), question_id))
+                    UPDATE interview_questions
+                    SET is_active = FALSE, updated_at = %s
+                    WHERE id = %s
+                """, (datetime.now(), question_id))
+
                 conn.commit()
-                return cursor.rowcount > 0
+                success = cursor.rowcount > 0
+                cursor.close()
+
+                return success
         except Exception as e:
             print(f"❌ Ошибка удаления вопроса: {e}")
             return False
@@ -313,7 +382,7 @@ def get_interview_questions():
         print(f"Ошибка получения вопросов интервью: {e}")
         return []
 
-def insert_interview_question(question_text: str, question_type: str, order_num: int, 
+def insert_interview_question(question_text: str, question_type: str, order_num: int,
                             is_required: bool = True, is_active: bool = True, options: str = None):
     """Создать новый вопрос интервью"""
     try:
@@ -334,7 +403,7 @@ def insert_interview_question(question_text: str, question_type: str, order_num:
         return 0
 
 def update_interview_question(question_id: int, question_text: str = None, question_type: str = None,
-                            order_num: int = None, is_required: bool = None, is_active: bool = None, 
+                            order_num: int = None, is_required: bool = None, is_active: bool = None,
                             options: str = None):
     """Обновить вопрос интервью"""
     try:
@@ -353,10 +422,10 @@ def update_interview_question(question_id: int, question_text: str = None, quest
             data['is_active'] = is_active
         if options is not None:
             data['options'] = options
-        
+
         # Автоматически генерируем field_name если его нет
         data['field_name'] = f"question_{question_id}"
-        
+
         return manager.update_question(question_id, data)
     except Exception as e:
         print(f"Ошибка обновления вопроса интервью: {e}")
@@ -370,4 +439,4 @@ def delete_interview_question(question_id: int):
         return manager.delete_question(question_id)
     except Exception as e:
         print(f"Ошибка удаления вопроса интервью: {e}")
-        return False 
+        return False

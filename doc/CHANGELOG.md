@@ -1,5 +1,5 @@
 # Changelog
-**Version**: 1.0.5 | **Last Modified**: 2025-10-03
+**Version**: 1.0.6 | **Last Modified**: 2025-10-04
 
 All notable changes to GrantService project will be documented in this file.
 
@@ -7,6 +7,106 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.0.6] - 2025-10-04
+
+### Added
+
+#### PostgreSQL 18 Production Database
+- **Installation Date**: 2025-10-04
+- **Server**: 5.35.88.251 (Production)
+- **Version**: PostgreSQL 18.0 (Ubuntu 18.0-1.pgdg22.04+3)
+- **Port**: 5434 (dedicated GrantService cluster)
+- **Database**: `grantservice` with 18 tables
+
+#### Database Infrastructure
+- **PostgreSQL Cluster 18/main**: Dedicated cluster for GrantService on port 5434
+- **Database Users**:
+  - Application user: `grantservice` (ALL privileges)
+  - Superuser: `postgres` (maintenance and administration)
+- **Extensions Installed**:
+  - `uuid-ossp` for UUID generation
+  - `pg_trgm` for full-text search support
+
+#### Database Schema Migration
+- **Migration File**: `database/migrations/001_initial_postgresql_schema.sql`
+- **Applied**: 2025-10-04
+- **Tables Created**: 18 (users, sessions, interview_questions, user_answers, grant_applications, grants, agent_prompts, auditor_results, planner_structures, researcher_research, researcher_logs, sent_documents, auth_logs, page_permissions, prompt_categories, prompt_versions, db_version, db_timestamps)
+- **Status**: ✅ Successfully applied
+
+#### Connection Configuration
+- **URL Format**: `postgresql://grantservice:{password}@localhost:5434/grantservice`
+- **Connection Parameters**: host=localhost, port=5434, database=grantservice, user=grantservice
+- **Credentials Storage**: `/var/GrantService/config/.env` (NOT in Git)
+- **Authentication**: scram-sha-256 (secure password hashing)
+
+### Changed
+
+#### DATABASE.md (v1.0.1 → v1.1.0)
+- Added "PostgreSQL 18 Production Setup" section
+- Updated Overview: PostgreSQL 14+ → PostgreSQL 18.0
+- Added PostgreSQL clusters table showing versions 15, 16, 18
+- Updated Database Architecture diagram to show Port 5434
+- Added database users documentation
+- Added connection methods (psql, Python, SQLAlchemy)
+- Added migration details and status
+- Updated version history
+
+#### DEPLOYMENT.md (v1.0.4 → v1.1.0)
+- Updated Software Requirements: PostgreSQL 14+ → PostgreSQL 18+
+- Updated Database Configuration section in .env template
+- Added PostgreSQL 18 specific configuration:
+  - DB_PORT=5434
+  - DB_TYPE=postgresql
+  - Connection string with correct port
+- Updated version history
+
+#### README.md (v1.0.5 → v1.0.6)
+- Updated "Database" section: PostgreSQL/SQLite → PostgreSQL 18/SQLite
+- Updated Last Updated date for DATABASE.md (2025-10-04)
+- Updated Last Updated date for DEPLOYMENT.md (2025-10-04)
+
+### Documentation
+
+#### New Information Added
+- **PostgreSQL Clusters on Server**: Documented 3 clusters (v15/5433, v16/5432, v18/5434)
+- **18 Tables Schema**: Complete list with descriptions
+- **Connection Examples**: psql, Python psycopg2, SQLAlchemy
+- **Maintenance Commands**: Cluster status, monitoring, log viewing
+- **Migration Process**: Applied migration details and verification
+
+#### Security Notes
+- **Credentials**: All passwords stored in `/var/GrantService/config/.env`
+- **NOT in Git**: Database credentials excluded from version control
+- **Authentication**: scram-sha-256 for secure connections
+- **Network**: listen_addresses = '*' (configured for remote access)
+
+### Infrastructure
+
+#### Server Environment
+- **Production Server**: 5.35.88.251 (Beget VPS)
+- **PostgreSQL Clusters**:
+  - Version 15 (port 5433) - Legacy applications
+  - Version 16 (port 5432) - Legacy applications
+  - Version 18 (port 5434) - GrantService ⬅️ **NEW**
+
+#### Database Configuration
+- **Encoding**: UTF8
+- **Collation**: en_US.UTF-8
+- **Max Connections**: 100
+- **Shared Buffers**: 256MB
+
+### Related Files
+- **Setup Guide**: `POSTGRESQL_18_SETUP_COMPLETE.md` (created 2025-10-04)
+- **Migration Schema**: `database/migrations/001_initial_postgresql_schema.sql`
+- **Environment Config**: `/var/GrantService/config/.env` (updated with PG18 settings)
+
+### Testing
+- ✅ Connection test passed
+- ✅ 18 tables verified
+- ✅ Users table accessible
+- ✅ Application connectivity confirmed
+
 
 ## [1.0.5] - 2025-10-03
 

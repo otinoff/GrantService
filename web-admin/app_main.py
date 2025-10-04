@@ -32,13 +32,17 @@ except AttributeError:
     query_params = st.experimental_get_query_params()  # Streamlit < 1.30
 token_from_url = query_params.get('token', [None])[0] if isinstance(query_params.get('token', None), list) else query_params.get('token', None)
 
-# Debug output in sidebar
-if token_from_url:
-    st.sidebar.success(f"🔑 Получен токен из URL: {token_from_url[:20]}...")
-    
+# CRITICAL: Prevent infinite loop - only process token if not already processed
+if token_from_url and 'token_processed' not in st.session_state:
+    st.sidebar.info(f"🔑 Получен токен из URL: {token_from_url[:20]}...")
+
+    # Mark token as being processed
+    st.session_state['token_processed'] = True
+
     # Try to validate the token
     try:
         # Import validate_login_token
+        web_admin_dir = Path(__file__).parent
         auth_file = web_admin_dir / "utils" / "auth.py"
         spec = importlib.util.spec_from_file_location("auth", str(auth_file))
         if spec and spec.loader:
@@ -46,12 +50,12 @@ if token_from_url:
             spec.loader.exec_module(auth_module)
             validate_login_token = auth_module.validate_login_token
             check_user_access = auth_module.check_user_access
-            
+
             # Validate the token
             user_data = validate_login_token(token_from_url)
             if user_data:
                 st.sidebar.success(f"✅ Токен валиден для пользователя {user_data.get('telegram_id')}")
-                
+
                 # Check access
                 has_access = check_user_access(user_data.get('telegram_id'))
                 if has_access:
@@ -59,21 +63,22 @@ if token_from_url:
                     st.session_state['auth_token'] = token_from_url
                     st.session_state['user'] = user_data
                     st.sidebar.success("✅ Авторизация успешна!")
-                    
-                    # Clear token from URL for security
-                    try:
-                        st.query_params.clear()  # Streamlit >= 1.30
-                    except AttributeError:
-                        st.experimental_set_query_params()  # Streamlit < 1.30
-                    
-                    # Reload the page
-                    st.rerun()
+
+                    # Clear token from URL for security (optional - doesn't trigger rerun)
+                    # Note: We don't rerun here to prevent infinite loop
                 else:
                     st.error("❌ Доступ запрещен для данного пользователя")
+                    # Clear the flag so user can try again
+                    del st.session_state['token_processed']
             else:
                 st.sidebar.error("❌ Недействительный или истекший токен")
+                # Clear the flag so user can try again
+                del st.session_state['token_processed']
     except Exception as e:
         st.sidebar.error(f"❌ Ошибка проверки токена: {e}")
+        # Clear the flag so user can try again
+        if 'token_processed' in st.session_state:
+            del st.session_state['token_processed']
 
 # Authorization temporarily disabled for easier access
 # All authorization checks have been removed

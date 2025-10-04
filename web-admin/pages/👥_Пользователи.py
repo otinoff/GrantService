@@ -52,7 +52,8 @@ def get_database():
 
 @st.cache_resource
 def get_grant_database():
-    return GrantServiceDatabase(DB_PATH)
+    # PostgreSQL - параметры из переменных окружения
+    return GrantServiceDatabase()
 
 db = get_database()
 grant_db = get_grant_database()

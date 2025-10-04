@@ -217,12 +217,8 @@ def export_application_to_pdf(grant_application_id: str) -> Optional[str]:
         from data.database.models import GrantServiceDatabase
         
         # Определяем путь к базе данных
-        if os.name == 'nt':  # Windows
-            db_path = str(base_dir / "data" / "grantservice.db")
-        else:  # Linux
-            db_path = "/var/GrantService/data/grantservice.db"
-        
-        db = GrantServiceDatabase(db_path)
+        # PostgreSQL - параметры из переменных окружения
+        db = GrantServiceDatabase()
         
         # Получаем данные заявки
         application = db.get_application_by_number(grant_application_id)

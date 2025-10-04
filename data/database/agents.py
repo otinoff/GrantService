@@ -5,7 +5,6 @@
 """
 
 import json
-import sqlite3
 from typing import List, Dict, Any, Optional
 from .models import GrantServiceDatabase, get_kuzbass_time
 
@@ -16,33 +15,35 @@ class AgentPromptManager:
     def get_agent_prompts(self, agent_type: str) -> List[Dict[str, Any]]:
         """Получить все активные промпты для агента"""
         try:
-            with sqlite3.connect(self.db.db_path) as conn:
+            with self.db.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    SELECT * FROM agent_prompts 
-                    WHERE agent_type = ? AND is_active = 1
+                    SELECT * FROM agent_prompts
+                    WHERE agent_type = %s AND is_active = TRUE
                     ORDER BY order_num, id
                 """, (agent_type,))
-                
+
                 columns = [description[0] for description in cursor.description]
                 prompts = []
                 for row in cursor.fetchall():
                     prompt = dict(zip(columns, row))
                     prompts.append(prompt)
-                
+
+                cursor.close()
                 return prompts
         except Exception as e:
             print(f"❌ Ошибка получения промптов агента {agent_type}: {e}")
             return []
-    
+
     def get_prompt_by_id(self, prompt_id: int) -> Optional[Dict[str, Any]]:
         """Получить промпт по ID"""
         try:
-            with sqlite3.connect(self.db.db_path) as conn:
+            with self.db.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute("SELECT * FROM agent_prompts WHERE id = ?", (prompt_id,))
-                
+                cursor.execute("SELECT * FROM agent_prompts WHERE id = %s", (prompt_id,))
+
                 row = cursor.fetchone()
+                cursor.close()
                 if row:
                     columns = [description[0] for description in cursor.description]
                     return dict(zip(columns, row))
@@ -54,14 +55,15 @@ class AgentPromptManager:
     def create_agent_prompt(self, data: Dict[str, Any]) -> int:
         """Создать новый промпт для агента"""
         try:
-            with sqlite3.connect(self.db.db_path) as conn:
+            with self.db.connect() as conn:
                 cursor = conn.cursor()
-                
+
                 cursor.execute("""
                     INSERT INTO agent_prompts (
                         agent_type, prompt_name, prompt_content, prompt_type,
                         order_num, temperature, max_tokens, model_name, is_active
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                    RETURNING id
                 """, (
                     data.get('agent_type'),
                     data.get('prompt_name'),
@@ -73,28 +75,29 @@ class AgentPromptManager:
                     data.get('model_name', 'GigaChat-Pro'),
                     data.get('is_active', True)
                 ))
-                
-                prompt_id = cursor.lastrowid
+
+                prompt_id = cursor.fetchone()[0]
                 conn.commit()
+                cursor.close()
                 print(f"✅ Создан промпт {prompt_id} для агента {data.get('agent_type')}")
                 return prompt_id
         except Exception as e:
             print(f"❌ Ошибка создания промпта: {e}")
             return 0
-    
+
     def update_agent_prompt(self, prompt_id: int, data: Dict[str, Any]) -> bool:
         """Обновить промпт агента"""
         try:
-            with sqlite3.connect(self.db.db_path) as conn:
+            with self.db.connect() as conn:
                 cursor = conn.cursor()
-                
+
                 cursor.execute("""
                     UPDATE agent_prompts SET
-                        agent_type = ?, prompt_name = ?, prompt_content = ?,
-                        prompt_type = ?, order_num = ?, temperature = ?,
-                        max_tokens = ?, model_name = ?, is_active = ?,
-                        updated_at = ?
-                    WHERE id = ?
+                        agent_type = %s, prompt_name = %s, prompt_content = %s,
+                        prompt_type = %s, order_num = %s, temperature = %s,
+                        max_tokens = %s, model_name = %s, is_active = %s,
+                        updated_at = %s
+                    WHERE id = %s
                 """, (
                     data.get('agent_type'),
                     data.get('prompt_name'),
@@ -108,21 +111,23 @@ class AgentPromptManager:
                     get_kuzbass_time(),
                     prompt_id
                 ))
-                
+
                 conn.commit()
+                cursor.close()
                 print(f"✅ Обновлен промпт {prompt_id}")
                 return True
         except Exception as e:
             print(f"❌ Ошибка обновления промпта {prompt_id}: {e}")
             return False
-    
+
     def delete_agent_prompt(self, prompt_id: int) -> bool:
         """Удалить промпт агента"""
         try:
-            with sqlite3.connect(self.db.db_path) as conn:
+            with self.db.connect() as conn:
                 cursor = conn.cursor()
-                cursor.execute("DELETE FROM agent_prompts WHERE id = ?", (prompt_id,))
+                cursor.execute("DELETE FROM agent_prompts WHERE id = %s", (prompt_id,))
                 conn.commit()
+                cursor.close()
                 print(f"✅ Удален промпт {prompt_id}")
                 return True
         except Exception as e:
@@ -178,22 +183,22 @@ class AgentPromptManager:
                 'order_num': 2
             }
         ]
-        
+
         try:
-            with sqlite3.connect(self.db.db_path) as conn:
+            with self.db.connect() as conn:
                 cursor = conn.cursor()
-                
+
                 # Проверяем, есть ли уже промпты
                 cursor.execute("SELECT COUNT(*) FROM agent_prompts")
                 count = cursor.fetchone()[0]
-                
+
                 if count == 0:
                     for prompt_data in default_prompts:
                         cursor.execute("""
                             INSERT INTO agent_prompts (
                                 agent_type, prompt_name, prompt_content, prompt_type,
                                 order_num, temperature, max_tokens, model_name, is_active
-                            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                            ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                         """, (
                             prompt_data['agent_type'],
                             prompt_data['prompt_name'],
@@ -205,10 +210,12 @@ class AgentPromptManager:
                             'GigaChat-Pro',  # model_name
                             True  # is_active
                         ))
-                    
+
                     conn.commit()
+                    cursor.close()
                     print(f"✅ Добавлено {len(default_prompts)} промптов по умолчанию")
                 else:
+                    cursor.close()
                     print("ℹ️ Промпты уже существуют, пропускаем вставку по умолчанию")
         except Exception as e:
             print(f"❌ Ошибка вставки промптов по умолчанию: {e}")

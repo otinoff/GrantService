@@ -33,7 +33,15 @@ import setup_paths
 # =============================================================================
 
 try:
-    from utils.database import AdminDatabase, get_db_connection
+    from utils.database import AdminDatabase
+    from utils.postgres_helper import (
+        get_postgres_db,
+        get_postgres_connection,
+        execute_query,
+        execute_query_df,
+        execute_scalar,
+        execute_update
+    )
     from utils.ui_helpers import (
         render_page_header,
         render_metric_cards,
@@ -76,8 +84,6 @@ db = get_database()
 @st.cache_data(ttl=60)
 def get_dashboard_metrics() -> Dict[str, Any]:
     """Get main dashboard metrics"""
-    conn = get_db_connection()
-
     metrics = {
         'total_users': 0,
         'active_users_7d': 0,
@@ -91,32 +97,27 @@ def get_dashboard_metrics() -> Dict[str, Any]:
 
     try:
         # Total users
-        result = conn.execute("SELECT COUNT(*) FROM users").fetchone()
-        metrics['total_users'] = result[0] if result else 0
+        metrics['total_users'] = execute_scalar("SELECT COUNT(*) FROM users") or 0
 
         # Active users (last 7 days)
         seven_days_ago = (datetime.now() - timedelta(days=7)).isoformat()
-        result = conn.execute(
-            "SELECT COUNT(DISTINCT telegram_id) FROM sessions WHERE last_activity >= ?",
+        metrics['active_users_7d'] = execute_scalar(
+            "SELECT COUNT(DISTINCT telegram_id) FROM sessions WHERE last_activity >= %s",
             (seven_days_ago,)
-        ).fetchone()
-        metrics['active_users_7d'] = result[0] if result else 0
+        ) or 0
 
         # Total applications
-        result = conn.execute("SELECT COUNT(*) FROM grant_applications").fetchone()
-        metrics['total_applications'] = result[0] if result else 0
+        metrics['total_applications'] = execute_scalar("SELECT COUNT(*) FROM grant_applications") or 0
 
         # Applications in progress
-        result = conn.execute(
+        metrics['applications_in_progress'] = execute_scalar(
             "SELECT COUNT(*) FROM grant_applications WHERE status IN ('draft', 'in_progress')"
-        ).fetchone()
-        metrics['applications_in_progress'] = result[0] if result else 0
+        ) or 0
 
         # Completed grants
-        result = conn.execute(
+        metrics['completed_grants'] = execute_scalar(
             "SELECT COUNT(*) FROM grant_applications WHERE status = 'completed'"
-        ).fetchone()
-        metrics['completed_grants'] = result[0] if result else 0
+        ) or 0
 
         # Completion rate
         if metrics['total_applications'] > 0:
@@ -126,11 +127,10 @@ def get_dashboard_metrics() -> Dict[str, Any]:
 
         # Active today
         today = datetime.now().date().isoformat()
-        result = conn.execute(
-            "SELECT COUNT(DISTINCT telegram_id) FROM sessions WHERE DATE(last_activity) = ?",
+        metrics['active_today'] = execute_scalar(
+            "SELECT COUNT(DISTINCT telegram_id) FROM sessions WHERE DATE(last_activity) = %s",
             (today,)
-        ).fetchone()
-        metrics['active_today'] = result[0] if result else 0
+        ) or 0
 
     except Exception as e:
         st.error(f"Error fetching metrics: {e}")
@@ -141,8 +141,6 @@ def get_dashboard_metrics() -> Dict[str, Any]:
 @st.cache_data(ttl=60)
 def get_pipeline_overview() -> Dict[str, int]:
     """Get counts for each pipeline stage from actual database schema"""
-    conn = get_db_connection()
-
     stats = {
         'interview_in_progress': 0,
         'interview_completed': 0,
@@ -189,12 +187,12 @@ def get_pipeline_overview() -> Dict[str, int]:
         LEFT JOIN planner_structures ps ON s.id = ps.session_id
         LEFT JOIN researcher_research rr ON s.anketa_id = rr.anketa_id
         LEFT JOIN grants g ON s.anketa_id = g.anketa_id
-        WHERE s.started_at >= DATE('now', '-30 days')
+        WHERE s.started_at >= CURRENT_DATE - INTERVAL '30 days'
         """
 
-        result = conn.execute(query).fetchone()
-        if result:
-            stats = dict(zip(stats.keys(), result))
+        result = execute_query(query)
+        if result and result[0]:
+            stats = dict(zip(stats.keys(), result[0]))
 
     except Exception as e:
         st.error(f"Error fetching pipeline overview: {e}")
@@ -205,8 +203,6 @@ def get_pipeline_overview() -> Dict[str, int]:
 @st.cache_data(ttl=60)
 def get_conversion_funnel() -> Dict[str, int]:
     """Calculate conversion rates between stages"""
-    conn = get_db_connection()
-
     funnel = {
         'started': 0,
         'completed_interview': 0,
@@ -234,12 +230,12 @@ def get_conversion_funnel() -> Dict[str, int]:
         LEFT JOIN planner_structures ps ON s.id = ps.session_id
         LEFT JOIN researcher_research rr ON s.anketa_id = rr.anketa_id
         LEFT JOIN grants g ON s.anketa_id = g.anketa_id
-        WHERE s.started_at >= DATE('now', '-30 days')
+        WHERE s.started_at >= CURRENT_DATE - INTERVAL '30 days'
         """
 
-        result = conn.execute(query).fetchone()
-        if result:
-            funnel = dict(zip(funnel.keys(), result))
+        result = execute_query(query)
+        if result and result[0]:
+            funnel = dict(zip(funnel.keys(), result[0]))
 
     except Exception as e:
         st.error(f"Error fetching conversion funnel: {e}")
@@ -250,8 +246,6 @@ def get_conversion_funnel() -> Dict[str, int]:
 @st.cache_data(ttl=60)
 def get_active_applications(stage_filter: str = 'Все', limit: int = 50) -> pd.DataFrame:
     """Get all active applications with their current stage"""
-    conn = get_db_connection()
-
     try:
         query = """
         SELECT
@@ -302,12 +296,12 @@ def get_active_applications(stage_filter: str = 'Все', limit: int = 50) -> pd
         LEFT JOIN planner_structures ps ON s.id = ps.session_id
         LEFT JOIN researcher_research rr ON s.anketa_id = rr.anketa_id
         LEFT JOIN grants g ON s.anketa_id = g.anketa_id
-        WHERE s.started_at >= DATE('now', '-30 days')
+        WHERE s.started_at >= CURRENT_DATE - INTERVAL '30 days'
         ORDER BY s.last_activity DESC
-        LIMIT ?
+        LIMIT %s
         """
 
-        df = pd.read_sql_query(query, conn, params=(limit,))
+        df = execute_query_df(query, (limit,))
         return df
 
     except Exception as e:
@@ -318,13 +312,11 @@ def get_active_applications(stage_filter: str = 'Все', limit: int = 50) -> pd
 @st.cache_data(ttl=300)
 def get_recent_activity(limit: int = 20) -> List[Dict[str, Any]]:
     """Get recent system activity"""
-    conn = get_db_connection()
-
     activities = []
 
     try:
         # Get recent applications
-        rows = conn.execute("""
+        rows = execute_query("""
             SELECT
                 ga.id,
                 ga.user_id,
@@ -335,8 +327,8 @@ def get_recent_activity(limit: int = 20) -> List[Dict[str, Any]]:
             FROM grant_applications ga
             LEFT JOIN users u ON ga.user_id = u.id
             ORDER BY ga.updated_at DESC
-            LIMIT ?
-        """, (limit,)).fetchall()
+            LIMIT %s
+        """, (limit,))
 
         for row in rows:
             activities.append({
@@ -365,8 +357,7 @@ def get_system_health() -> Dict[str, Any]:
 
     try:
         # Check database
-        conn = get_db_connection()
-        conn.execute("SELECT 1").fetchone()
+        execute_scalar("SELECT 1")
         health['database'] = True
     except:
         health['database'] = False
@@ -694,10 +685,10 @@ def render_system_tab():
             success_emoji = "✅"
             st.success(f"{success_emoji} Работает")
             try:
-                conn = get_db_connection()
-                tables_count = len(conn.execute(
-                    "SELECT name FROM sqlite_master WHERE type='table'"
-                ).fetchall())
+                # Count tables in PostgreSQL
+                tables_count = execute_scalar(
+                    "SELECT COUNT(*) FROM information_schema.tables WHERE table_schema = 'public'"
+                )
                 st.info(f"Таблиц: {tables_count}")
             except:
                 pass

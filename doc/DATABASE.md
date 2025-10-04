@@ -1,9 +1,10 @@
 # Database Schema
-**Version**: 1.0.1 | **Last Modified**: 2025-09-29
+**Version**: 1.1.0 | **Last Modified**: 2025-10-04
 
 ## Table of Contents
 - [Overview](#overview)
 - [Database Configuration](#database-configuration)
+- [PostgreSQL 18 Production Setup](#postgresql-18-production-setup)
 - [Tables Schema](#tables-schema)
 - [Indexes](#indexes)
 - [Migrations](#migrations)
@@ -12,7 +13,7 @@
 ## Overview
 
 GrantService использует гибридный подход к хранению данных:
-- **Production**: PostgreSQL 14+
+- **Production**: PostgreSQL 18.0 (установлен 2025-10-04 на сервере 5.35.88.251)
 - **Development**: SQLite 3.35+
 - **Cache**: Redis 7+ (optional)
 
@@ -31,7 +32,8 @@ GrantService использует гибридный подход к хране�
       ▼                ▼              ▼
 ┌──────────┐    ┌──────────┐   ┌──────────┐
 │PostgreSQL│    │  SQLite  │   │  Redis   │
-│  (Prod)  │    │  (Dev)   │   │ (Cache)  │
+│18.0 Prod │    │  (Dev)   │   │ (Cache)  │
+│Port: 5434│    └──────────┘   └──────────┘   │ (Cache)  │
 └──────────┘    └──────────┘   └──────────┘
 ```
 
@@ -71,6 +73,113 @@ REDIS_CONFIG = {
     "max_connections": 50,
     "socket_keepalive": True
 }
+```
+
+
+## PostgreSQL 18 Production Setup
+
+### Installation Summary
+
+**Installed**: 2025-10-04  
+**Server**: 5.35.88.251 (Production)  
+**Version**: PostgreSQL 18.0 (Ubuntu 18.0-1.pgdg22.04+3)  
+**Status**: ✅ Active and Running
+
+### PostgreSQL Clusters on Server
+
+| Version | Cluster | Port | Status | Purpose |
+|---------|---------|------|--------|---------|
+| 15 | main | 5433 | online | Legacy applications |
+| 16 | main | 5432 | online | Legacy applications |
+| **18** | **main** | **5434** | **online** | **GrantService** ⬅️ |
+
+### Database Details
+
+```yaml
+Database Name: grantservice
+Owner: postgres
+Encoding: UTF8
+Collation: en_US.UTF-8
+Tables: 18
+Extensions:
+  - uuid-ossp (UUID generation)
+  - pg_trgm (full-text search support)
+```
+
+### Database Users
+
+#### Application User
+- **Username**: `grantservice`
+- **Privileges**: ALL on database `grantservice`
+- **Purpose**: Application connections
+- **Password**: Stored in `/var/GrantService/config/.env` (NOT in Git)
+
+#### Superuser
+- **Username**: `postgres`
+- **Role**: Superuser (maintenance and administration)
+- **Password**: Stored in `/var/GrantService/config/.env` (NOT in Git)
+
+### 18 Tables in Schema
+
+1. **users** - System users with Telegram authentication
+2. **sessions** - User sessions and progress tracking
+3. **interview_questions** - Questionnaire configuration (24 questions)
+4. **user_answers** - User responses (UNIQUE constraint: telegram_id + question_number)
+5. **grant_applications** - Grant applications
+6. **grants** - Final grant documents
+7. **agent_prompts** - AI agent configurations
+8. **auditor_results** - Audit results
+9. **planner_structures** - Plan structures
+10. **researcher_research** - Research data
+11. **researcher_logs** - Research logs
+12. **sent_documents** - Document tracking
+13. **auth_logs** - Authentication logs
+14. **page_permissions** - Page access permissions
+15. **prompt_categories** - Prompt categories
+16. **prompt_versions** - Prompt versions
+17. **db_version** - Database version tracking
+18. **db_timestamps** - Database timestamps
+
+### Connection Methods
+
+#### psql Command Line
+```bash
+# As application user
+export PGPASSWORD='<from_config/.env>'
+psql -h localhost -p 5434 -U grantservice -d grantservice
+
+# As postgres superuser
+psql -h localhost -p 5434 -U postgres -d grantservice
+```
+
+#### Python Connection
+```python
+import psycopg2
+import os
+
+conn = psycopg2.connect(
+    host='localhost',
+    port=5434,
+    database='grantservice',
+    user='grantservice',
+    password=os.getenv('DB_PASSWORD')
+)
+```
+
+### Migration to PostgreSQL 18
+
+#### Applied Migration
+- **File**: `database/migrations/001_initial_postgresql_schema.sql`
+- **Date**: 2025-10-04
+- **Status**: ✅ Successfully applied
+- **Tables Created**: 18
+
+#### Migration Files
+```
+database/migrations/
+├── 001_initial_postgresql_schema.sql  ✅ Applied 2025-10-04
+├── 002_add_unique_constraint_user_answers.sql
+└── README.md
 ```
 
 ## Tables Schema
@@ -591,6 +700,8 @@ FOR VALUES FROM ('2026-01-01') TO ('2027-01-01');
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.1.0 | 2025-10-04 | Added PostgreSQL 18 production setup |
+| 1.0.1 | 2025-09-29 | Added business logic documentation |
 | 1.0.0 | 2025-01-29 | Initial database documentation |
 
 ---

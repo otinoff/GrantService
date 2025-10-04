@@ -35,7 +35,15 @@ import setup_paths
 # =============================================================================
 
 try:
-    from utils.database import AdminDatabase, get_db_connection
+    from utils.database import AdminDatabase
+    from utils.postgres_helper import (
+        get_postgres_db,
+        get_postgres_connection,
+        execute_query,
+        execute_query_df,
+        execute_scalar,
+        execute_update
+    )
     from utils.logger import setup_logger
 except ImportError as e:
     st.error(f"Import error: {e}")
@@ -71,23 +79,35 @@ db = get_database()
 
 @st.cache_data(ttl=60)
 def get_grants_statistics(_db):
-    """Get grants statistics for header metrics"""
-    conn = get_db_connection()
+    """Get grants statistics for header metrics - USING POSTGRESQL"""
+    # CRITICAL: Use PostgreSQL, not SQLite!
+    from data.database import GrantServiceDatabase
+
+    db = GrantServiceDatabase()
 
     try:
-        total = conn.execute("SELECT COUNT(*) FROM grant_applications").fetchone()[0]
+        with db.connect() as conn:
+            cursor = conn.cursor()
 
-        in_progress = conn.execute(
-            "SELECT COUNT(*) FROM grant_applications WHERE status IN ('draft', 'in_progress')"
-        ).fetchone()[0]
+            cursor.execute("SELECT COUNT(*) FROM grant_applications")
+            total = cursor.fetchone()[0]
 
-        ready = conn.execute(
-            "SELECT COUNT(*) FROM grant_applications WHERE status = 'completed'"
-        ).fetchone()[0]
+            cursor.execute(
+                "SELECT COUNT(*) FROM grant_applications WHERE status IN ('draft', 'in_progress')"
+            )
+            in_progress = cursor.fetchone()[0]
 
-        sent = conn.execute(
-            "SELECT COUNT(DISTINCT grant_application_id) FROM sent_documents"
-        ).fetchone()[0]
+            cursor.execute(
+                "SELECT COUNT(*) FROM grant_applications WHERE status = 'completed'"
+            )
+            ready = cursor.fetchone()[0]
+
+            cursor.execute(
+                "SELECT COUNT(DISTINCT grant_application_id) FROM sent_documents"
+            )
+            sent = cursor.fetchone()[0]
+
+            cursor.close()
 
         return {
             'total': total,
@@ -96,13 +116,16 @@ def get_grants_statistics(_db):
             'sent': sent
         }
     except Exception as e:
-        logger.error(f"Error fetching statistics: {e}")
+        logger.error(f"Error fetching statistics from PostgreSQL: {e}", exc_info=True)
         return {'total': 0, 'in_progress': 0, 'ready': 0, 'sent': 0}
 
 @st.cache_data(ttl=60)
 def get_all_applications(_db, status_filter='all', period_days=None):
-    """Get all grant applications with filters"""
-    conn = get_db_connection()
+    """Get all grant applications with filters - USING POSTGRESQL"""
+    # CRITICAL: Use PostgreSQL, not SQLite!
+    from data.database import GrantServiceDatabase
+
+    db = GrantServiceDatabase()
 
     query = """
     SELECT
@@ -127,30 +150,44 @@ def get_all_applications(_db, status_filter='all', period_days=None):
         ga.tokens_used,
         u.username,
         u.first_name,
-        u.last_name
+        u.last_name,
+        u.telegram_id
     FROM grant_applications ga
-    LEFT JOIN users u ON ga.user_id = u.telegram_id
+    LEFT JOIN users u ON ga.user_id = u.id
     WHERE 1=1
     """
 
     params = []
 
     if status_filter != 'all':
-        query += " AND ga.status = ?"
+        query += " AND ga.status = %s"
         params.append(status_filter)
 
     if period_days:
         cutoff_date = (datetime.now() - timedelta(days=period_days)).isoformat()
-        query += " AND ga.created_at >= ?"
+        query += " AND ga.created_at >= %s"
         params.append(cutoff_date)
 
     query += " ORDER BY ga.created_at DESC"
 
     try:
-        df = pd.read_sql_query(query, conn, params=params)
+        with db.connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params if params else None)
+
+            # Fetch all rows
+            rows = cursor.fetchall()
+
+            # Get column names
+            columns = [desc[0] for desc in cursor.description]
+
+            cursor.close()
+
+        # Convert to DataFrame
+        df = pd.DataFrame(rows, columns=columns)
         return df
     except Exception as e:
-        logger.error(f"Error fetching applications: {e}")
+        logger.error(f"Error fetching applications from PostgreSQL: {e}", exc_info=True)
         return pd.DataFrame()
 
 @st.cache_data(ttl=60)

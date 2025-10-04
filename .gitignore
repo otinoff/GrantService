@@ -60,6 +60,10 @@ data/grantservice.db   # Конкретно исключаем файл БД п�
 .env.local
 .env.production
 
+# Credentials (NEVER commit passwords!)
+doc/POSTGRESQL_CREDENTIALS.md
+*CREDENTIALS*.md
+
 # Nginx logs
 /var/log/nginx/
 
