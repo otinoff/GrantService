@@ -214,3 +214,46 @@ environments:
     aggressive_cleanup: true
     retention_multiplier: 1.0
     strict_mode: true
+
+# Правила размещения .md файлов
+markdown_placement_rules:
+  description: |
+    .md файлы должны храниться только в специальных директориях документации.
+    Запрещено создавать .md файлы в рабочих директориях с кодом/данными.
+
+  allowed_directories:
+    - "doc/"                          # Основная документация проекта
+    - ".claude/agents/"               # Документация агентов
+    - "reports/"                      # Отчёты и логи
+    - "web-admin/pages/archived/"     # Архив старых страниц (только readme)
+
+  forbidden_directories:
+    - "database/"                     # Рабочая БД директория
+    - "telegram-bot/"                 # Код бота
+    - "web-admin/"                    # Код админки (кроме archived)
+    - "agents/"                       # Конфиги агентов
+    - "scripts/"                      # Скрипты
+    - "data/"                         # Данные
+    - "n8n-workflows/"                # Workflows
+    - "shared/"                       # Общий код
+
+  action_on_violation:
+    type: "warn_and_suggest_move"
+    message: |
+      ⚠️ .md файлы не должны создаваться в рабочих директориях!
+
+      Найден файл: {file_path}
+
+      Рекомендуемое действие:
+      1. Если это документация агента → переместить в .claude/agents/{agent_name}/
+      2. Если это проектная документация → переместить в doc/
+      3. Если это отчёт/логи → переместить в reports/
+
+      Автоматическое перемещение: {suggested_path}
+
+    auto_move_enabled: false  # Не перемещать автоматически, только предупреждать
+
+  exceptions:
+    - "*/README.md"           # README.md разрешён везде
+    - "*/CHANGELOG.md"        # CHANGELOG.md разрешён везде
+    - "*/.github/*.md"        # GitHub файлы
