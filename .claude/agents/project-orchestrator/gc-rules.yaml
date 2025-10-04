@@ -1,0 +1,216 @@
+# Garbage Collection Rules for GrantService Project
+# Управляется Project Orchestrator Agent
+
+# Глобальные настройки
+global:
+  default_retention_days: 7
+  archive_path: "reports/archive"
+  temp_artifacts_path: ".claude/agents/{agent}/reports"
+
+# Правила для типов файлов
+file_types:
+  # Временные отчёты агентов
+  temporary_reports:
+    patterns:
+      - "*_REPORT_*.md"
+      - "*_INTEGRATION_*.md"
+      - "COMPLETION_REPORT_*.md"
+      - "TEST_REPORT_*.md"
+      - "FIXES_REPORT_*.md"
+    retention_days: 7
+    action: delete
+    exceptions:
+      - "FINAL_*"
+      - "*_SUMMARY.md"
+
+  # Отчёты аудита
+  audit_reports:
+    patterns:
+      - "AUDIT_*.md"
+      - "*_AUDIT_*.md"
+    retention_days: 30
+    action: archive
+    archive_path: "reports/archive/{year}-{month}/audits"
+
+  # Рефакторинг отчёты
+  refactoring_reports:
+    patterns:
+      - "REFACTORING_*.md"
+      - "*_REFACTORING_*.md"
+    retention_days: 14
+    action: merge_then_delete
+    keep_final: true
+    final_pattern: "REFACTORING_COMPLETE_REPORT.md"
+
+  # Отчёты о деплое
+  deployment_reports:
+    patterns:
+      - "DEPLOYMENT_REPORT_*.md"
+      - "DEPLOY_LOG_*.md"
+    retention_days: 90
+    action: archive
+    archive_path: "reports/archive/{year}-{month}/deployments"
+
+  # Инцидент-отчёты
+  incident_reports:
+    patterns:
+      - "*_INCIDENT_*.md"
+      - "HOTFIX_*.md"
+      - "POSTMORTEM_*.md"
+    retention_days: 365
+    action: archive
+    archive_path: "reports/archive/{year}-{month}/incidents"
+
+  # Чеклисты и временные TODO
+  temporary_checklists:
+    patterns:
+      - "*_CHECKLIST.md"
+      - "TODO_*.md"
+    retention_days: 3
+    action: delete
+    exceptions:
+      - "PROJECT_TODO.md"
+
+# Правила для агентов
+agents:
+  # Разработчики (создают много временных отчётов)
+  streamlit-admin-developer:
+    reports_retention_days: 7
+    patterns:
+      - "ui_*.md"
+      - "component_*.md"
+      - "page_*.md"
+    auto_cleanup: true
+
+  telegram-bot-developer:
+    reports_retention_days: 7
+    patterns:
+      - "bot_*.md"
+      - "handler_*.md"
+    auto_cleanup: true
+
+  # Тестировщик (отчёты нужны до деплоя)
+  test-engineer:
+    reports_retention_days: 3
+    patterns:
+      - "test_*.md"
+      - "*_test_report.md"
+    auto_cleanup: true
+    cleanup_trigger: "after_deploy"
+
+  # Менеджер базы данных (миграции важны)
+  database-manager:
+    reports_retention_days: 90
+    patterns:
+      - "migration_*.md"
+      - "schema_*.md"
+    auto_cleanup: false
+    action: archive
+
+  # Деплой менеджер
+  deployment-manager:
+    reports_retention_days: 90
+    patterns:
+      - "deploy_*.md"
+      - "rollback_*.md"
+    auto_cleanup: false
+    action: archive
+
+  # Документация (permanent)
+  documentation-keeper:
+    reports_retention_days: 0  # never delete
+    patterns:
+      - "doc_update_*.md"
+    auto_cleanup: false
+
+  # AI integration specialist
+  ai-integration-specialist:
+    reports_retention_days: 30
+    patterns:
+      - "ai_*.md"
+      - "llm_*.md"
+    auto_cleanup: true
+
+# Permanent файлы (никогда не удалять)
+permanent_files:
+  - "doc/ARCHITECTURE.md"
+  - "doc/API_REFERENCE.md"
+  - "doc/DATABASE.md"
+  - "doc/DEPLOYMENT.md"
+  - "doc/README.md"
+  - "doc/BUSINESS_LOGIC.md"
+  - "doc/COMPONENTS.md"
+  - "doc/AI_AGENTS.md"
+  - "doc/PROJECT_DOCUMENTATION.md"
+  - "doc/CHANGELOG.md"
+
+# Папки для немедленного удаления (blacklist)
+cleanup_immediately:
+  - "*.tmp"
+  - "*.bak"
+  - "*.swp"
+  - "*~"
+  - ".DS_Store"
+  - "Thumbs.db"
+
+# Триггеры для автоматической очистки
+triggers:
+  on_deploy_success:
+    - cleanup_agent: "test-engineer"
+    - cleanup_agent: "streamlit-admin-developer"
+    - cleanup_agent: "telegram-bot-developer"
+    - archive_agent: "deployment-manager"
+
+  on_weekly:
+    - cleanup_all_temp_reports
+    - archive_old_audits
+
+  on_monthly:
+    - archive_all_agents_reports
+    - cleanup_archived_files_older_than: 365
+
+# Правила архивации
+archive_rules:
+  structure: "reports/archive/{year}-{month}/{category}"
+  categories:
+    - audits
+    - deployments
+    - incidents
+    - migrations
+    - refactoring
+
+  compress_older_than_days: 180
+  delete_archived_older_than_days: 730  # 2 года
+
+# Исключения (файлы которые всегда сохранять)
+exceptions:
+  patterns:
+    - "FINAL_*"
+    - "*_SUMMARY.md"
+    - "MASTER_*"
+    - "*_INDEX.md"
+
+  specific_files:
+    - "doc/AUDIT_INDEX.md"
+    - "doc/README_AUDIT.md"
+
+# Уведомления
+notifications:
+  on_cleanup:
+    log_to: ".claude/agents/project-orchestrator/reports/gc_cleanup_log.md"
+    format: "timestamp | action | files_affected | retention_days"
+
+  on_archive:
+    log_to: ".claude/agents/project-orchestrator/reports/gc_archive_log.md"
+    format: "timestamp | source | destination | files_count"
+
+# Конфигурация для разных окружений
+environments:
+  development:
+    aggressive_cleanup: false
+    retention_multiplier: 2.0  # удваивать retention_days
+
+  production:
+    aggressive_cleanup: true
+    retention_multiplier: 1.0
+    strict_mode: true

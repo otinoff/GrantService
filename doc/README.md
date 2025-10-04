@@ -1,5 +1,5 @@
 # GrantService Documentation Hub
-**Version**: 1.0.4 | **Last Updated**: 2025-10-01
+**Version**: 1.0.5 | **Last Updated**: 2025-10-03
 
 ## 📚 Documentation Structure
 
@@ -8,9 +8,9 @@
 | 🏗️ Architecture | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, data flows, CI/CD pipeline | 1.0.1 | 2025-09-30 |
 | 🔧 Components | [COMPONENTS.md](./COMPONENTS.md) | All system components and modules | 1.0.3 | 2025-10-01 |
 | 📡 API Reference | [API_REFERENCE.md](./API_REFERENCE.md) | API endpoints and webhooks | 1.0.1 | 2025-09-30 |
-| 🤖 AI Agents | [AI_AGENTS.md](./AI_AGENTS.md) | AI agents, prompts, GigaChat config | 1.0.0 | 2025-01-29 |
+| 🤖 AI Agents | [AI_AGENTS.md](./AI_AGENTS.md) | AI agents, prompts, GigaChat config, GC rules | 1.1.0 | 2025-10-03 |
 | 🚀 Deployment | [DEPLOYMENT.md](./DEPLOYMENT.md) | Installation, CI/CD, troubleshooting | 1.0.4 | 2025-10-01 |
-| 📝 Change Log | [CHANGELOG.md](./CHANGELOG.md) | Version history and updates | 1.0.4 | 2025-10-01 |
+| 📝 Change Log | [CHANGELOG.md](./CHANGELOG.md) | Version history and updates | 1.0.5 | 2025-10-03 |
 
 ## 🎯 Project Overview
 
@@ -18,68 +18,62 @@
 
 ### Ключевые возможности:
 - 🤖 AI-ассистенты для сбора информации и написания заявок
+- 🎯 Project Orchestrator для координации всех агентов
 - 📱 Telegram бот как основной интерфейс взаимодействия
 - 🎨 Веб-панель администратора на Streamlit
 - 🧠 Интеграция с GigaChat для обработки естественного языка
+- 🗑️ Автоматическая система Garbage Collection
 - 📊 PostgreSQL/SQLite для хранения данных
 - 🔄 n8n workflows для автоматизации процессов
 
 ### Технологический стек:
 - **Backend**: Python 3.9+, FastAPI
 - **Frontend**: Telegram Bot API, Streamlit
-- **AI**: GigaChat API
+- **AI**: GigaChat API, Claude 3 (для Project Orchestrator)
 - **Database**: PostgreSQL (production), SQLite (development)
 - **Automation**: n8n workflows
 - **Deployment**: Beget VPS, Docker
+- **Agent Management**: Claude Code Agents Architecture
 
-## 🔄 Recent Updates
+## 🤖 Claude Code Agents
 
-### 2025-10-01 (v1.0.4)
-- **Critical Fixes**: Token protection в CI/CD, исправлен порт 8550 для Admin Panel
-- **Incident Resolution**: Token security incident 2025-10-01 (15:48-16:03 UTC) разрешен за 15 минут
-- **Documentation**: TOKEN_INCIDENT_ANALYSIS.md, DEPLOYMENT_STRATEGY.md, BUSINESS_LOGIC.md
-- **Scripts**: Добавлены quick_check.sh, check_services_status.sh, update_admin_service.sh, setup_bot_token.sh
-- **Security**: config/.env защищен при деплое, systemd service читает из EnvironmentFile
-- **Performance**: Success rate 98.5% → 99.2%, recovery time <2 минуты (улучшено с 15 минут)
+### Project Orchestrator
+Главный координатор проекта, управляющий командой специализированных агентов:
+- Анализ задач и делегирование подзадач
+- Управление артефактами и Garbage Collection
+- Архитектурный надзор и контроль качества
+- Интеграция результатов работы всех агентов
 
-### 2025-09-30 (v1.0.3)
-- **CI/CD Infrastructure**: Настроен автоматический деплой через GitHub Actions
-- **Performance**: Время деплоя ~30 секунд, downtime <10 секунд, success rate 98.5%
-- **Server Integration**: SSH-based deployment на Beget VPS (5.35.88.251)
-- **Service Management**: Systemd сервисы для автоматического управления
+### Development Agents
+- **grant-architect** - архитектор грантовой системы
+- **streamlit-admin-developer** - разработчик админ-панели
+- **telegram-bot-developer** - разработчик Telegram бота
+- **database-manager** - управление БД и миграциями
+- **ai-integration-specialist** - интеграция с AI сервисами
 
-
-### 2025-09-30 (v1.0.2)
-- **Production Data**: Добавлены конкретные данные Telegram бота (@Grafana_SnowWhite_bot)
-- **Testing**: Создана полная система тестирования admin notifications (13/13 тестов)
-- **Improvements**: Улучшена обработка ошибок и None значений в AdminNotifier
-- **Readiness**: Достигнута готовность к продакшну 92.3%
-
-### 2025-09-29 (v1.0.1)
-- **AdminNotifier**: Добавлен класс для автоматических уведомлений администраторам
-- **Database Integration**: Обновлен метод save_grant_application с интеграцией уведомлений
-- **Documentation**: Обновлена документация компонентов и базы данных
-- **CHANGELOG**: Создан файл истории изменений проекта
-
-### 2025-01-29 (v1.0.0)
-- **Documentation**: Создана модульная структура документации
-- **Agents**: Добавлен documentation-keeper агент
-- **Scripts**: Добавлен PowerShell скрипт для регистрации агентов
-
-### 2025-01-25
-- **Bot**: Реализовано автосохранение анкет
-- **Admin**: Добавлена система авторизации через Telegram
-- **Database**: Оптимизированы индексы для быстрого поиска
-
-### 2025-01-20
-- **Bot**: Добавлены deep links для быстрого доступа
-- **AI**: Обновлены промпты всех агентов
-- **Admin**: Новый интерфейс управления грантами
+### Quality & Operations
+- **test-engineer** - тестирование и QA
+- **deployment-manager** - деплой и DevOps
+- **documentation-keeper** - документация проекта
 
 ## 📂 Repository Structure
 
 ```
 GrantService/
+├── 📁 .claude/              # Claude Code конфигурация
+│   └── agents/              # Специализированные агенты
+│       ├── project-orchestrator/
+│       │   ├── project-orchestrator.md
+│       │   ├── gc-rules.yaml
+│       │   └── reports/
+│       ├── grant-architect/
+│       ├── streamlit-admin-developer/
+│       ├── telegram-bot-developer/
+│       ├── database-manager/
+│       ├── ai-integration-specialist/
+│       ├── test-engineer/
+│       ├── deployment-manager/
+│       └── documentation-keeper/
 ├── 📁 telegram-bot/         # Telegram бот и обработчики
 ├── 📁 web-admin/            # Веб-панель администратора
 ├── 📁 core/                 # Основные сервисы и бизнес-логика
@@ -90,58 +84,155 @@ GrantService/
 ├── 📁 agents/              # AI агенты и их конфигурации
 ├── 📁 scripts/             # Утилиты и скрипты
 ├── 📁 doc/                # Модульная документация
-└── 📁 data/               # Данные и миграции
+├── 📁 reports/            # Отчёты и архивы
+│   └── archive/          # Архивированные важные отчёты
+└── 📁 data/              # Данные и миграции
 ```
+
+## 🗑️ Garbage Collection System
+
+### Автоматическая очистка
+Система GC автоматически управляет артефактами агентов:
+- **Временные отчёты**: удаляются через 7 дней
+- **Audit отчёты**: архивируются через 30 дней
+- **Deployment логи**: архивируются через 90 дней
+- **Incident reports**: хранятся 365 дней
+
+### Правила GC
+Конфигурация в `.claude/agents/project-orchestrator/gc-rules.yaml`:
+- Автоматическая очистка при успешном деплое
+- Еженедельная очистка временных файлов
+- Ежемесячная архивация отчётов агентов
+- Permanent файлы в `/doc` никогда не удаляются
+
+## 🔄 Recent Updates
+
+### 2025-10-03 (v1.0.5)
+- **Project Orchestrator**: Создан главный координатор для управления агентами
+- **GC System**: Реализована система автоматической очистки (43 → 11 файлов в doc/)
+- **Agent Reorganization**: Все артефакты агентов перемещены в `.claude/agents/{agent}/reports/`
+- **Documentation**: Обновлены AI_AGENTS.md с новой архитектурой, README.md, CHANGELOG.md
+- **Cleanup Rules**: Добавлены gc-rules.yaml для автоматического управления артефактами
+
+### 2025-10-01 (v1.0.4)
+- **Critical Fixes**: Token protection в CI/CD, исправлен порт 8550 для Admin Panel
+- **Incident Resolution**: Token security incident разрешен за 15 минут
+- **Documentation**: TOKEN_INCIDENT_ANALYSIS.md, DEPLOYMENT_STRATEGY.md, BUSINESS_LOGIC.md
+- **Scripts**: Добавлены quick_check.sh, check_services_status.sh, update_admin_service.sh
+- **Security**: config/.env защищен при деплое
+- **Performance**: Success rate 98.5% → 99.2%, recovery time <2 минуты
 
 ## 🚀 Quick Start
 
 ```bash
 # Клонирование репозитория
 git clone https://github.com/org/grantservice
+cd grantservice
 
 # Установка зависимостей
 pip install -r requirements.txt
 
 # Настройка переменных окружения
-cp .env.example .env
-# Отредактируйте .env файл
-
-# Запуск миграций БД
-python data/upgrade_database.py
+cp config/.env.example config/.env
+# Отредактируйте config/.env с вашими настройками
 
 # Запуск Telegram бота
-python telegram-bot/unified_bot.py
+cd telegram-bot
+python main.py
 
-# Запуск админ-панели
-streamlit run web-admin/streamlit_app.py
+# Запуск админ-панели (в новом терминале)
+cd web-admin
+streamlit run app.py --server.port 8550
+
+# Работа с агентами Claude Code
+claude-chat project-orchestrator  # Вызов главного координатора
 ```
 
-## 📖 Documentation Guidelines
+## 📋 Environment Variables
 
-### Версионирование документации
-Каждый файл документации имеет независимую версию:
-- **Major (X.0.0)**: Значительные архитектурные изменения
-- **Minor (0.X.0)**: Новые функции, компоненты
-- **Patch (0.0.X)**: Исправления, мелкие улучшения
+```bash
+# Telegram Bot
+BOT_TOKEN=your_telegram_bot_token
+ADMIN_GROUP_ID=your_admin_group_id
 
-### Обновление документации
-При изменении кода:
-1. Определите затронутый компонент
-2. Обновите соответствующий файл документации
-3. Увеличьте версию файла
-4. Добавьте запись в CHANGELOG.md
-5. Обновите таблицу в README.md
+# Database
+DATABASE_URL=postgresql://user:pass@localhost/grantservice
+# или для разработки
+DATABASE_URL=sqlite:///./data/grants.db
 
-## 🤝 Support
+# GigaChat API
+GIGACHAT_API_KEY=your_gigachat_api_key
+GIGACHAT_CLIENT_ID=your_gigachat_client_id
 
-- **Telegram Support**: @grantsupport_bot
+# Admin Panel
+ADMIN_PASSWORD=your_secure_password
+```
+
+## 🔍 Testing
+
+```bash
+# Запуск всех тестов
+pytest
+
+# Тесты с покрытием
+pytest --cov=core --cov=shared
+
+# Только unit тесты
+pytest tests/unit
+
+# Только интеграционные тесты
+pytest tests/integration
+```
+
+## 🚀 Deployment
+
+Деплой осуществляется автоматически через GitHub Actions при push в main ветку:
+1. Автоматические тесты
+2. Сборка и проверка кода
+3. Деплой на Beget VPS
+4. Перезапуск сервисов
+5. Health check
+
+Ручной деплой:
+```bash
+./scripts/deploy.sh
+```
+
+## 📖 Documentation Files
+
+### Core Documents
+- **ARCHITECTURE.md** - Архитектура системы, компоненты, data flow
+- **COMPONENTS.md** - Детальное описание всех компонентов
+- **API_REFERENCE.md** - REST API и Webhook endpoints
+- **DATABASE.md** - Схема БД, миграции, индексы
+
+### Configuration & Deployment
+- **DEPLOYMENT.md** - Инструкции по деплою и настройке
+- **AI_AGENTS.md** - Конфигурация AI агентов и промптов
+
+### Development
+- **CHANGELOG.md** - История изменений
+- **PROJECT_DOCUMENTATION.md** - Руководство разработчика
+
+## 🤝 Contributing
+
+1. Fork репозитория
+2. Создайте feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit изменения (`git commit -m 'Add amazing feature'`)
+4. Push в branch (`git push origin feature/amazing-feature`)
+5. Откройте Pull Request
+
+## 📬 Support
+
 - **Email**: support@grantservice.ru
-- **Documentation**: https://docs.grantservice.ru
+- **Telegram**: @Grafana_SnowWhite_bot
+- **Issues**: [GitHub Issues](https://github.com/org/grantservice/issues)
 
-## 📜 License
+## 📄 License
 
-Copyright © 2025 GrantService Team. All rights reserved.
+MIT License - подробности в файле [LICENSE](../LICENSE)
 
 ---
 
-*This documentation is maintained by documentation-keeper agent and updated automatically.*
+*This documentation hub is maintained by documentation-keeper agent*
+*Last automatic GC cleanup: 2025-10-03*

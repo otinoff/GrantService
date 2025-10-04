@@ -1,5 +1,5 @@
 # Changelog
-**Version**: 1.0.4 | **Last Modified**: 2025-10-01
+**Version**: 1.0.5 | **Last Modified**: 2025-10-03
 
 All notable changes to GrantService project will be documented in this file.
 
@@ -7,6 +7,73 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.0.5] - 2025-10-03
+
+### Added
+
+#### Project Orchestrator Agent
+- **New Agent**: Created project-orchestrator as the main coordinator for all agents
+- **Location**: `.claude/agents/project-orchestrator/`
+- **Responsibilities**: Task delegation, artifact management, architectural oversight
+- **Configuration**: Added gc-rules.yaml for automated cleanup policies
+
+#### Garbage Collection System
+- **Automated Cleanup**: Implemented GC system that reduced doc/ from 43 to 11 files (74% reduction)
+- **Rules Engine**: Created gc-rules.yaml with retention policies for different file types
+- **Archive System**: Important reports archived to `reports/archive/YYYY-MM/`
+- **Cleanup Triggers**: Automatic cleanup on deploy success, weekly, and monthly
+
+#### Agent Artifacts Reorganization
+- **New Structure**: All agent artifacts moved to `.claude/agents/{agent}/reports/`
+- **8 Agent Folders Created**:
+  - streamlit-admin-developer (3 artifacts moved)
+  - grant-architect (1 artifact moved)
+  - deployment-manager (2 artifacts moved)
+  - documentation-keeper (2 artifacts moved)
+  - telegram-bot-developer (folder created)
+  - database-manager (folder created)
+  - ai-integration-specialist (folder created)
+  - test-engineer (folder created)
+
+#### Documentation
+- **agents/README.md**: Complete documentation of new agent architecture
+- **gc-rules.yaml**: Comprehensive GC rules and retention policies
+- **project-orchestrator.md**: Full agent definition with workflows
+
+### Changed
+
+#### AI_AGENTS.md (v1.0.0 → v1.1.0)
+- Added "Project Orchestrator" section with full description
+- Added "Agent Artifacts Structure" section with directory organization
+- Added "Garbage Collection Rules" section with retention policies
+- Updated agent list to include new Development agents:
+  - grant-architect
+  - streamlit-admin-developer
+  - database-manager
+  - deployment-manager
+- Updated architecture diagram to show Project Orchestrator at the top
+
+#### README.md (v1.0.4 → v1.0.5)
+- Added Claude Code Agents section with Project Orchestrator description
+- Updated Repository Structure to include `.claude/agents/` hierarchy
+- Added Garbage Collection System section with automatic cleanup rules
+- Added information about gc-rules.yaml configuration
+- Updated Quick Start with agent usage commands
+
+### Removed
+
+#### Cleaned Up Files (18 temporary files removed)
+- Removed duplicate and obsolete documentation files
+- Removed temporary integration reports
+- Removed completed TODO and checklist files
+- All important content consolidated into the 11 permanent doc files
+
+### Archived
+
+#### Audit Reports (3 files)
+- Moved to `reports/archive/2025-10/audits/`
+- Files remain accessible but don't clutter main documentation
 
 ## [1.0.4] - 2025-10-01
 

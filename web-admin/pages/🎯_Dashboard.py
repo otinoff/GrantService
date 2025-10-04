@@ -25,14 +25,8 @@ import json
 # PATH SETUP
 # =============================================================================
 
-current_file = Path(__file__).resolve()
-web_admin_dir = current_file.parent.parent
-base_dir = web_admin_dir.parent
-
-if str(web_admin_dir) not in sys.path:
-    sys.path.insert(0, str(web_admin_dir))
-if str(base_dir) not in sys.path:
-    sys.path.insert(0, str(base_dir))
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import setup_paths
 
 # =============================================================================
 # IMPORTS

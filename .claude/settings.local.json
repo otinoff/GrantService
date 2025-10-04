@@ -6,7 +6,11 @@
       "Bash(for:*)",
       "Bash(do echo \"Testing: $file\")",
       "Bash(Get-Content \"C:\\SnowWhiteAI\\GrantService\\scripts\\test_page_headless.py\")",
-      "Bash(Out-String)"
+      "Bash(Out-String)",
+      "Bash(findstr:*)",
+      "Bash(rm:*)",
+      "Bash(find:*)",
+      "Bash(git add:*)"
     ],
     "deny": [],
     "ask": []

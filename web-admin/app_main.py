@@ -18,16 +18,9 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Add paths for imports
-current_file = Path(__file__).resolve()
-web_admin_dir = current_file.parent  # web-admin directory
-base_dir = web_admin_dir.parent  # GrantService directory
-
-# Add to sys.path if not already there
-if str(web_admin_dir) not in sys.path:
-    sys.path.insert(0, str(web_admin_dir))
-if str(base_dir) not in sys.path:
-    sys.path.insert(0, str(base_dir))
+# CRITICAL: Setup paths BEFORE any project imports
+# This fixes "ModuleNotFoundError: No module named 'utils.database'"
+import setup_paths
 
 # Import modules using importlib for better reliability
 import importlib.util

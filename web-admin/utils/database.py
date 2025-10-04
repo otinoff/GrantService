@@ -13,9 +13,13 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
-# Добавляем путь к корню проекта для импорта
-parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, parent_dir)
+# CRITICAL: Setup paths first before imports
+# Add web-admin to path to import setup_paths
+web_admin_dir = Path(__file__).parent.parent
+if str(web_admin_dir) not in sys.path:
+    sys.path.insert(0, str(web_admin_dir))
+
+import setup_paths  # Centralized path configuration
 
 # Импортируем кроссплатформенные пути из core
 try:

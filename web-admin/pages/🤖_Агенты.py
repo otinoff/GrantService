@@ -28,20 +28,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 import json
 
-# PATH SETUP
-current_file = Path(__file__).resolve()
-web_admin_dir = current_file.parent.parent
-base_dir = web_admin_dir.parent
-
-# Add paths in correct order
-if str(web_admin_dir) not in sys.path:
-    sys.path.insert(0, str(web_admin_dir))
-if str(base_dir) not in sys.path:
-    sys.path.insert(0, str(base_dir))
-if str(base_dir / 'telegram-bot') not in sys.path:
-    sys.path.insert(0, str(base_dir / 'telegram-bot'))
-if str(base_dir / 'agents') not in sys.path:
-    sys.path.insert(0, str(base_dir / 'agents'))
+# PATH SETUP - CRITICAL: Import setup_paths FIRST before any project imports
+sys.path.insert(0, str(Path(__file__).parent.parent))  # Add web-admin to path
+import setup_paths  # Centralized path configuration
 
 # AUTHENTICATION (disabled for now)
 # TODO: Implement auth module

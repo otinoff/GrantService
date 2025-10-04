@@ -96,6 +96,55 @@ jobs:
           # Очистка только ignored файлов (не трогаем untracked)
           git clean -fdX  # Только .pyc, __pycache__ и т.д.
 
+          # ========================================
+          # КРИТИЧЕСКАЯ ПРОВЕРКА: Verify critical files exist
+          # ========================================
+          echo "Verifying critical Python modules..."
+          MISSING_FILES=0
+
+          # Проверка data/database/ модулей
+          if [ ! -f "data/database/__init__.py" ]; then
+            echo "✗ ERROR: data/database/__init__.py is MISSING!"
+            MISSING_FILES=1
+          else
+            echo "✓ data/database/__init__.py exists"
+          fi
+
+          if [ ! -f "data/database/models.py" ]; then
+            echo "✗ ERROR: data/database/models.py is MISSING!"
+            MISSING_FILES=1
+          else
+            echo "✓ data/database/models.py exists"
+          fi
+
+          if [ ! -f "data/database/auth.py" ]; then
+            echo "✗ ERROR: data/database/auth.py is MISSING!"
+            MISSING_FILES=1
+          else
+            echo "✓ data/database/auth.py exists"
+          fi
+
+          # Если файлы отсутствуют - восстанавливаем из git
+          if [ $MISSING_FILES -eq 1 ]; then
+            echo "⚠️  CRITICAL: Missing core Python modules detected!"
+            echo "Restoring from git repository..."
+            git restore data/database/
+
+            # Повторная проверка
+            if [ -f "data/database/models.py" ]; then
+              echo "✓ Files successfully restored from git"
+            else
+              echo "✗ FATAL: Cannot restore critical files - deployment ABORTED"
+              exit 1
+            fi
+          fi
+
+          # Очистка Python кэша для чистого импорта
+          echo "Clearing Python cache..."
+          find . -type d -name '__pycache__' -exec rm -rf {} + 2>/dev/null || true
+          find . -type f -name '*.pyc' -delete 2>/dev/null || true
+          echo "✓ Python cache cleared"
+
           # Восстановление data/ обратно
           echo "Restoring data directory..."
           if [ -d "/tmp/grantservice_data_safe" ]; then

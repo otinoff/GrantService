@@ -1,21 +1,17 @@
 # AI Agents Configuration
-**Version**: 1.1.0 | **Last Modified**: 2025-10-03
+**Version**: 1.0.0 | **Last Modified**: 2025-01-29
 
 ## Table of Contents
 - [Overview](#overview)
-- [Project Orchestrator](#project-orchestrator)
 - [GigaChat Integration](#gigachat-integration)
 - [Grant Application Agents](#grant-application-agents)
 - [Development Agents](#development-agents)
-- [Agent Artifacts Structure](#agent-artifacts-structure)
-- [Garbage Collection Rules](#garbage-collection-rules)
 - [Prompt Management](#prompt-management)
 - [Performance Metrics](#performance-metrics)
 
 ## Overview
 
 GrantService использует систему AI агентов для автоматизации различных процессов:
-- **Project Orchestrator** - главный координатор всех агентов
 - **Grant Agents** - для работы с грантовыми заявками
 - **Development Agents** - для разработки и поддержки системы
 - **Support Agents** - для помощи пользователям
@@ -23,13 +19,12 @@ GrantService использует систему AI агентов для авт
 ### Agent Architecture
 ```
 ┌─────────────────────────────────────┐
-│      Project Orchestrator           │
-│    (Координация и управление)       │
+│         Agent Orchestrator          │
 ├──────────┬──────────┬──────────────┤
 │          │          │              │
 ▼          ▼          ▼              ▼
-Grant    Development  Quality    Support
-Agents     Agents    & Ops      Agents
+Grant    Development  Support    Analytics
+Agents     Agents     Agents      Agents
 │          │          │              │
 └──────────┴──────────┴──────────────┘
                │
@@ -40,42 +35,116 @@ Agents     Agents    & Ops      Agents
         └──────────────┘
 ```
 
-## Project Orchestrator
+## GigaChat Integration
 
-### Overview
-**Version**: 1.0.0 | **Created**: 2025-10-03
-**Purpose**: Главный оркестратор проекта, ответственный за координацию команды специализированных агентов и управление архитектурой проекта.
-
-### Responsibilities
-1. **Координация агентов**
-   - Анализ задач и определение необходимых агентов
-   - Делегирование подзадач специализированным агентам
-   - Интеграция результатов работы всех агентов
-   - Разрешение конфликтов между решениями агентов
-
-2. **Управление артефактами и Garbage Collection**
-   - Применение правил GC согласно `gc-rules.yaml`
-   - Контроль размещения артефактов в правильных папках
-   - Очистка устаревших отчётов и временных файлов
-   - Поддержание чистоты структуры проекта
-
-3. **Архитектурный надзор**
-   - Соблюдение архитектурных принципов проекта
-   - Предотвращение дублирования кода и функционала
-   - Контроль качества интеграций между модулями
-   - Поддержка актуальности основной документации
-
-### Delegation Workflow
-```yaml
-# Feature development template
-primary: grant-architect / streamlit-admin-developer / telegram-bot-developer
-supporting:
-  - database-manager (if schema changes needed)
-  - ai-integration-specialist (if AI features needed)
-review:
-  - test-engineer (mandatory)
-  - documentation-keeper (update docs)
+### Configuration
+```python
+# GigaChat settings
+GIGACHAT_CONFIG = {
+    "api_key": os.getenv("GIGACHAT_API_KEY"),
+    "client_id": os.getenv("GIGACHAT_CLIENT_ID"),
+    "scope": "GIGACHAT_API_PERS",
+    "base_url": "https://gigachat.devices.sberbank.ru/api/v1",
+    "models": {
+        "default": "GigaChat-Pro",
+        "advanced": "GigaChat-Max",
+        "light": "GigaChat"
+    },
+    "timeout": 30,
+    "max_retries": 3
+}
 ```
+
+### Unified LLM Client
+```python
+from shared.llm import UnifiedLLMClient
+
+class GigaChatClient(UnifiedLLMClient):
+    def __init__(self):
+        self.client = self._initialize_client()
+
+    def generate(self, prompt, **kwargs):
+        """Generate response from GigaChat"""
+        response = self.client.chat(
+            model=kwargs.get('model', 'GigaChat-Pro'),
+            messages=[{"role": "user", "content": prompt}],
+            temperature=kwargs.get('temperature', 0.7),
+            max_tokens=kwargs.get('max_tokens', 2000)
+        )
+        return response.choices[0].message.content
+
+    def stream_generate(self, prompt, **kwargs):
+        """Stream response from GigaChat"""
+        for chunk in self.client.stream_chat(...):
+            yield chunk.choices[0].delta.content
+```
+
+## Grant Application Agents
+
+### 1. Interviewer Agent
+**Version**: 1.2.0
+**Model**: GigaChat-Pro
+**Purpose**: Сбор информации о проекте через интерактивное интервью
+
+#### Configuration
+```python
+INTERVIEWER_CONFIG = {
+    "model": "GigaChat-Pro",
+    "temperature": 0.6,
+    "max_tokens": 1500,
+    "system_prompt_version": "1.2.0"
+}
+```
+
+#### Prompt Template
+```python
+INTERVIEWER_PROMPT = """
+Ты - профессиональный интервьюер для грантовых заявок.
+Твоя задача - собрать полную информацию о проекте через дружелюбный диалог.
+
+Контекст проекта:
+{context}
+
+Уже собранная информация:
+{collected_data}
+
+Следующий вопрос должен касаться:
+{next_topic}
+
+Правила:
+1. Задавай один конкретный вопрос за раз
+2. Используй простой и понятный язык
+3. При необходимости приводи примеры
+4. Подтверждай полученную информацию
+5. Переходи к следующей теме только после полного ответа
+
+Сформулируй следующий вопрос:
+"""
+```
+
+#### Usage Example
+```python
+interviewer = InterviewerAgent()
+question = interviewer.generate_question(
+    context=project_context,
+    collected_data=current_data,
+    next_topic="target_audience"
+)
+```
+
+### 2. Auditor Agent
+**Version**: 1.1.0
+**Model**: GigaChat-Pro
+**Purpose**: Анализ и оценка проекта по критериям грантов
+
+#### Configuration
+```python
+AUDITOR_CONFIG = {
+    "model": "GigaChat-Pro",
+    "temperature": 0.3,
+    "max_tokens": 2500,
+    "system_prompt_version": "1.1.0"
+}
 ```
 
 #### Evaluation Criteria

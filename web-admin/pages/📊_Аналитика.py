@@ -15,11 +15,9 @@ import plotly.express as px
 import plotly.graph_objects as go
 from datetime import datetime, timedelta
 
-# PATH SETUP
-current_file = Path(__file__).resolve()
-web_admin_dir = current_file.parent.parent
-if str(web_admin_dir) not in sys.path:
-    sys.path.insert(0, str(web_admin_dir))
+# PATH SETUP - Import setup_paths FIRST
+sys.path.insert(0, str(Path(__file__).parent.parent))
+import setup_paths
 
 # IMPORTS
 try:
