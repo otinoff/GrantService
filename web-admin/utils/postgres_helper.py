@@ -60,24 +60,27 @@ def get_postgres_connection():
         conn.close()
 
 
-def execute_query(query: str, params: Optional[tuple] = None) -> List[tuple]:
+def execute_query(query: str, params: Optional[tuple] = None) -> List[Dict]:
     """
-    Execute SELECT query and return results
+    Execute SELECT query and return results as list of dictionaries
 
     Args:
         query: SQL SELECT query (use %s for parameters)
         params: Query parameters tuple
 
     Returns:
-        List of tuples with results
+        List of dictionaries with results (column_name: value)
 
     Example:
         results = execute_query("SELECT * FROM users WHERE id = %s", (user_id,))
+        # Returns: [{'id': 1, 'username': 'john', ...}, ...]
     """
+    import psycopg2.extras
+
     db = get_postgres_db()
 
     with db.connect() as conn:
-        cursor = conn.cursor()
+        cursor = conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(query, params)
         results = cursor.fetchall()
         cursor.close()
