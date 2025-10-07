@@ -8,7 +8,7 @@ Full integration: Все пользователи | Анкеты | Поиск
 import streamlit as st
 import sys
 from pathlib import Path
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Any
 import pandas as pd
 import json
@@ -40,11 +40,8 @@ logger = setup_logger('users_page')
 # DATABASE
 import os
 
-# Определяем путь к базе данных в зависимости от платформы
-if os.name == 'nt':  # Windows
-    DB_PATH = "C:/SnowWhiteAI/GrantService/data/grantservice.db"
-else:  # Linux/Unix
-    DB_PATH = "/var/GrantService/data/grantservice.db"
+# NOTE: Migrated to PostgreSQL - hardcoded SQLite paths removed
+# Database access now via postgres_helper.execute_query()
 
 @st.cache_resource
 def get_database():
@@ -90,30 +87,63 @@ def get_users_metrics():
 def get_all_questionnaires():
     """Получить все анкеты из сессий"""
     try:
-        with grant_db.connect() as conn:
-            cursor = conn.cursor()
-            cursor.execute("""
-                SELECT s.*, u.username, u.first_name, u.last_name
-                FROM sessions s
-                LEFT JOIN users u ON s.telegram_id = u.telegram_id
-                WHERE s.anketa_id IS NOT NULL
-                ORDER BY s.started_at DESC
-                LIMIT 100
-            """)
-            results = cursor.fetchall()
-            columns = [description[0] for description in cursor.description]
+        from utils.postgres_helper import execute_query
 
-            all_anketas = []
+        # Fixed: JOIN by telegram_id, not by id
+        results = execute_query("""
+            SELECT s.*, u.username, u.first_name, u.last_name
+            FROM sessions s
+            LEFT JOIN users u ON s.telegram_id = u.telegram_id
+            WHERE s.anketa_id IS NOT NULL
+            ORDER BY s.started_at DESC
+            LIMIT 100
+        """)
+
+        all_anketas = []
+        if results:
             for row in results:
-                anketa_data = dict(zip(columns, row))
-                if anketa_data.get('interview_data'):
-                    try:
-                        anketa_data['interview_data'] = json.loads(anketa_data['interview_data'])
-                    except:
-                        anketa_data['interview_data'] = {}
+                anketa_data = dict(row)
+
+                # Convert datetime objects to strings for JSON serialization (caching)
+                for key, value in anketa_data.items():
+                    if isinstance(value, datetime):
+                        anketa_data[key] = value.isoformat()
+
+                # Get interview answers - from JSONB field in sessions table
+                interview_data_raw = anketa_data.get('interview_data')
+
+                if interview_data_raw and isinstance(interview_data_raw, dict):
+                    # Get active questions to map field_name to question_text
+                    questions = execute_query("""
+                        SELECT question_number, question_text, field_name
+                        FROM interview_questions
+                        WHERE is_active = true
+                        ORDER BY question_number
+                    """)
+
+                    # Create field_name -> question_text mapping
+                    field_to_question = {}
+                    if questions:
+                        for q in questions:
+                            field_to_question[q['field_name']] = q['question_text']
+
+                    # Convert interview_data from {field_name: answer} to {question_text: answer}
+                    interview_dict = {}
+                    for i, (field_name, answer) in enumerate(interview_data_raw.items(), 1):
+                        # Get full question text
+                        q_text = field_to_question.get(field_name, field_name)
+
+                        # Format: "Вопрос N: Full question text"
+                        key = f"Вопрос {i}: {q_text}"
+                        interview_dict[key] = answer
+
+                    anketa_data['interview_data'] = interview_dict
+                else:
+                    anketa_data['interview_data'] = {}
+
                 all_anketas.append(anketa_data)
 
-            return all_anketas
+        return all_anketas
     except Exception as e:
         logger.error(f"Error getting questionnaires: {e}", exc_info=True)
         return []
@@ -134,6 +164,48 @@ def format_time_ago(dt_string: str) -> str:
             return f"{time_diff.seconds // 60} мин. назад"
     except:
         return dt_string
+
+def format_datetime_kemerovo(dt_value) -> str:
+    """Форматировать дату/время в GMT+7 (Кемеровское время) без секунд"""
+    if not dt_value:
+        return "Не указано"
+
+    try:
+        # Parse datetime
+        if isinstance(dt_value, str):
+            # Remove 'Z' and parse
+            dt_str = dt_value.replace('Z', '')
+            dt = datetime.fromisoformat(dt_str)
+        elif isinstance(dt_value, datetime):
+            dt = dt_value
+        else:
+            return str(dt_value)
+
+        # If datetime is naive (no timezone info), assume it's already in Kemerovo time (GMT+7)
+        # PostgreSQL TIMESTAMP WITHOUT TIME ZONE stores local server time
+        if dt.tzinfo is None:
+            # Already in Kemerovo time, just format
+            dt_kemerovo = dt
+        else:
+            # Has timezone info, convert to GMT+7
+            kemerovo_tz = timezone(timedelta(hours=7))
+            dt_kemerovo = dt.astimezone(kemerovo_tz)
+
+        # Format: "07 октября 2025, 20:16"  (without seconds)
+        months = ['января', 'февраля', 'марта', 'апреля', 'мая', 'июня',
+                  'июля', 'августа', 'сентября', 'октября', 'ноября', 'декабря']
+
+        day = dt_kemerovo.day
+        month = months[dt_kemerovo.month - 1]
+        year = dt_kemerovo.year
+        hour = dt_kemerovo.hour
+        minute = dt_kemerovo.minute
+
+        return f"{day:02d} {month} {year}, {hour:02d}:{minute:02d}"
+
+    except Exception as e:
+        logger.error(f"Error formatting datetime: {e}")
+        return str(dt_value)
 
 def render_user_card(user: Dict):
     """Отобразить карточку пользователя"""
@@ -531,10 +603,10 @@ try:
                         st.write(f"**Название проекта:** {anketa.get('project_name', 'N/A')}")
 
                     # Данные интервью
-                    if anketa.get('interview_data'):
+                    interview_data = anketa.get('interview_data', {})
+                    if interview_data:
                         st.write("**Данные интервью:**")
 
-                        interview_data = anketa['interview_data']
                         if isinstance(interview_data, dict):
                             for i, (key, value) in enumerate(list(interview_data.items())[:5]):
                                 st.write(f"• **{key}:** {value}")
@@ -557,16 +629,44 @@ try:
                             st.success("ID скопирован!")
 
                     with col2:
-                        export_emoji = "💾"
-                        if st.button(f"{export_emoji} Экспорт JSON", key=f"export_json_{anketa.get('id')}"):
-                            json_data = json.dumps(anketa, ensure_ascii=False, indent=2)
-                            st.download_button(
-                                label="📥 Скачать JSON",
-                                data=json_data,
-                                file_name=f"anketa_{anketa_id}.json",
-                                mime="application/json",
-                                key=f"download_json_{anketa.get('id')}"
-                            )
+                        # Prepare TXT export data (simplified - no intermediate button)
+                        txt_lines = []
+                        txt_lines.append("=" * 80)
+                        txt_lines.append(f"АНКЕТА {anketa_id}")  # Removed # prefix
+                        txt_lines.append("=" * 80)
+                        txt_lines.append("")
+                        txt_lines.append(f"Пользователь: @{anketa.get('username', 'Unknown')}")
+                        txt_lines.append(f"Имя: {anketa.get('first_name', '')} {anketa.get('last_name', '')}")
+                        txt_lines.append(f"Telegram ID: {anketa.get('telegram_id', 'N/A')}")
+                        txt_lines.append(f"Статус: {anketa.get('status', 'N/A')}")
+                        txt_lines.append(f"Создано: {format_datetime_kemerovo(anketa.get('started_at'))}")
+                        txt_lines.append(f"Завершено: {format_datetime_kemerovo(anketa.get('completed_at'))}")
+                        txt_lines.append(f"Название проекта: {anketa.get('project_name', 'N/A')}")
+                        txt_lines.append("")
+                        txt_lines.append("-" * 80)
+                        txt_lines.append("ВОПРОСЫ И ОТВЕТЫ")
+                        txt_lines.append("-" * 80)
+                        txt_lines.append("")
+
+                        if interview_data:
+                            for question, answer in interview_data.items():
+                                txt_lines.append(question)
+                                txt_lines.append(f"Ответ: {answer}")
+                                txt_lines.append("")
+                        else:
+                            txt_lines.append("Нет данных интервью")
+
+                        txt_lines.append("=" * 80)
+                        txt_data = "\n".join(txt_lines)
+
+                        # Direct download button - no intermediate step
+                        st.download_button(
+                            label="📥 Скачать TXT",
+                            data=txt_data.encode('utf-8'),
+                            file_name=f"anketa_{anketa_id}.txt",
+                            mime="text/plain",
+                            key=f"download_txt_{anketa.get('id')}"
+                        )
 
     with tab3:
         search_icon = "🔍"

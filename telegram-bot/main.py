@@ -698,7 +698,7 @@ class GrantServiceBotWithMenu:
             [InlineKeyboardButton("📝 Начать заполнение", callback_data="start_interview")],
             [InlineKeyboardButton("💳 Оплата", callback_data="payment")],
             [InlineKeyboardButton("📊 Статус заявки", callback_data="status")],
-            [InlineKeyboardButton("ℹ️ О Грантсервисе", callback_data="about")]
+            [InlineKeyboardButton("ℹ️ О Грантсервисе", url="https://грантсервис.рф")]
         ]
         reply_markup = InlineKeyboardMarkup(keyboard)
         
@@ -951,28 +951,8 @@ https://grantservice.onff.ru/payment
             # Показать статус заявки
             await self.show_application_status(update, context)
             
-        elif callback_data == "about":
-            # Информация о сервисе
-            about_text = """
-ℹ️ *О Грантсервисе*
+        # Removed: "about" button now opens URL directly (no callback needed)
 
-*Грантсервис* - это интеллектуальная система создания грантовых заявок с использованием ИИ.
-
-*Наши преимущества:*
-• 🤖 ИИ-ассистент для анализа проектов
-• ⚡ Быстрое создание заявок (15-20 минут)
-• 📊 Профессиональная структура документов
-• 💡 Персональные рекомендации
-• 📄 Готовые документы в PDF
-
-*Веб-сайт:* https://grantservice.onff.ru
-*Поддержка:* @otinoff_support
-"""
-            await query.edit_message_text(
-                text=about_text,
-                parse_mode='Markdown'
-            )
-            
         elif callback_data == "main_menu":
             # Возврат в главное меню
             await self.show_main_menu(update, context)
