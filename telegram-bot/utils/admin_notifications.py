@@ -141,6 +141,127 @@ class AdminNotifier:
 
         return "\n".join(message_lines)
 
+    async def send_stage_completion_pdf(
+        self,
+        stage: str,
+        pdf_bytes: bytes,
+        filename: str,
+        caption: str,
+        anketa_id: str
+    ) -> bool:
+        """
+        Отправить PDF отчет о завершении этапа в админскую группу
+
+        Args:
+            stage: Название этапа ('interview', 'audit', 'research', 'grant', 'review')
+            pdf_bytes: Байты PDF документа
+            filename: Имя файла
+            caption: Подпись к документу
+            anketa_id: ID анкеты
+
+        Returns:
+            True если PDF отправлен успешно
+        """
+        try:
+            # Проверка настроек (нужно ли отправлять для этого этапа)
+            if not self._should_send_notification(stage):
+                logger.info(f"⏭️ Уведомления для этапа {stage} отключены в настройках")
+                return False
+
+            # Создание InputFile из байтов
+            from telegram import InputFile
+            import io
+
+            pdf_file = InputFile(io.BytesIO(pdf_bytes), filename=filename)
+
+            # Отправка документа
+            await self.bot.send_document(
+                chat_id=self.admin_group_id,
+                document=pdf_file,
+                caption=caption,
+                parse_mode=ParseMode.HTML
+            )
+
+            logger.info(f"✅ PDF отчет отправлен: {stage} | {filename} | {anketa_id}")
+            return True
+
+        except TelegramError as e:
+            logger.error(f"❌ Ошибка отправки PDF в Telegram: {e}")
+            return False
+        except Exception as e:
+            logger.error(f"❌ Неожиданная ошибка при отправке PDF: {e}")
+            import traceback
+            logger.error(traceback.format_exc())
+            return False
+
+    def _should_send_notification(self, stage: str) -> bool:
+        """
+        Проверить, нужно ли отправлять уведомление для этого этапа
+
+        Args:
+            stage: Название этапа
+
+        Returns:
+            True если уведомление нужно отправить
+        """
+        try:
+            # Проверка главного переключателя
+            if not self._get_setting('notifications_enabled', default=True):
+                return False
+
+            # Проверка переключателя конкретного этапа
+            stage_setting_key = f'notify_on_{stage}'
+            return self._get_setting(stage_setting_key, default=True)
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка проверки настроек: {e}")
+            # По умолчанию отправляем (если не можем проверить настройки)
+            return True
+
+    def _get_setting(self, key: str, default: bool = True) -> bool:
+        """
+        Получить значение настройки из БД
+
+        Args:
+            key: Ключ настройки
+            default: Значение по умолчанию
+
+        Returns:
+            Значение настройки
+        """
+        try:
+            # Импортируем БД здесь чтобы избежать циклических импортов
+            import sys
+            from pathlib import Path
+
+            # Добавляем путь к data/database
+            base_dir = Path(__file__).parent.parent.parent
+            sys.path.insert(0, str(base_dir))
+
+            from data.database.models import GrantServiceDatabase
+
+            db = GrantServiceDatabase()
+
+            # Получаем настройку из БД
+            with db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT setting_value FROM admin_notification_settings
+                    WHERE setting_key = %s
+                """, (key,))
+
+                result = cursor.fetchone()
+                cursor.close()
+
+                if result:
+                    return result[0] if isinstance(result, tuple) else result['setting_value']
+                else:
+                    return default
+
+        except Exception as e:
+            logger.warning(f"⚠️ Не удалось получить настройку {key}: {e}")
+            return default
+
     def send_notification_sync(
         self,
         application_data: Dict[str, Any],

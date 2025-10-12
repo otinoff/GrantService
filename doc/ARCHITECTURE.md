@@ -69,13 +69,44 @@ GrantService построен на микросервисной архитект
 ### 2. Business Logic Layer
 
 #### AI Agents
-- **Technology**: GigaChat API
+- **Primary Technology**: Claude Code API (Sonnet 4.5)
+- **Fallback Technology**: GigaChat API
+- **WebSearch Providers**: Perplexity API (primary) + Claude Code WebSearch (fallback)
 - **Components**:
-  - Interviewer Agent
-  - Auditor Agent
-  - Planner Agent
-  - Writer Agent
+  - Interviewer Agent (GigaChat - русский язык)
+  - Auditor Agent (Claude Code - аналитика)
+  - **Researcher Agent V2** (Claude Code LLM + Perplexity WebSearch)
+  - Planner Agent (Claude Code - структурирование)
+  - Writer Agent (GigaChat - генерация текста)
 - **Purpose**: Интеллектуальная обработка данных
+
+**Claude Code API Features** ✅ *Протестировано 2025-10-08*:
+- URL: `http://178.236.17.55:8000` (постоянный сервер, Казахстан)
+- Model: Sonnet 4.5 (200k контекст)
+- Tools: `/chat`, `/code`, `/sessions`, `/models`, **WebSearch**
+- **WebSearch**: ⚠️ Географические ограничения (не работает из всех регионов)
+- Конфигурация: `~/.claude/settings.json` с WebSearch permission
+- Используется для: аналитика, структурирование, оценка
+
+**Perplexity API Features** ✅ *Протестировано 2025-10-11*:
+- URL: `https://api.perplexity.ai`
+- Model: `sonar` (WebSearch специализированная модель)
+- **WebSearch**: ✅ Работает БЕЗ VPN из РФ! 100% success rate
+- Преимущества: Официальные русские источники (Росстат, .gov.ru), быстрая скорость
+- Стоимость: ~$0.01 за запрос (~$0.29 за 27 запросов)
+- Используется для: исследования, поиск данных для грантовых заявок (117 источников на анкету)
+
+**Hybrid Approach**:
+- Claude Code → Аналитика, структурирование, оценка
+- GigaChat → Генерация русского текста, общение с пользователем
+- **Perplexity → WebSearch исследования** (primary)
+- Claude Code WebSearch → Fallback при доступности
+
+**WebSearch Provider Selection** ✅ *Database-Driven Configuration (2025-10-11)*:
+- Провайдер WebSearch настраивается через `ai_agent_settings.config.websearch_provider`
+- Поддержка автоматического fallback через `websearch_fallback`
+- WebSearchRouter аналогичен LLMRouter для унификации
+- Переключение через UI без изменения кода
 
 #### n8n Workflows
 - **Technology**: n8n.io
@@ -177,9 +208,11 @@ sequenceDiagram
 ### AI & ML
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| GigaChat API | Latest | LLM processing |
+| Claude Code API | Sonnet 4.5 | Primary LLM (analytics, structure) |
+| GigaChat API | Latest | Russian text generation |
+| Perplexity API | sonar | WebSearch provider (primary) |
 | LangChain | 0.1+ | AI orchestration |
-| OpenAI | 1.0+ | Alternative LLM |
+| OpenAI | 1.0+ | Alternative LLM (not used) |
 
 ### Infrastructure
 | Technology | Version | Purpose |
@@ -481,6 +514,7 @@ security_headers = {
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.0.2 | 2025-10-11 | Added WebSearch Provider Configuration (Perplexity API + Claude Code), Database-Driven provider selection |
 | 1.0.1 | 2025-09-30 | Added CI/CD Pipeline architecture and deployment flow |
 | 1.0.0 | 2025-01-29 | Initial architecture documentation |
 

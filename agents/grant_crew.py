@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Grant Crew - оркестратор для координации работы агентов
 """
@@ -80,22 +82,62 @@ class GrantCrew:
                 # Передаем результат дальше
                 input_data['interview_questions'] = interviewer_result.get('questions', {})
             
-            # Этап 2: Analyst (пока пропускаем - агент не реализован)
-            logger.info("⚠️ Этап 2: Analyst (пропущен - не реализован)")
-            workflow_result['stages']['analyst'] = {
-                'status': 'skipped',
-                'message': 'Агент Analyst не реализован'
-            }
-            
-            # Этап 3: Researcher - поиск релевантных грантов и данных
-            if 'researcher' in self.agents:
-                logger.info("🔍 Этап 3: Исследование (Researcher)")
-                research_result = await self.agents['researcher'].research_grants_async(input_data)
-                workflow_result['stages']['researcher'] = research_result
-                
-                # Передаем результат дальше
-                input_data['research_data'] = research_result.get('research_data', {})
-                input_data['selected_grants'] = research_result.get('grants', [])
+            # Этап 2: Auditor - проверка корректности анкеты
+            if 'auditor' in self.agents:
+                logger.info("✅ Этап 2: Проверка анкеты (Auditor)")
+                auditor_result = await self.agents['auditor'].audit_anketa_async(input_data)
+                workflow_result['stages']['auditor'] = auditor_result
+
+                # Проверяем одобрение
+                if auditor_result.get('approval_status') != 'approved':
+                    logger.warning(f"⚠️ Auditor не одобрил анкету: {auditor_result.get('approval_status')}")
+                    workflow_result['status'] = 'rejected_by_auditor'
+                    workflow_result['rejection_reason'] = auditor_result.get('feedback', 'Анкета не прошла проверку')
+                    return workflow_result
+
+                logger.info(f"✅ Auditor одобрил анкету (score: {auditor_result.get('quality_score', 0)}/10)")
+
+            # Этап 3: Researcher V2 - 27 экспертных запросов через Claude Code WebSearch
+            logger.info("🔍 Этап 3: Исследование через 27 запросов (Researcher V2)")
+
+            try:
+                from agents.researcher_agent_v2 import ResearcherAgentV2
+
+                researcher_v2 = ResearcherAgentV2(self.db, llm_provider="claude_code")
+
+                # Получаем anketa_id из input_data
+                anketa_id = input_data.get('anketa_id') or input_data.get('session_id')
+
+                if not anketa_id:
+                    logger.error("❌ Не найден anketa_id для Researcher")
+                    workflow_result['stages']['researcher'] = {
+                        'status': 'error',
+                        'message': 'anketa_id не передан'
+                    }
+                else:
+                    # Запускаем 27 запросов
+                    research_result = await researcher_v2.research_with_expert_prompts(anketa_id)
+                    workflow_result['stages']['researcher'] = research_result
+
+                    # Передаем результат дальше (для Writer)
+                    if research_result.get('status') == 'completed':
+                        input_data['research_data'] = research_result.get('research_results', {})
+                        logger.info(f"✅ Researcher V2 завершен: {research_result.get('metadata', {}).get('total_queries', 0)} запросов")
+                    else:
+                        logger.warning(f"⚠️ Researcher V2 не завершился: {research_result.get('status')}")
+
+            except ImportError as e:
+                logger.error(f"❌ ResearcherAgentV2 не найден: {e}")
+                workflow_result['stages']['researcher'] = {
+                    'status': 'error',
+                    'message': f'ResearcherAgentV2 import failed: {str(e)}'
+                }
+            except Exception as e:
+                logger.error(f"❌ Researcher V2 error: {e}")
+                workflow_result['stages']['researcher'] = {
+                    'status': 'error',
+                    'message': str(e)
+                }
             
             # Этап 4: Writer - создание заявки
             if 'writer' in self.agents:
@@ -107,16 +149,19 @@ class GrantCrew:
                 input_data['application'] = writer_result.get('application', {})
                 workflow_result['final_application'] = writer_result.get('application', {})
             
-            # Этап 5: Auditor - аудит качества заявки
-            if 'auditor' in self.agents:
-                logger.info("🔍 Этап 5: Аудит заявки (Auditor)")
-                audit_result = await self.agents['auditor'].audit_application_async(input_data)
-                workflow_result['stages']['auditor'] = audit_result
-                workflow_result['audit_results'] = audit_result
-                
-                # Если аудитор создал улучшенную версию
-                if audit_result.get('final_application'):
-                    workflow_result['final_application'] = audit_result['final_application']
+            # Этап 5: Reviewer - финальная оценка готовности гранта
+            if 'reviewer' in self.agents:
+                logger.info("🔎 Этап 5: Финальная оценка гранта (Reviewer)")
+                review_result = await self.agents['reviewer'].review_grant_async(input_data)
+                workflow_result['stages']['reviewer'] = review_result
+                workflow_result['review_results'] = review_result
+
+                # Логируем вероятность одобрения
+                approval_prob = review_result.get('approval_probability', 0)
+                readiness_score = review_result.get('readiness_score', 0)
+                logger.info(f"📊 Reviewer оценка: {readiness_score}/10, вероятность одобрения: {approval_prob}%")
+            else:
+                logger.warning("⚠️ Reviewer agent не инициализирован, пропускаем этап 5")
             
             # Завершение workflow
             processing_time = time.time() - start_time

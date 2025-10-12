@@ -1,5 +1,5 @@
 # Changelog
-**Version**: 1.0.6 | **Last Modified**: 2025-10-04
+**Version**: 1.0.7 | **Last Modified**: 2025-10-12
 
 All notable changes to GrantService project will be documented in this file.
 
@@ -7,6 +7,95 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.0.7] - 2025-10-12
+
+### Added
+
+#### Unified Nomenclature System
+- **New Document**: NOMENCLATURE.md (v1.0.0) - Complete documentation of ID naming conventions
+- **Unified Format**: Anketa, Research, Grant IDs now follow consistent pattern:
+  - Anketa: `#AN-YYYYMMDD-{user_identifier}-{counter:03d}`
+  - Research: `{anketa_id}-RS-{counter:03d}`
+  - Grant: `{anketa_id}-GR-{counter:03d}`
+- **Traceability**: All artifacts can be traced through lifecycle via anketa_id
+- **User Identifier Priority**: first_name+last_name (transliterated) > username > telegram_id
+
+#### Code Improvements
+- **researcher_agent_v2.py**: Updated to use `db.generate_research_id()` instead of timestamp-based IDs
+- **test_ekaterina_grant_e2e.py**: Fixed to use proper nomenclature via database methods
+- **Database Methods**: All ID generation centralized in `models.py`:
+  - `generate_anketa_id(user_data)` - Creates anketa ID from user data
+  - `generate_research_id(anketa_id)` - Creates research ID linked to anketa
+  - `generate_grant_id(anketa_id)` - Creates grant ID linked to anketa
+
+### Changed
+
+#### README.md (v1.0.6 → v1.0.7)
+- Added "Система номенклатуры" section with examples and quick reference
+- Updated documentation table to include NOMENCLATURE.md
+- Added nomenclature generation code examples
+
+#### Documentation Structure
+- **Before**: IDs generated inconsistently (RES-{timestamp}, GRANT_EKATERINA_{date}, etc.)
+- **After**: All IDs follow unified format with clear relationships
+- **Benefits**: Improved debugging, better traceability, version support
+
+### Fixed
+
+#### Nomenclature Issues
+- **researcher_agent_v2.py line 440**: Changed from `f"RES-{timestamp}"` to `db.generate_research_id(anketa_id)`
+- **test_ekaterina_grant_e2e.py**:
+  - Line 337: anketa_id now uses `db.generate_anketa_id(EKATERINA_DATA)`
+  - Line 424: research_id now uses `db.generate_research_id(anketa_id)`
+  - Line 522: grant_id now uses `db.generate_grant_id(anketa_id)`
+
+### Testing
+
+#### E2E Test Results
+- **Test File**: `tests/integration/test_ekaterina_grant_e2e.py`
+- **Status**: ✅ All 5 stages completed successfully
+- **Verified Nomenclature**:
+  ```
+  Anketa:   #AN-20251011-ekaterina_maksimova-001
+  Research: #AN-20251011-ekaterina_maksimova-001-RS-001
+  Grant:    #AN-20251011-ekaterina_maksimova-001-GR-001
+  ```
+- **Database Check**: All IDs saved correctly with proper relationships
+
+### Documentation
+
+#### New Files
+- **NOMENCLATURE.md**: Comprehensive guide to ID naming system including:
+  - Format specifications and examples
+  - Generation methods and code usage
+  - Database verification queries
+  - Best practices and common pitfalls
+  - Migration guides for legacy data
+  - Real-world examples (Ekaterina, Valeriya)
+
+#### Updated Files
+- **README.md**: Added nomenclature overview section
+- **CHANGELOG.md**: This entry documenting all changes
+
+### Migration Guide
+
+For existing data with old ID formats, see NOMENCLATURE.md section "Миграция данных" or use:
+```sql
+-- Migration 009: Unify Research and Grant IDs
+UPDATE researcher_research SET research_id = anketa_id || '-RS-001'
+WHERE research_id NOT LIKE '%RS-%';
+
+UPDATE grants SET grant_id = anketa_id || '-GR-001'
+WHERE grant_id NOT LIKE '%GR-%';
+```
+
+### Related Documents
+- [NOMENCLATURE.md](./NOMENCLATURE.md) - Complete nomenclature documentation
+- [DATABASE.md](./DATABASE.md) - Database schema including ID fields
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture overview
+
+---
 
 ## [1.0.6] - 2025-10-04
 

@@ -1,16 +1,22 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Auditor Agent - агент для анализа качества заявок на гранты
+ОБНОВЛЕНО: Использует DatabasePromptManager для загрузки промптов из БД
 """
 import sys
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 import asyncio
 import time
+from datetime import datetime
 
 # Добавляем пути к модулям
 sys.path.append('/var/GrantService/shared')
 sys.path.append('/var/GrantService/telegram-bot/services')
+sys.path.append('/var/GrantService/web-admin')
+sys.path.append('/var/GrantService/telegram-bot/utils')
 
 from base_agent import BaseAgent
 
@@ -19,33 +25,90 @@ try:
     from llm.config import AGENT_CONFIGS
     UNIFIED_CLIENT_AVAILABLE = True
 except ImportError:
+    UNIFIED_CLIENT_AVAILABLE = False
     try:
         from services.llm_router import LLMRouter, LLMProvider
-        UNIFIED_CLIENT_AVAILABLE = False
     except ImportError:
         print("⚠️ LLM сервисы недоступны")
-        UNIFIED_CLIENT_AVAILABLE = False
+        LLMRouter = None
+        LLMProvider = None
+
+# Импортируем DatabasePromptManager
+try:
+    from utils.prompt_manager import DatabasePromptManager, get_database_prompt_manager
+    PROMPT_MANAGER_AVAILABLE = True
+except ImportError:
+    print("⚠️ DatabasePromptManager недоступен, используются hardcoded промпты")
+    PROMPT_MANAGER_AVAILABLE = False
+
+# Импортируем StageReportGenerator для PDF
+try:
+    from stage_report_generator import StageReportGenerator
+    STAGE_REPORT_AVAILABLE = True
+except ImportError:
+    print("⚠️ StageReportGenerator недоступен, PDF не будет отправляться")
+    STAGE_REPORT_AVAILABLE = False
+
+# Импортируем AdminNotifier для отправки в чат
+try:
+    from admin_notifications import AdminNotifier
+    ADMIN_NOTIFIER_AVAILABLE = True
+except ImportError:
+    print("⚠️ AdminNotifier недоступен, PDF не будет отправляться")
+    ADMIN_NOTIFIER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
 
 class AuditorAgent(BaseAgent):
     """Агент-аудитор для анализа качества заявок"""
-    
-    def __init__(self, db, llm_provider: str = "auto"):
+
+    def __init__(self, db, llm_provider: str = "claude_code"):
         super().__init__("auditor", db, llm_provider)
-        
+
         if UNIFIED_CLIENT_AVAILABLE:
-            self.llm_client = UnifiedLLMClient()
+            # Передаем provider в конструктор UnifiedLLMClient
+            self.llm_client = UnifiedLLMClient(provider=llm_provider)
             self.config = AGENT_CONFIGS.get("auditor", AGENT_CONFIGS["auditor"])
-        else:
+        elif LLMRouter:
             self.llm_router = LLMRouter()
-    
+        else:
+            self.llm_router = None
+
+        # Инициализируем DatabasePromptManager
+        self.prompt_manager: Optional[DatabasePromptManager] = None
+        if PROMPT_MANAGER_AVAILABLE:
+            try:
+                self.prompt_manager = get_database_prompt_manager()
+                logger.info("✅ Auditor Agent: DatabasePromptManager подключен")
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось инициализировать PromptManager: {e}")
+
     def _get_goal(self) -> str:
+        """Получить goal агента из БД с fallback"""
+        if self.prompt_manager:
+            try:
+                goal = self.prompt_manager.get_prompt('auditor', 'goal')
+                if goal:
+                    return goal
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка загрузки goal из БД: {e}")
+
+        # Fallback на hardcoded
         return "Провести комплексный анализ качества заявки и дать рекомендации по улучшению"
-    
+
     def _get_backstory(self) -> str:
-        return """Ты опытный эксперт по грантовым заявкам с 20-летним стажем. 
-        Ты работал в комиссиях по рассмотрению заявок и знаешь все критерии оценки. 
+        """Получить backstory агента из БД с fallback"""
+        if self.prompt_manager:
+            try:
+                backstory = self.prompt_manager.get_prompt('auditor', 'backstory')
+                if backstory:
+                    return backstory
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка загрузки backstory из БД: {e}")
+
+        # Fallback на hardcoded
+        return """Ты опытный эксперт по грантовым заявкам с 20-летним стажем.
+        Ты работал в комиссиях по рассмотрению заявок и знаешь все критерии оценки.
         Твоя задача - объективно оценить заявку и дать конкретные рекомендации по улучшению."""
     
     async def audit_application_async(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -105,7 +168,17 @@ class AuditorAgent(BaseAgent):
                 "readiness_status": readiness_status,
                 "processing_time": processing_time
             })
-            
+
+            # Отправляем Audit PDF в админский чат (если есть anketa_id)
+            anketa_id = input_data.get('anketa_id')
+            if anketa_id:
+                try:
+                    await self._send_audit_pdf_to_admin(anketa_id, result)
+                except Exception as e:
+                    logger.error(f"⚠️ Ошибка отправки Audit PDF (не критично): {e}")
+            else:
+                logger.warning("⚠️ anketa_id не передан, Audit PDF не отправлен")
+
             return self.prepare_output(result)
             
         except Exception as e:
@@ -167,12 +240,20 @@ class AuditorAgent(BaseAgent):
     async def _analyze_with_llm_completeness(self, application: Dict) -> Dict[str, Any]:
         """LLM анализ полноты заявки"""
         try:
-            prompt = self.format_prompt("Проверка полноты", {
-                'application_text': self._format_application_for_analysis(application)
-            })
-            
+            # Пытаемся загрузить промпт из БД
+            prompt = None
+            if self.prompt_manager:
+                try:
+                    prompt = self.prompt_manager.get_prompt(
+                        'auditor',
+                        'llm_completeness',
+                        variables={'application_text': self._format_application_for_analysis(application)}
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка загрузки llm_completeness промпта: {e}")
+
             if not prompt:
-                # Fallback промпт
+                # Fallback промпт (hardcoded)
                 prompt = f"""Проанализируй полноту следующей заявки на грант:
 
 {self._format_application_for_analysis(application)}
@@ -184,14 +265,15 @@ class AuditorAgent(BaseAgent):
 
 Дай оценку и краткие комментарии."""
             
-            response = await self.llm_client.generate_async(
-                prompt,
-                provider="gigachat",
-                **self.config
-            )
-            
+            async with self.llm_client:
+                response = await self.llm_client.generate_async(
+                    prompt,
+                    provider=self.llm_provider,
+                    **{k: v for k, v in self.config.items() if k != 'provider'}
+                )
+
             score = self._extract_score_from_text(response)
-            
+
             return {
                 'score': score,
                 'analysis': response,
@@ -205,13 +287,23 @@ class AuditorAgent(BaseAgent):
     async def _analyze_with_llm_quality(self, application: Dict, research_data: Dict) -> Dict[str, Any]:
         """LLM анализ качества содержания"""
         try:
-            prompt = self.format_prompt("Оценка качества", {
-                'application_text': self._format_application_for_analysis(application),
-                'research_data': str(research_data)
-            })
-            
+            # Пытаемся загрузить промпт из БД
+            prompt = None
+            if self.prompt_manager:
+                try:
+                    prompt = self.prompt_manager.get_prompt(
+                        'auditor',
+                        'llm_quality',
+                        variables={
+                            'application_text': self._format_application_for_analysis(application),
+                            'research_data': str(research_data)
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка загрузки llm_quality промпта: {e}")
+
             if not prompt:
-                # Fallback промпт
+                # Fallback промпт (hardcoded)
                 prompt = f"""Оцени качество содержания заявки на грант:
 
 ЗАЯВКА:
@@ -227,21 +319,22 @@ class AuditorAgent(BaseAgent):
 4. Соответствие данным исследования
 
 Дай оценку и рекомендации."""
-            
-            response = await self.llm_client.generate_async(
-                prompt,
-                provider="gigachat",
-                **self.config
-            )
-            
+
+            async with self.llm_client:
+                response = await self.llm_client.generate_async(
+                    prompt,
+                    provider=self.llm_provider,
+                    **{k: v for k, v in self.config.items() if k != 'provider'}
+                )
+
             score = self._extract_score_from_text(response)
-            
+
             return {
                 'score': score,
                 'analysis': response,
                 'comments': f"LLM оценка качества: {score:.1f}/10"
             }
-            
+
         except Exception as e:
             logger.error(f"Ошибка LLM анализа качества: {e}")
             return {'score': 0.7, 'comments': f'Ошибка LLM анализа: {str(e)}'}
@@ -250,14 +343,24 @@ class AuditorAgent(BaseAgent):
         """LLM анализ соответствия требованиям"""
         try:
             grant_criteria = self._format_grant_criteria(selected_grant)
-            
-            prompt = self.format_prompt("Соответствие требованиям", {
-                'application_text': self._format_application_for_analysis(application),
-                'grant_criteria': grant_criteria
-            })
-            
+
+            # Пытаемся загрузить промпт из БД
+            prompt = None
+            if self.prompt_manager:
+                try:
+                    prompt = self.prompt_manager.get_prompt(
+                        'auditor',
+                        'llm_compliance',
+                        variables={
+                            'application_text': self._format_application_for_analysis(application),
+                            'grant_criteria': grant_criteria
+                        }
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка загрузки llm_compliance промпта: {e}")
+
             if not prompt:
-                # Fallback промпт
+                # Fallback промпт (hardcoded)
                 prompt = f"""Проанализируй соответствие заявки требованиям гранта:
 
 ЗАЯВКА:
@@ -273,21 +376,22 @@ class AuditorAgent(BaseAgent):
 4. Выполнение формальных требований
 
 Дай оценку и укажи несоответствия."""
-            
-            response = await self.llm_client.generate_async(
-                prompt,
-                provider="gigachat",
-                **self.config
-            )
-            
+
+            async with self.llm_client:
+                response = await self.llm_client.generate_async(
+                    prompt,
+                    provider=self.llm_provider,
+                    **{k: v for k, v in self.config.items() if k != 'provider'}
+                )
+
             score = self._extract_score_from_text(response)
-            
+
             return {
                 'score': score,
                 'analysis': response,
                 'comments': f"LLM оценка соответствия: {score:.1f}/10"
             }
-            
+
         except Exception as e:
             logger.error(f"Ошибка LLM анализа соответствия: {e}")
             return {'score': 0.7, 'comments': f'Ошибка LLM анализа: {str(e)}'}
@@ -295,8 +399,21 @@ class AuditorAgent(BaseAgent):
     async def _analyze_with_llm_innovation(self, application: Dict) -> Dict[str, Any]:
         """LLM анализ инновационности"""
         try:
-            response = await self.llm_client.generate_async(
-                f"""Оцени инновационность проекта:
+            # Пытаемся загрузить промпт из БД
+            prompt = None
+            if self.prompt_manager:
+                try:
+                    prompt = self.prompt_manager.get_prompt(
+                        'auditor',
+                        'llm_innovation',
+                        variables={'application_text': self._format_application_for_analysis(application)}
+                    )
+                except Exception as e:
+                    logger.warning(f"⚠️ Ошибка загрузки llm_innovation промпта: {e}")
+
+            if not prompt:
+                # Fallback промпт (hardcoded)
+                prompt = f"""Оцени инновационность проекта:
 
 {self._format_application_for_analysis(application)}
 
@@ -306,19 +423,23 @@ class AuditorAgent(BaseAgent):
 3. Потенциал влияния
 4. Уникальность решения
 
-Дай оценку и обоснование.""",
-                provider="gigachat",
-                **self.config
-            )
-            
+Дай оценку и обоснование."""
+
+            async with self.llm_client:
+                response = await self.llm_client.generate_async(
+                    prompt,
+                    provider=self.llm_provider,
+                    **{k: v for k, v in self.config.items() if k != 'provider'}
+                )
+
             score = self._extract_score_from_text(response)
-            
+
             return {
                 'score': score,
                 'analysis': response,
                 'comments': f"LLM оценка инновационности: {score:.1f}/10"
             }
-            
+
         except Exception as e:
             logger.error(f"Ошибка LLM анализа инновационности: {e}")
             return {'score': 0.6, 'comments': f'Ошибка LLM анализа: {str(e)}'}
@@ -343,21 +464,22 @@ class AuditorAgent(BaseAgent):
 - Содержание: {analysis_results.get('content', {}).get('score', 0):.2f}
 
 Создай улучшенную версию заявки, учитывающую все рекомендации."""
-            
-            improved_text = await self.llm_client.generate_async(
-                improvement_prompt,
-                provider="gigachat",
-                max_tokens=3000,
-                temperature=0.3
-            )
-            
+
+            async with self.llm_client:
+                improved_text = await self.llm_client.generate_async(
+                    improvement_prompt,
+                    provider=self.llm_provider,
+                    max_tokens=3000,
+                    temperature=0.3
+                )
+
             return {
                 'improved_text': improved_text,
                 'status': 'improved',
                 'improvement_basis': recommendations,
                 'confidence_score': min(analysis_results.get('llm_quality', {}).get('score', 0.7) + 0.2, 1.0)
             }
-            
+
         except Exception as e:
             logger.error(f"Ошибка создания улучшенной заявки: {e}")
             return application
@@ -865,6 +987,143 @@ class AuditorAgent(BaseAgent):
             
         except Exception:
             return []
+
+    async def _send_audit_pdf_to_admin(self, anketa_id: str, audit_result: Dict[str, Any]) -> None:
+        """
+        Отправка Audit PDF в админский чат
+
+        Args:
+            anketa_id: ID анкеты
+            audit_result: Результат аудита
+        """
+        if not STAGE_REPORT_AVAILABLE or not ADMIN_NOTIFIER_AVAILABLE:
+            logger.warning("⚠️ PDF отправка недоступна (нет StageReportGenerator или AdminNotifier)")
+            return
+
+        try:
+            logger.info(f"📤 Отправка Audit PDF для {anketa_id}...")
+
+            # Генерируем audit_id с правильной номенклатурой
+            audit_id = self.db.generate_audit_id(anketa_id)
+            logger.info(f"✅ Сгенерирован audit_id: {audit_id}")
+
+            # Получаем данные пользователя из БД (как в Interview)
+            user_info = {'username': 'Unknown', 'first_name': '', 'last_name': '', 'telegram_id': 0}
+            try:
+                with self.db.connect() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT u.telegram_id, u.username, u.first_name, u.last_name
+                        FROM users u
+                        JOIN sessions s ON s.telegram_id = u.telegram_id
+                        WHERE s.anketa_id = %s
+                        LIMIT 1
+                    """, (anketa_id,))
+                    user_row = cursor.fetchone()
+                    if user_row:
+                        if isinstance(user_row, tuple):
+                            user_info = {
+                                'telegram_id': user_row[0] or 0,
+                                'username': user_row[1] or 'Unknown',
+                                'first_name': user_row[2] or '',
+                                'last_name': user_row[3] or ''
+                            }
+                    cursor.close()
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось загрузить данные пользователя: {e}")
+
+            # Формируем данные для PDF (НОВЫЙ ДЕТАЛЬНЫЙ ФОРМАТ)
+            avg_score = audit_result.get('overall_score', 0) * 10  # Преобразуем 0-1 в 0-10
+            status = audit_result.get('approval_status', 'N/A')
+
+            # Достаём детальные оценки
+            comp_score = audit_result.get('completeness_score', int(avg_score))
+            clarity_score = audit_result.get('clarity_score', int(avg_score))
+            feas_score = audit_result.get('feasibility_score', int(avg_score))
+            innov_score = audit_result.get('innovation_score', int(avg_score))
+            qual_score = audit_result.get('quality_score', int(avg_score))
+
+            # Формируем strengths и improvements
+            strengths = []
+            improvements = []
+
+            # Если есть recommendations как список строк, преобразуем
+            recommendations_list = audit_result.get('recommendations', [])
+            for rec in recommendations_list:
+                if isinstance(rec, str):
+                    parts = rec.split(':', 1)
+                    if len(parts) == 2:
+                        improvements.append({'title': parts[0].strip(), 'text': parts[1].strip()})
+                    else:
+                        improvements.append({'title': rec, 'text': ''})
+                else:
+                    improvements.append(rec)
+
+            # Можно добавить strengths из analysis если есть
+            # Пока оставим пустым или добавим базовые
+
+            # Формируем данные для PDF
+            audit_data = {
+                'anketa_id': anketa_id,
+                'audit_id': audit_id.split('-')[-1],  # Берём только номер AU-XXX
+                'average_score': float(avg_score),
+                'approval_status': status,
+                'completeness_score': comp_score,
+                'clarity_score': clarity_score,
+                'feasibility_score': feas_score,
+                'innovation_score': innov_score,
+                'quality_score': qual_score,
+                'strengths': strengths,
+                'improvements': improvements,
+                'completed_at': audit_result.get('timestamp', datetime.now().strftime('%Y-%m-%d %H:%M:%S'))
+            }
+
+            # Генерируем PDF
+            generator = StageReportGenerator()
+            pdf_bytes = generator.generate_audit_pdf(audit_data)
+            logger.info(f"✅ PDF сгенерирован: {len(pdf_bytes)} байт")
+
+            # Формируем полное имя пользователя (как в Interview)
+            full_name = f"{user_info['first_name']} {user_info['last_name']}".strip() or user_info['username']
+            if not full_name:
+                full_name = "Unknown"
+
+            # Формируем caption (ЕДИНЫЙ ФОРМАТ как в Interview)
+            status_text = "Одобрено" if audit_result.get('can_submit', False) else "Требует доработки"
+            caption = f"""🔍 АУДИТ ЗАВЕРШЕН
+
+📋 Анкета: {anketa_id}
+👤 Пользователь: {full_name} (@{user_info['username']})
+🆔 Telegram ID: {user_info['telegram_id']}
+📅 Дата: {audit_data['completed_at']}
+📊 Оценка: {int(avg_score)}/10
+✅ Статус: {status_text}
+
+PDF документ с полным аудитом прикреплен
+
+#audit #completed"""
+
+            # Отправляем в админский чат
+            bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+            if not bot_token:
+                logger.error("❌ TELEGRAM_BOT_TOKEN не установлен")
+                return
+
+            notifier = AdminNotifier(bot_token)
+            await notifier.send_stage_completion_pdf(
+                stage='audit',
+                pdf_bytes=pdf_bytes,
+                filename=f"{audit_id.replace('#', '')}.pdf",
+                caption=caption,
+                anketa_id=anketa_id
+            )
+
+            logger.info(f"✅ Audit PDF успешно отправлен в админский чат для {anketa_id}")
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки Audit PDF: {e}")
+            import traceback
+            traceback.print_exc()
 
     # Методы для совместимости с Web Admin
     def audit_application(self, input_data: Dict[str, Any]) -> Dict[str, Any]:

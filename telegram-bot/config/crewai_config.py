@@ -1,18 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-/var/GrantService/telegram-bot/crewКонфигурация CrewAI для работы с UnifiedLLMClient
-Обновлено для использования shared/llm модуля
+Конфигурация CrewAI для работы с UnifiedLLMClient и agent_router
+Обновлено: Интеграция с agent_router для динамического выбора LLM провайдера
 """
 
 import os
 import sys
 import asyncio
+from pathlib import Path
 from crewai import Agent, Task, Crew
 from langchain_openai import ChatOpenAI
 
-# Добавляем путь к shared модулю
+# Добавляем пути
 sys.path.append('/var/GrantService/shared')
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 try:
     from llm.unified_llm_client import UnifiedLLMClient
@@ -22,20 +24,52 @@ except ImportError as e:
     print(f"⚠️ UnifiedLLMClient недоступен: {e}")
     UNIFIED_CLIENT_AVAILABLE = False
 
+# NEW: Import agent_router
+try:
+    from agent_router import get_agent_llm_client
+    from data.database import GrantServiceDatabase
+    AGENT_ROUTER_AVAILABLE = True
+except ImportError as e:
+    print(f"⚠️ agent_router недоступен: {e}")
+    AGENT_ROUTER_AVAILABLE = False
+
 def create_unified_llm(agent_type: str = "writer"):
-    """Создание LLM через UnifiedLLMClient"""
+    """
+    Создание LLM через agent_router (читает настройки из БД)
+
+    Args:
+        agent_type: Тип агента (writer, auditor, planner, researcher)
+
+    Returns:
+        LLM client из agent_router или fallback на UnifiedLLMClient
+    """
+    # NEW: Приоритет agent_router (читает из ai_agent_settings)
+    if AGENT_ROUTER_AVAILABLE:
+        try:
+            db = GrantServiceDatabase()
+            llm_client = get_agent_llm_client(agent_type, db)
+            print(f"✅ Using agent_router for {agent_type}: {type(llm_client).__name__}")
+
+            # Возвращаем напрямую LLM клиент (уже настроен)
+            return llm_client
+
+        except Exception as e:
+            print(f"⚠️ agent_router fallback: {e}")
+            # Продолжаем к старой логике
+
+    # FALLBACK: Старая логика через UnifiedLLMClient
     if not UNIFIED_CLIENT_AVAILABLE:
         raise ImportError("UnifiedLLMClient недоступен")
-    
+
     config = AGENT_CONFIGS.get(agent_type, AGENT_CONFIGS["writer"])
-    
+
     # Создаем UnifiedLLMClient
     client = UnifiedLLMClient(
         provider=config["provider"],
         model=config["model"],
         temperature=config["temperature"]
     )
-    
+
     # Оборачиваем в LangChain совместимый интерфейс
     return ChatOpenAI(
         base_url="http://localhost:8000/v1",  # Заглушка для LangChain

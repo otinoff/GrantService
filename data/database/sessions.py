@@ -74,7 +74,7 @@ class SessionManager:
                 cursor.execute("""
                     SELECT s.*, u.first_name, u.last_name, u.username
                     FROM sessions s
-                    LEFT JOIN users u ON s.telegram_id = u.telegram_id
+                    LEFT JOIN users u ON s.telegram_id = u.id
                     WHERE s.telegram_id = %s
                     ORDER BY s.started_at DESC
                 """, (telegram_id,))
@@ -108,7 +108,7 @@ class SessionManager:
                             ELSE 0
                         END as calculated_progress
                     FROM sessions s
-                    LEFT JOIN users u ON s.telegram_id = u.telegram_id
+                    LEFT JOIN users u ON s.telegram_id = u.id
                     LEFT JOIN user_answers ua ON s.id = ua.session_id
                     WHERE s.id = %s
                     GROUP BY s.id, u.first_name, u.last_name, u.username
@@ -199,7 +199,7 @@ class SessionManager:
                         u.first_name, u.last_name, u.username,
                         COUNT(ua.id) as answers_count
                     FROM sessions s
-                    LEFT JOIN users u ON s.telegram_id = u.telegram_id
+                    LEFT JOIN users u ON s.telegram_id = u.id
                     LEFT JOIN user_answers ua ON s.id = ua.session_id
                     WHERE s.completion_status = 'in_progress'
                     GROUP BY s.id, u.first_name, u.last_name, u.username
@@ -229,7 +229,7 @@ class SessionManager:
                         u.first_name, u.last_name, u.username,
                         COUNT(ua.id) as answers_count
                     FROM sessions s
-                    LEFT JOIN users u ON s.telegram_id = u.telegram_id
+                    LEFT JOIN users u ON s.telegram_id = u.id
                     LEFT JOIN user_answers ua ON s.id = ua.session_id
                     WHERE s.completion_status = 'completed'
                     GROUP BY s.id, u.first_name, u.last_name, u.username

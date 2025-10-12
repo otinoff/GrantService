@@ -64,7 +64,51 @@ pytest tests/ --cov=data --cov=web-admin --cov-report=html
 
 ## 🆕 Новые тесты (после миграции PostgreSQL)
 
-### 1. `test_postgres_helper.py`
+### 1. `test_end_to_end_grant_flow.py` ⭐ НОВЫЙ!
+
+**Назначение**: Комплексное E2E тестирование **полного цикла** создания грантовой заявки
+
+**Что тестируется**:
+- ✅ **Structured Interview** (24 hardcoded вопроса) → Auditor → Planner → Writer → БД
+- ✅ **Claude Code Interview** (AI-powered адаптивное интервью) → Auditor → Planner → Writer → БД
+- ✅ Сохранение всех данных в PostgreSQL (sessions, user_answers, auditor_results, planner_structures, grants)
+- ✅ Корректное чтение и экспорт готовой заявки
+- ✅ Производительность полного цикла (< 30 секунд)
+
+**Тестовые данные**:
+- Тема заявки: "Развитие молодежного технологического центра в Кемерово"
+- 24 вопроса с готовыми ответами (project_name, project_goal, budget, etc.)
+- Mock Claude Code API для предсказуемых результатов
+- Mock GigaChat API для тестирования без реальных вызовов
+
+**Какие ошибки ловит**:
+```python
+# ❌ Неполные данные в БД:
+AssertionError: Должно быть 10 ответов, получено 5
+
+# ❌ Некорректный статус сессии:
+AssertionError: completion_status должен быть 'completed', получено 'in_progress'
+
+# ❌ Отсутствие финальной заявки:
+AssertionError: Grant не найден в БД после завершения цикла
+```
+
+**Запуск**:
+```bash
+# Все E2E тесты
+pytest tests/integration/test_end_to_end_grant_flow.py -v
+
+# Только Structured interview
+pytest tests/integration/test_end_to_end_grant_flow.py::TestEndToEndGrantFlow::test_structured_interview_to_final_grant -v
+
+# Только Claude Code interview
+pytest tests/integration/test_end_to_end_grant_flow.py::TestEndToEndGrantFlow::test_claude_code_interview_to_final_grant -v
+
+# С подробным выводом
+pytest tests/integration/test_end_to_end_grant_flow.py -v -s
+```
+
+### 2. `test_postgres_helper.py`
 
 **Назначение**: Проверяет что `execute_query()` возвращает **dict**, а не **tuple**
 
@@ -195,11 +239,25 @@ def test_no_sqlite_datetime_syntax(self):
 
 ### Локально (перед коммитом)
 ```bash
-# Быстрая проверка
+# Быстрая проверка (только критичные тесты)
 pytest tests/integration/test_postgres_helper.py tests/integration/test_streamlit_agents_page.py -v
 
-# Полная проверка
+# E2E тесты (перед важными изменениями)
+pytest tests/integration/test_end_to_end_grant_flow.py -v
+
+# Полная проверка (все тесты)
 pytest tests/integration/ -v
+```
+
+### Перед реализацией новых фич
+```bash
+# 1. Сначала запускаем E2E тесты - они показывают что ДОЛЖНО работать
+pytest tests/integration/test_end_to_end_grant_flow.py -v
+
+# 2. Реализуем фичу (например, Claude Code interviewer)
+
+# 3. Запускаем E2E снова - проверяем что всё работает
+pytest tests/integration/test_end_to_end_grant_flow.py::TestEndToEndGrantFlow::test_claude_code_interview_to_final_grant -v
 ```
 
 ### В CI/CD (GitHub Actions)
@@ -255,8 +313,9 @@ pytest tests/integration/test_streamlit_agents_page.py::TestAgentsPageRegression
 |-----------|-----------|----------|
 | Unit-тесты | 15+ | Изолированные компоненты |
 | Integration-тесты | 30+ | Полный стек с БД |
+| **E2E тесты (NEW)** | **5** | **Полный цикл заявки (structured + AI-powered)** |
 | **Новые (PostgreSQL)** | **19** | **Типы данных, SQL синтаксис** |
-| **Всего** | **45+** | **Покрытие основной функциональности** |
+| **Всего** | **50+** | **Покрытие основной функциональности** |
 
 ## 🔧 Troubleshooting
 

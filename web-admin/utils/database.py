@@ -3,9 +3,12 @@
 """
 Database utilities for GrantService admin panel
 Кроссплатформенная версия с централизованным подключением
+
+DEPRECATED: This module contains legacy SQLite code
+Use postgres_helper for all database operations
 """
 
-import sqlite3
+import sqlite3  # DEPRECATED: Legacy - use psycopg2 via postgres_helper
 import sys
 import os
 from datetime import datetime, timedelta
@@ -55,13 +58,16 @@ logger = setup_logger('database')
 @st.cache_resource
 def get_db_connection():
     """
-    Establish centralized database connection with caching
+    DEPRECATED: Legacy SQLite connection function
+
+    WARNING: This system has migrated to PostgreSQL 18
+    Use postgres_helper.execute_query() instead
 
     Returns:
-        sqlite3.Connection: Database connection object
+        sqlite3.Connection: Database connection object (legacy)
     """
     try:
-        # Determine database path
+        # DEPRECATED: Hardcoded SQLite path - use PostgreSQL instead
         db_path = Path(__file__).parent.parent.parent / "data" / "grantservice.db"
 
         if not db_path.exists():
@@ -194,6 +200,103 @@ class AdminDatabase:
         except Exception as e:
             logger.error(f"Error getting researcher logs: {e}", exc_info=True)
             return []
+
+    def get_notification_settings(self):
+        """
+        Получить все настройки уведомлений из БД
+
+        Returns:
+            dict: Словарь с настройками {setting_key: setting_value}
+        """
+        try:
+            with self.db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    SELECT setting_key, setting_value
+                    FROM admin_notification_settings
+                    ORDER BY id
+                """)
+
+                results = cursor.fetchall()
+                cursor.close()
+
+                # Конвертируем в словарь
+                settings = {}
+                for row in results:
+                    # row может быть tuple или RealDictRow
+                    if isinstance(row, tuple):
+                        settings[row[0]] = row[1]
+                    else:
+                        settings[row['setting_key']] = row['setting_value']
+
+                return settings
+
+        except Exception as e:
+            logger.error(f"Error getting notification settings: {e}", exc_info=True)
+            # Возвращаем дефолтные настройки если БД недоступна
+            return {
+                'notifications_enabled': True,
+                'notify_on_interview': True,
+                'notify_on_audit': True,
+                'notify_on_research': True,
+                'notify_on_grant': True,
+                'notify_on_review': True
+            }
+
+    def update_notification_setting(self, setting_key, setting_value, updated_by='admin'):
+        """
+        Обновить настройку уведомлений
+
+        Args:
+            setting_key: Ключ настройки
+            setting_value: Новое значение (bool)
+            updated_by: Кто обновил настройку
+
+        Returns:
+            bool: True если успешно обновлено
+        """
+        try:
+            with self.db.connect() as conn:
+                cursor = conn.cursor()
+
+                # Используем функцию из миграции
+                cursor.execute("""
+                    SELECT update_notification_setting(%s, %s, %s)
+                """, (setting_key, setting_value, updated_by))
+
+                conn.commit()
+                cursor.close()
+
+                logger.info(f"Notification setting updated: {setting_key} = {setting_value}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Error updating notification setting: {e}", exc_info=True)
+            return False
+
+    def update_notification_settings_bulk(self, settings_dict, updated_by='admin'):
+        """
+        Обновить несколько настроек уведомлений одновременно
+
+        Args:
+            settings_dict: Словарь {setting_key: setting_value}
+            updated_by: Кто обновил настройки
+
+        Returns:
+            bool: True если все успешно обновлены
+        """
+        try:
+            success_count = 0
+            for key, value in settings_dict.items():
+                if self.update_notification_setting(key, value, updated_by):
+                    success_count += 1
+
+            logger.info(f"Bulk update: {success_count}/{len(settings_dict)} settings updated")
+            return success_count == len(settings_dict)
+
+        except Exception as e:
+            logger.error(f"Error in bulk update: {e}", exc_info=True)
+            return False
 
 
 # =============================================================================

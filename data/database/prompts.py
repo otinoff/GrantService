@@ -182,8 +182,8 @@ def get_prompt_by_name(prompt_name: str, db_path: str = None) -> Optional[Dict]:
             'name': result[1],
             'description': result[2],
             'prompt_template': result[3],
-            'variables': json.loads(result[4]) if result[4] else [],
-            'default_values': json.loads(result[5]) if result[5] else {},
+            'variables': result[4] if result[4] else [],
+            'default_values': result[5] if result[5] else {},
             'category_name': result[6],
             'agent_type': result[7]
         }
@@ -214,8 +214,8 @@ def get_prompts_by_agent(agent_type: str, db_path: str = None) -> List[Dict]:
             'name': result[1],
             'description': result[2],
             'prompt_template': result[3],
-            'variables': json.loads(result[4]) if result[4] else [],
-            'default_values': json.loads(result[5]) if result[5] else {},
+            'variables': result[4] if result[4] else [],
+            'default_values': result[5] if result[5] else {},
             'category_name': result[6],
             'agent_type': result[7],
             'priority': result[8]
@@ -248,8 +248,8 @@ def get_prompts_by_category(category_name: str, db_path: str = None) -> List[Dic
             'name': result[1],
             'description': result[2],
             'prompt_template': result[3],
-            'variables': json.loads(result[4]) if result[4] else [],
-            'default_values': json.loads(result[5]) if result[5] else {},
+            'variables': result[4] if result[4] else [],
+            'default_values': result[5] if result[5] else {},
             'category_name': result[6],
             'agent_type': result[7],
             'priority': result[8]

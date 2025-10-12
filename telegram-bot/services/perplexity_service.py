@@ -660,10 +660,12 @@ class PerplexityService:
             import sys
             sys.path.append('/var/GrantService')
             from data.database import GrantServiceDatabase
+            from data.database.researcher import ResearcherLogger
             db = GrantServiceDatabase()
-            
+            researcher_logger = ResearcherLogger(db)
+
             # Получаем все логи исследователя
-            logs = db.get_researcher_logs(limit=10000)
+            logs = researcher_logger.get_researcher_logs(limit=10000)
             
             if not logs:
                 return self._get_default_account_stats()

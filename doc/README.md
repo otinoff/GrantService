@@ -1,5 +1,5 @@
 # GrantService Documentation Hub
-**Version**: 1.0.6 | **Last Updated**: 2025-10-04
+**Version**: 1.0.7 | **Last Updated**: 2025-10-12
 
 ## 📚 Documentation Structure
 
@@ -8,6 +8,7 @@
 | 🏗️ Architecture | [ARCHITECTURE.md](./ARCHITECTURE.md) | System design, data flows, CI/CD pipeline | 1.0.1 | 2025-09-30 |
 | 🔧 Components | [COMPONENTS.md](./COMPONENTS.md) | All system components and modules | 1.0.3 | 2025-10-01 |
 | 🗄️ Database | [DATABASE.md](./DATABASE.md) | Schema, PostgreSQL 18, migrations | 1.1.0 | 2025-10-04 |
+| 🏷️ Nomenclature | [NOMENCLATURE.md](./NOMENCLATURE.md) | ⭐ ID naming conventions, generation methods | 1.0.0 | 2025-10-12 |
 | 📡 API Reference | [API_REFERENCE.md](./API_REFERENCE.md) | API endpoints and webhooks | 1.0.1 | 2025-09-30 |
 | 🤖 AI Agents | [AI_AGENTS.md](./AI_AGENTS.md) | AI agents, prompts, GigaChat config, GC rules | 1.1.0 | 2025-10-03 |
 | 🚀 Deployment | [DEPLOYMENT.md](./DEPLOYMENT.md) | Installation, CI/CD, PostgreSQL 18 | 1.1.0 | 2025-10-04 |
@@ -89,6 +90,35 @@ GrantService/
 │   └── archive/          # Архивированные важные отчёты
 └── 📁 data/              # Данные и миграции
 ```
+
+## 🏷️ Система номенклатуры
+
+GrantService использует **унифицированную систему ID** для отслеживания всех артефактов:
+
+```
+Anketa:   #AN-20251008-ekaterina_maksimova-001
+Research: #AN-20251008-ekaterina_maksimova-001-RS-001
+Grant:    #AN-20251008-ekaterina_maksimova-001-GR-001
+```
+
+### Преимущества
+- ✅ **Трассируемость** - отслеживание от анкеты до гранта
+- ✅ **Читаемость** - ID понятны без БД
+- ✅ **Версионирование** - поддержка множественных версий
+- ✅ **Debugging** - легко найти связанные данные
+
+### Генерация ID
+```python
+from models import GrantServiceDatabase
+db = GrantServiceDatabase()
+
+# Генерация всех ID автоматическая
+anketa_id = db.generate_anketa_id(user_data)
+research_id = db.generate_research_id(anketa_id)
+grant_id = db.generate_grant_id(anketa_id)
+```
+
+📖 **Подробности**: [NOMENCLATURE.md](./NOMENCLATURE.md)
 
 ## 🗑️ Garbage Collection System
 

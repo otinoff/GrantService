@@ -1066,7 +1066,18 @@ https://grantservice.onff.ru/payment
             logger.info(self.config.format_log_message(
                 f"Анкета сохранена: {anketa_id} для пользователя {user_id}", "✅"
             ))
-            
+
+            # 📄 ОТПРАВКА PDF АНКЕТЫ В АДМИНСКИЙ ЧАТ
+            try:
+                await self._send_interview_pdf_to_admin(
+                    anketa_id=anketa_id,
+                    user_id=user_id,
+                    answers=session['answers']
+                )
+            except Exception as pdf_error:
+                logger.error(f"❌ Ошибка отправки interview PDF: {pdf_error}")
+                # Не прерываем выполнение - это не критично
+
         except Exception as e:
             logger.error(self.config.format_log_message(
                 f"Ошибка сохранения анкеты: {e}", "❌"
@@ -1333,7 +1344,18 @@ https://grantservice.onff.ru/payment
                 logger.info(f"Анкета автоматически сохранена: {anketa_id} для пользователя {user_id}")
                 # Сохраняем anketa_id в сессии для дальнейшего использования
                 session['anketa_id'] = anketa_id
-                
+
+                # 📄 ОТПРАВКА PDF АНКЕТЫ В АДМИНСКИЙ ЧАТ
+                try:
+                    await self._send_interview_pdf_to_admin(
+                        anketa_id=anketa_id,
+                        user_id=user_id,
+                        answers=session['answers']
+                    )
+                except Exception as pdf_error:
+                    logger.error(f"❌ Ошибка отправки interview PDF: {pdf_error}")
+                    # Не прерываем выполнение - это не критично
+
                 # НОВОЕ: Автоматически создаем грантовую заявку
                 try:
                     from utils.grant_application_creator import create_grant_application_from_session, update_session_completion_status
@@ -1454,7 +1476,7 @@ https://grantservice.onff.ru/payment
     async def send_anketa_to_processing(self, update: Update, context: ContextTypes.DEFAULT_TYPE, anketa_id: str):
         """Отправить анкету на обработку в n8n"""
         user_id = update.effective_user.id
-        
+
         try:
             # Отправляем в n8n для обработки
             result = await self.call_n8n_webhook('submit_application', {
@@ -1462,7 +1484,7 @@ https://grantservice.onff.ru/payment
                 'anketa_id': anketa_id,
                 'submitted_at': datetime.now().isoformat()
             })
-            
+
             success_text = f"""
 ✅ *Анкета отправлена на обработку!*
 
@@ -1480,19 +1502,146 @@ https://grantservice.onff.ru/payment
 
 Спасибо за использование Грантсервиса! 🚀
 """
-            
+
             keyboard = [[InlineKeyboardButton("🏠 Вернуться в меню", callback_data="main_menu")]]
             reply_markup = InlineKeyboardMarkup(keyboard)
-            
+
             await update.callback_query.edit_message_text(
                 text=success_text,
                 reply_markup=reply_markup,
                 parse_mode='Markdown'
             )
-            
+
         except Exception as e:
             logger.error(f"Ошибка отправки анкеты на обработку: {e}")
             await self.show_error(update, context, f"Ошибка отправки анкеты {anketa_id} на обработку")
+
+    async def _send_interview_pdf_to_admin(self, anketa_id: str, user_id: int, answers: Dict[str, str]):
+        """
+        Отправить PDF анкеты в админский чат после завершения интервью
+
+        Process:
+        1. Загрузить все вопросы из таблицы interview_questions
+        2. Сопоставить вопросы с ответами пользователя
+        3. Сгенерировать PDF через stage_report_generator
+        4. Отправить PDF в админский чат через AdminNotifier
+
+        Args:
+            anketa_id: ID анкеты (#AN-YYYYMMDD-username-NNN)
+            user_id: Telegram ID пользователя
+            answers: Словарь ответов {field_name: answer}
+        """
+        try:
+            logger.info(f"📄 Начинаем генерацию interview PDF для анкеты {anketa_id}")
+
+            # 1. Получаем все вопросы из БД
+            questions = get_interview_questions()
+            if not questions:
+                logger.warning(f"⚠️ Не найдено вопросов для анкеты {anketa_id}")
+                return
+
+            # 2. Получаем данные пользователя из БД
+            user_info = {'username': 'Unknown', 'first_name': '', 'last_name': ''}
+            try:
+                with db.connect() as conn:
+                    cursor = conn.cursor()
+                    cursor.execute("""
+                        SELECT username, first_name, last_name
+                        FROM users
+                        WHERE telegram_id = %s
+                    """, (user_id,))
+                    user_row = cursor.fetchone()
+                    if user_row:
+                        if isinstance(user_row, tuple):
+                            user_info = {
+                                'username': user_row[0] or 'Unknown',
+                                'first_name': user_row[1] or '',
+                                'last_name': user_row[2] or ''
+                            }
+                        else:
+                            user_info = {
+                                'username': user_row.get('username', 'Unknown'),
+                                'first_name': user_row.get('first_name', ''),
+                                'last_name': user_row.get('last_name', '')
+                            }
+                    cursor.close()
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось загрузить данные пользователя: {e}")
+
+            # 3. Формируем структурированные Q&A (ПРАВИЛЬНЫЙ ФОРМАТ)
+            questions_answers = []
+            for question in questions:
+                field_name = question.get('field_name', str(question['question_number']))
+                answer = answers.get(field_name, "Нет ответа")
+
+                questions_answers.append({
+                    'question_id': question['question_number'],  # ИЗМЕНЕНО: question_id вместо question_number
+                    'question_text': question['question_text'],
+                    'answer': answer
+                })
+
+            logger.info(f"✅ Собрано {len(questions_answers)} Q&A для PDF")
+
+            # 4. Подготовка данных для PDF generator (ПРАВИЛЬНЫЙ ФОРМАТ)
+            interview_data = {
+                'anketa_id': anketa_id,
+                'telegram_id': user_id,  # ИЗМЕНЕНО: telegram_id вместо user_id
+                'username': user_info['username'],  # ДОБАВЛЕНО
+                'first_name': user_info['first_name'],  # ДОБАВЛЕНО
+                'last_name': user_info['last_name'],  # ДОБАВЛЕНО
+                'created_at': datetime.now().strftime('%Y-%m-%d %H:%M:%S'),  # ИЗМЕНЕНО: created_at вместо completed_at
+                'questions_answers': questions_answers  # ИЗМЕНЕНО: questions_answers вместо qa_list
+            }
+
+            # 4. Генерация PDF
+            from utils.stage_report_generator import generate_stage_pdf
+            pdf_bytes = generate_stage_pdf('interview', interview_data)
+            logger.info(f"✅ PDF сгенерирован: {len(pdf_bytes)} bytes")
+
+            # 5. Отправка в админский чат
+            from utils.admin_notifications import AdminNotifier
+            import os
+
+            bot_token = os.getenv('TELEGRAM_BOT_TOKEN')
+            if not bot_token:
+                logger.error("❌ TELEGRAM_BOT_TOKEN не установлен, пропускаем отправку PDF")
+                return
+
+            notifier = AdminNotifier(bot_token)
+
+            # Формируем полное имя пользователя
+            full_name = f"{user_info['first_name']} {user_info['last_name']}".strip() or user_info['username']
+            if not full_name:
+                full_name = "Unknown"
+
+            # Формируем caption (лаконичный формат)
+            caption = f"""📝 ИНТЕРВЬЮ ЗАВЕРШЕНО
+
+📋 Анкета: {anketa_id}
+👤 Пользователь: {full_name} (@{user_info['username']})
+🆔 Telegram ID: {user_id}
+📅 Дата: {interview_data['created_at']}
+✅ Вопросов: {len(questions_answers)}/{len(questions)}
+
+PDF документ с полной анкетой прикреплен
+
+#interview #completed"""
+
+            await notifier.send_stage_completion_pdf(
+                stage='interview',
+                pdf_bytes=pdf_bytes,
+                filename=f"{anketa_id.replace('#', '')}.pdf",
+                caption=caption,
+                anketa_id=anketa_id
+            )
+
+            logger.info(f"✅ Interview PDF успешно отправлен в админский чат: {anketa_id}")
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка отправки interview PDF для анкеты {anketa_id}: {e}")
+            import traceback
+            traceback.print_exc()
+            # Не падаем если отправка не удалась - это не критично для workflow
     
     def run(self):
         """Запуск бота"""

@@ -7,6 +7,7 @@
 import os
 import psycopg2
 import psycopg2.extras
+from psycopg2.extras import Json
 import json
 import logging
 from datetime import datetime, timezone, timedelta
@@ -550,11 +551,85 @@ class GrantServiceDatabase:
         return f"#AN-{date_str}-{user_identifier}-{next_number:03d}"
 
     def _get_user_identifier(self, user_data: Dict[str, Any]) -> str:
-        """Получить идентификатор пользователя (username или telegram_id)"""
-        if user_data.get('username'):
-            return user_data['username']  # Без @
-        else:
-            return str(user_data['telegram_id'])
+        """
+        Получить читаемый идентификатор пользователя
+
+        Приоритет:
+        1. first_name + last_name (транслитерация) - самый профессиональный вариант
+        2. first_name только (транслитерация)
+        3. username (если есть)
+        4. telegram_id (fallback, всегда есть)
+        """
+        import re
+
+        # 1. Имя + Фамилия (транслитерация кириллицы) - ПРИОРИТЕТ
+        first_name = user_data.get('first_name', '').strip()
+        last_name = user_data.get('last_name', '').strip()
+
+        if first_name and last_name:
+            # Екатерина Максимова → ekaterina_maksimova
+            first_trans = self._transliterate(first_name)
+            last_trans = self._transliterate(last_name)
+            if first_trans and last_trans:
+                return f"{first_trans}_{last_trans}"[:20]
+
+        # 2. Только имя (транслитерация)
+        if first_name:
+            # Валерия → valeriya
+            first_trans = self._transliterate(first_name)
+            if first_trans:
+                return first_trans[:20]
+
+        # 3. Username (fallback если нет имени)
+        username = user_data.get('username', '').strip()
+        if username:
+            # Очистка от @ если есть
+            username = username.lstrip('@').lower()
+            # Очистка от спецсимволов
+            username = re.sub(r'[^a-z0-9_]', '', username)
+            if username:
+                return username[:20]
+
+        # 4. Fallback - telegram_id (всегда есть)
+        return str(user_data['telegram_id'])
+
+    def _transliterate(self, text: str) -> str:
+        """Транслитерация кириллицы в латиницу (ГОСТ 7.79-2000)"""
+        import re
+
+        # Таблица транслитерации
+        translit = {
+            'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd',
+            'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z', 'и': 'i',
+            'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n',
+            'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+            'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch',
+            'ш': 'sh', 'щ': 'shch', 'ъ': '', 'ы': 'y', 'ь': '',
+            'э': 'e', 'ю': 'yu', 'я': 'ya',
+            # Uppercase
+            'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D',
+            'Е': 'E', 'Ё': 'Yo', 'Ж': 'Zh', 'З': 'Z', 'И': 'I',
+            'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N',
+            'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T',
+            'У': 'U', 'Ф': 'F', 'Х': 'Kh', 'Ц': 'Ts', 'Ч': 'Ch',
+            'Ш': 'Sh', 'Щ': 'Shch', 'Ъ': '', 'Ы': 'Y', 'Ь': '',
+            'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya'
+        }
+
+        result = []
+        for char in text:
+            if char in translit:
+                result.append(translit[char])
+            else:
+                result.append(char)
+
+        # Lowercase and clean
+        result_str = ''.join(result).lower()
+
+        # Remove non-alphanumeric except underscore
+        result_str = re.sub(r'[^a-z0-9_]', '', result_str)
+
+        return result_str
 
     def _get_next_anketa_number(self, user_identifier: str, date_str: str) -> int:
         """Получить следующий номер анкеты для пользователя за день"""
@@ -660,6 +735,182 @@ class GrantServiceDatabase:
 
         except Exception as e:
             logger.error(f"Ошибка получения сессии по anketa_id: {e}")
+            return None
+
+    def generate_audit_id(self, anketa_id: str) -> str:
+        """
+        Generate audit ID in unified format: anketa_id + AU suffix + counter
+
+        Examples:
+            #AN-20251008-ekaterina_maksimova-001-AU-001
+            #AN-20251008-ekaterina_maksimova-001-AU-002
+        """
+        from datetime import datetime
+
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # Count existing audits for this anketa
+                # Используем JOIN чтобы связать auditor_results с sessions по session_id
+                cursor.execute("""
+                    SELECT COUNT(*)
+                    FROM auditor_results ar
+                    JOIN sessions s ON ar.session_id = s.id
+                    WHERE s.anketa_id = %s
+                """, (anketa_id,))
+
+                count = cursor.fetchone()[0] or 0
+                cursor.close()
+
+                # Generate ID: anketa_id-AU-NNN
+                audit_id = f"{anketa_id}-AU-{count + 1:03d}"
+                return audit_id
+
+        except Exception as e:
+            logger.error(f"Ошибка генерации audit_id: {e}")
+            # Fallback to simple format
+            return f"{anketa_id}-AU-{datetime.now().strftime('%H%M%S')}"
+
+    def generate_research_id(self, anketa_id: str) -> str:
+        """
+        Generate research ID in unified format: anketa_id + RS suffix + counter
+
+        Examples:
+            #AN-20251008-ekaterina_maksimova-001-RS-001
+            #AN-20251008-ekaterina_maksimova-001-RS-002
+        """
+        from datetime import datetime
+
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # Count existing research for this anketa
+                cursor.execute("""
+                    SELECT COUNT(*) FROM researcher_research
+                    WHERE anketa_id = %s
+                """, (anketa_id,))
+
+                count = cursor.fetchone()[0] or 0
+                cursor.close()
+
+                # Generate ID: anketa_id-RS-NNN
+                research_id = f"{anketa_id}-RS-{count + 1:03d}"
+                return research_id
+
+        except Exception as e:
+            logger.error(f"Ошибка генерации research_id: {e}")
+            # Fallback to simple format
+            return f"{anketa_id}-RS-{datetime.now().strftime('%H%M%S')}"
+
+    def generate_grant_id(self, anketa_id: str) -> str:
+        """
+        Generate grant ID in unified format: anketa_id + GR suffix + counter
+
+        Examples:
+            #AN-20251008-ekaterina_maksimova-001-GR-001
+            #AN-20251008-ekaterina_maksimova-001-GR-002
+        """
+        from datetime import datetime
+
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # Count existing grants for this anketa
+                cursor.execute("""
+                    SELECT COUNT(*) FROM grants
+                    WHERE anketa_id = %s
+                """, (anketa_id,))
+
+                count = cursor.fetchone()[0] or 0
+                cursor.close()
+
+                # Generate ID: anketa_id-GR-NNN
+                grant_id = f"{anketa_id}-GR-{count + 1:03d}"
+                return grant_id
+
+        except Exception as e:
+            logger.error(f"Ошибка генерации grant_id: {e}")
+            # Fallback to simple format
+            return f"{anketa_id}-GR-{datetime.now().strftime('%H%M%S')}"
+
+    def save_research_results(self, research_data: Dict[str, Any]) -> str:
+        """Сохранить результаты исследования и вернуть research_id"""
+        try:
+            anketa_id = research_data['anketa_id']
+            research_id = self.generate_research_id(anketa_id)
+
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # Get user info from session
+                cursor.execute("""
+                    SELECT u.id, u.username, u.first_name, u.last_name, s.id as session_id
+                    FROM sessions s
+                    LEFT JOIN users u ON s.telegram_id = u.telegram_id
+                    WHERE s.anketa_id = %s
+                    LIMIT 1
+                """, (anketa_id,))
+
+                session_row = cursor.fetchone()
+                if not session_row:
+                    logger.error(f"Session not found for anketa_id: {anketa_id}")
+                    return None
+
+                user_id, username, first_name, last_name, session_id = session_row
+
+                cursor.execute("""
+                    INSERT INTO researcher_research
+                    (research_id, anketa_id, user_id, username, first_name, last_name,
+                     session_id, llm_provider, model, status,
+                     research_results, created_at, completed_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), %s)
+                    RETURNING research_id
+                """, (
+                    research_id,
+                    anketa_id,
+                    user_id,
+                    username,
+                    first_name,
+                    last_name,
+                    session_id,
+                    research_data.get('llm_provider', 'claude_code'),
+                    research_data.get('model', 'sonnet-4.5'),
+                    research_data.get('status', 'completed'),
+                    Json(research_data.get('research_results', {})),
+                    research_data.get('completed_at')
+                ))
+
+                result = cursor.fetchone()[0]
+                conn.commit()
+                cursor.close()
+
+                logger.info(f"Исследование сохранено: {result}")
+                return result
+
+        except Exception as e:
+            logger.error(f"Ошибка сохранения исследования: {e}")
+            return None
+
+    def get_grant_by_id(self, grant_id: int) -> Optional[Dict]:
+        """Получить грант по ID"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT * FROM grants WHERE id = %s
+                """, (grant_id,))
+
+                row = cursor.fetchone()
+                cursor.close()
+
+                return self._dict_row(cursor, row) if row else None
+
+        except Exception as e:
+            logger.error(f"Ошибка получения гранта по ID: {e}")
             return None
 
 

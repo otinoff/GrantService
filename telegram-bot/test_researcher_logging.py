@@ -1,7 +1,8 @@
- #!/usr/bin/env python3
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
 Тестирование логирования Researcher Agent
+Обновлено: Интеграция с agent_router для динамического выбора LLM провайдера
 """
 
 import sys
@@ -12,14 +13,29 @@ sys.path.append('/var/GrantService/agents')
 from researcher_agent import ResearcherAgent
 from data.database import GrantServiceDatabase as Database
 
+# NEW: Import agent_router
+try:
+    from agent_router import get_agent_llm_client
+    print("✅ agent_router доступен")
+except ImportError as e:
+    print(f"⚠️ agent_router недоступен: {e}")
+
 def test_researcher_logging():
     """Тестирование логирования Researcher Agent"""
-    print("🧪 Тестирование логирования Researcher Agent")
+    print("🧪 Тестирование логирования Researcher Agent (с agent_router)")
     print("=" * 50)
-    
+
     try:
         # Инициализируем базу данных и агента
         db = Database()
+
+        # NEW: Получаем LLM провайдер через agent_router
+        try:
+            researcher_llm = get_agent_llm_client('researcher', db)
+            print(f"✅ LLM провайдер: {type(researcher_llm).__name__}")
+        except Exception as e:
+            print(f"⚠️ Ошибка agent_router: {e}")
+
         researcher = ResearcherAgent(db)
         print("✅ Researcher Agent инициализирован")
         

@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Writer Agent - агент для написания заявок на гранты
 """
@@ -37,7 +39,7 @@ logger = logging.getLogger(__name__)
 class WriterAgent(BaseAgent):
     """Агент-писатель для создания заявок на гранты"""
     
-    def __init__(self, db, llm_provider: str = "auto"):
+    def __init__(self, db, llm_provider: str = "claude_code"):
         super().__init__("writer", db, llm_provider)
         
         if UNIFIED_CLIENT_AVAILABLE:

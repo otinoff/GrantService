@@ -18,7 +18,9 @@ LOG_LEVEL = logging.INFO
 LOG_FILE = '/var/GrantService/logs/telegram_bot.log'
 
 # Настройки БД
-DATABASE_PATH = '/var/GrantService/data/grantservice.db'
+# DEPRECATED: Migrated to PostgreSQL - use environment variables instead
+# DATABASE_PATH = '/var/GrantService/data/grantservice.db'
+# PostgreSQL connection via environment variables (PGHOST, PGPORT, PGDATABASE, PGUSER, PGPASSWORD)
 
 # Состояния пользователя
 USER_STATES = {

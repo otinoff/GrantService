@@ -1,9 +1,12 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Interviewer Agent - агент для создания вопросов для интервью
+ОБНОВЛЕНО: Использует DatabasePromptManager для загрузки промптов из БД
 """
 import sys
 import os
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 import logging
 import asyncio
 import time
@@ -11,6 +14,7 @@ import time
 # Добавляем пути к модулям
 sys.path.append('/var/GrantService/shared')
 sys.path.append('/var/GrantService/telegram-bot/services')
+sys.path.append('/var/GrantService/web-admin')
 
 from base_agent import BaseAgent
 
@@ -26,26 +30,75 @@ except ImportError:
         print("⚠️ LLM сервисы недоступны")
         UNIFIED_CLIENT_AVAILABLE = False
 
+# Импортируем DatabasePromptManager для загрузки промптов из БД
+try:
+    from utils.prompt_manager import DatabasePromptManager, get_database_prompt_manager
+    PROMPT_MANAGER_AVAILABLE = True
+except ImportError:
+    print("⚠️ DatabasePromptManager недоступен, используются hardcoded промпты")
+    PROMPT_MANAGER_AVAILABLE = False
+
 logger = logging.getLogger(__name__)
 
 class InterviewerAgent(BaseAgent):
-    """Агент-интервьюер для создания вопросов"""
-    
-    def __init__(self, db, llm_provider: str = "auto"):
+    """
+    Агент-интервьюер для создания вопросов
+
+    ВАЖНО: Используется только в ИНТЕРАКТИВНОМ режиме.
+    Для обычного режима используются 15 фиксированных вопросов из таблицы interview_questions.
+    """
+
+    def __init__(self, db, llm_provider: str = "claude_code"):
         super().__init__("interviewer", db, llm_provider)
-        
+
         if UNIFIED_CLIENT_AVAILABLE:
-            self.llm_client = UnifiedLLMClient()
+            # Передаем provider в конструктор UnifiedLLMClient
+            self.llm_client = UnifiedLLMClient(provider=llm_provider)
             self.config = AGENT_CONFIGS.get("interviewer", AGENT_CONFIGS["interviewer"])
         else:
             self.llm_router = LLMRouter()
-    
+
+        # Инициализируем DatabasePromptManager для интерактивного режима
+        self.prompt_manager: Optional[DatabasePromptManager] = None
+        if PROMPT_MANAGER_AVAILABLE:
+            try:
+                self.prompt_manager = get_database_prompt_manager()
+                logger.info("✅ Interviewer Agent: DatabasePromptManager подключен")
+            except Exception as e:
+                logger.warning(f"⚠️ Не удалось инициализировать PromptManager: {e}")
+
     def _get_goal(self) -> str:
+        """
+        Получить goal агента
+        Сначала пытаемся загрузить из БД, затем fallback на hardcoded
+        """
+        if self.prompt_manager:
+            try:
+                goal = self.prompt_manager.get_prompt('interviewer', 'goal')
+                if goal:
+                    return goal
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка загрузки goal из БД: {e}")
+
+        # Fallback на hardcoded
         return "Создать персонализированные вопросы для интервью на основе профиля пользователя и требований гранта"
-    
+
     def _get_backstory(self) -> str:
-        return """Ты опытный интервьюер и консультант по грантам с психологическим образованием. 
-        Ты умеешь задавать правильные вопросы, которые помогают раскрыть сильные стороны проекта 
+        """
+        Получить backstory агента
+        Сначала пытаемся загрузить из БД, затем fallback на hardcoded
+        """
+        if self.prompt_manager:
+            try:
+                backstory = self.prompt_manager.get_prompt('interviewer', 'backstory')
+                if backstory:
+                    return backstory
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка загрузки backstory из БД: {e}")
+
+        # Fallback на hardcoded
+        return """Ты опытный интервьюер и консультант по грантам с психологическим образованием.
+        Ты умеешь задавать правильные вопросы, которые помогают раскрыть сильные стороны проекта
         и получить всю необходимую информацию для успешной заявки."""
     
     async def create_questions_async(self, input_data: Dict[str, Any]) -> Dict[str, Any]:
@@ -140,16 +193,26 @@ class InterviewerAgent(BaseAgent):
             all_questions = []
             
             for category, description, count in question_categories:
-                prompt = self.format_prompt("Создание вопросов", {
-                    'user_profile': user_profile,
-                    'project_description': project_description,
-                    'grant_requirements': grant_requirements,
-                    'category_description': description,
-                    'question_count': count
-                })
-                
+                # Пытаемся получить промпт из БД
+                prompt = None
+                if self.prompt_manager:
+                    try:
+                        prompt = self.prompt_manager.get_prompt(
+                            'interviewer',
+                            'llm_question_generation',
+                            variables={
+                                'user_profile': user_profile,
+                                'project_description': project_description,
+                                'grant_requirements': grant_requirements,
+                                'category_description': description,
+                                'question_count': count
+                            }
+                        )
+                    except Exception as e:
+                        logger.warning(f"⚠️ Ошибка загрузки LLM промпта из БД: {e}")
+
                 if not prompt:
-                    # Fallback промпт
+                    # Fallback промпт (hardcoded)
                     prompt = f"""Создай {count} вопросов {description} для интервью с заявителем гранта.
 
 ПРОФИЛЬ ЗАЯВИТЕЛЯ:
@@ -168,15 +231,16 @@ class InterviewerAgent(BaseAgent):
 ..."""
                 
                 try:
-                    response = await self.llm_client.generate_async(
-                        prompt,
-                        provider="gigachat",
-                        **self.config
-                    )
-                    
+                    async with self.llm_client:
+                        response = await self.llm_client.generate_async(
+                            prompt,
+                            provider=self.llm_provider,
+                            **{k: v for k, v in self.config.items() if k != 'provider'}
+                        )
+
                     category_questions = self._parse_questions_from_response(response, category)
                     all_questions.extend(category_questions)
-                    
+
                 except Exception as e:
                     logger.error(f"Ошибка создания вопросов для категории {category}: {e}")
                     # Добавляем fallback вопросы для этой категории
@@ -222,7 +286,34 @@ class InterviewerAgent(BaseAgent):
         return questions
     
     def _get_fallback_questions(self, user_profile: str, project_description: str) -> List[Dict]:
-        """Предустановленные вопросы для fallback"""
+        """
+        Предустановленные вопросы для fallback
+        Загружаются из БД (10 вопросов) или используются hardcoded если БД недоступна
+        """
+        base_questions = []
+
+        # Пытаемся загрузить fallback вопросы из БД
+        if self.prompt_manager:
+            try:
+                db_questions = self.prompt_manager.get_all_prompts('interviewer', 'fallback_question')
+                if db_questions:
+                    logger.info(f"✅ Загружено {len(db_questions)} fallback вопросов из БД")
+                    for q in db_questions:
+                        # Парсим variables из JSONB
+                        variables = q.get('variables', {})
+                        base_questions.append({
+                            'text': q['prompt_template'],
+                            'category': variables.get('category', 'general'),
+                            'type': variables.get('type', 'open'),
+                            'required': variables.get('required', True),
+                            'source': 'database'
+                        })
+                    return base_questions
+            except Exception as e:
+                logger.warning(f"⚠️ Ошибка загрузки fallback вопросов из БД: {e}")
+
+        # Fallback на hardcoded вопросы
+        logger.info("Используются hardcoded fallback вопросы")
         base_questions = [
             {
                 'text': 'Расскажите подробнее о вашем проекте и его основной идее?',
@@ -441,14 +532,15 @@ class InterviewerAgent(BaseAgent):
 5. Дополнительные вопросы, которые стоит задать
 
 Укажи сильные и слабые стороны."""
-            
-            analysis = await self.llm_client.generate_async(
-                analysis_prompt,
-                provider="gigachat",
-                max_tokens=1500,
-                temperature=0.3
-            )
-            
+
+            async with self.llm_client:
+                analysis = await self.llm_client.generate_async(
+                    analysis_prompt,
+                    provider=self.llm_provider,
+                    max_tokens=1500,
+                    temperature=0.3
+                )
+
             return {
                 'status': 'success',
                 'analysis': analysis,

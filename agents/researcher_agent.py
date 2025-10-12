@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Researcher Agent - агент для проведения исследований по грантовым заявкам
 """
@@ -13,6 +15,8 @@ sys.path.append('/var/GrantService/telegram-bot/services')
 
 from .base_agent import BaseAgent
 
+logger = logging.getLogger(__name__)
+
 try:
     from llm.unified_llm_client import UnifiedLLMClient
     from llm.config import AGENT_CONFIGS
@@ -26,17 +30,15 @@ try:
     from services.llm_router import LLMRouter, LLMProvider
     LLM_ROUTER_AVAILABLE = True
 except ImportError:
-    print("⚠️ LLM Router недоступен")
+    logger.warning("LLM Router not available")
     LLMRouter = None
     LLMProvider = None
     LLM_ROUTER_AVAILABLE = False
 
-logger = logging.getLogger(__name__)
-
 class ResearcherAgent(BaseAgent):
     """Агент-исследователь для анализа рынка и поиска грантов"""
     
-    def __init__(self, db, llm_provider: str = "auto"):
+    def __init__(self, db, llm_provider: str = "claude_code"):
         super().__init__("researcher", db, llm_provider)
         
         if UNIFIED_CLIENT_AVAILABLE:
@@ -47,7 +49,7 @@ class ResearcherAgent(BaseAgent):
         else:
             self.llm_client = None
             self.llm_router = None
-            print("⚠️ Researcher агент работает без LLM сервисов")
+            logger.warning("Researcher agent working without LLM services")
     
     def _get_goal(self) -> str:
         return "Провести комплексное исследование рынка, конкурентов и грантовых возможностей"
@@ -236,82 +238,243 @@ class ResearcherAgent(BaseAgent):
         return self.research_grant(data)
     
     def research_anketa(self, anketa_id: str) -> Dict[str, Any]:
-        """Исследование на основе анкеты"""
+        """
+        Исследование через Claude Code WebSearch
+
+        Выполняет специализированные запросы по промтам эксперта:
+        - Блок 1: Проблема и социальная значимость (3 запроса - MVP)
+
+        Полная реализация 27 запросов будет добавлена позже.
+        """
         try:
-            # Получаем анкету из базы данных
+            logger.info(f"🔍 Начинаем исследование для {anketa_id}")
+
+            # Получаем анкету
             anketa = self.db.get_session_by_anketa_id(anketa_id)
-            
+
             if not anketa:
                 return {
                     'status': 'error',
                     'message': f'Анкета {anketa_id} не найдена',
                     'agent_type': 'researcher'
                 }
-            
-            # Получаем данные пользователя
-            user_data = {
-                "telegram_id": anketa["telegram_id"],
-                "username": anketa.get("username"),
-                "first_name": anketa.get("first_name"),
-                "last_name": anketa.get("last_name")
+
+            # Извлекаем placeholders
+            placeholders = self._extract_placeholders_from_anketa(anketa)
+            logger.info(f"📋 Placeholders: {placeholders}")
+
+            # БЛОК 1 (MVP): Проблема и социальная значимость (3 запроса)
+            block1_results = self._research_block1_mvp(placeholders)
+            logger.info(f"✅ Блок 1 завершён: {len(block1_results.get('queries', []))} запросов")
+
+            # Формируем итоговые результаты
+            research_results_data = {
+                'block1': block1_results,
+                'metadata': {
+                    'total_queries': len(block1_results.get('queries', [])),
+                    'sources_count': self._count_sources([block1_results]),
+                    'version': 'MVP-1.0'
+                }
             }
-            
-            # Проводим исследование
-            # Преобразуем данные интервью в строку для исследования
-            interview_text = ""
-            if isinstance(anketa["interview_data"], dict):
-                for key, value in anketa["interview_data"].items():
-                    interview_text += f"{key}: {value}\n"
-            else:
-                interview_text = str(anketa["interview_data"])
-            
-            research_results = self.research_grant({
-                "description": interview_text,
-                "llm_provider": "perplexity"  # Используем Perplexity для исследований
-            })
-            
-            if research_results.get('status') == 'error':
-                return research_results
-            
-            # Сохраняем результаты исследования
+
+            # Сохраняем в БД
+            from datetime import datetime
             research_data = {
                 "anketa_id": anketa_id,
-                "user_data": user_data,
-                "session_id": anketa["id"],
-                "research_type": "comprehensive",
-                "llm_provider": research_results.get('provider_used', 'perplexity'),
-                "model": research_results.get('llm_settings', {}).get('model', 'sonar'),
-                "research_results": research_results.get('result', ''),
+                "user_id": anketa.get('telegram_id'),
+                "session_id": anketa.get('id'),
+                "research_type": "comprehensive_websearch_mvp",
+                "llm_provider": "claude_code",
+                "model": "sonnet-4.5",
+                "status": "completed",
+                "completed_at": datetime.now(),
+                "research_results": research_results_data,
                 "metadata": {
-                    "tokens_used": research_results.get('llm_settings', {}).get('tokens_used', 0),
-                    "processing_time_seconds": research_results.get('processing_time', 0),
-                    "cost": research_results.get('cost', 0.0)
+                    "queries_executed": len(block1_results.get('queries', [])),
+                    "processing_time": 0
                 }
             }
-            
-            # Сохраняем в базу данных
+
+            # Сохраняем через метод БД
             research_id = self.db.save_research_results(research_data)
-            
-            if research_id:
-                return {
-                    'status': 'success',
-                    'research_id': research_id,
-                    'anketa_id': anketa_id,
-                    'result': research_results.get('result', ''),
-                    'agent_type': 'researcher',
-                    'provider_used': research_results.get('provider_used', 'perplexity')
-                }
-            else:
-                return {
-                    'status': 'error',
-                    'message': 'Ошибка сохранения результатов исследования',
-                    'agent_type': 'researcher'
-                }
-                
+
+            logger.info(f"✅ Исследование завершено! ID: {research_id}")
+
+            return {
+                'status': 'success',
+                'research_id': research_id,
+                'anketa_id': anketa_id,
+                'results': research_results_data,
+                'agent_type': 'researcher',
+                'provider_used': 'claude_code'
+            }
+
         except Exception as e:
-            logger.error(f"❌ Ошибка исследования анкеты {anketa_id}: {e}")
+            logger.error(f"❌ Ошибка исследования анкеты {anketa_id}: {e}", exc_info=True)
             return {
                 'status': 'error',
                 'message': f"Ошибка исследования анкеты: {str(e)}",
                 'agent_type': 'researcher'
             }
+
+    def _extract_placeholders_from_anketa(self, anketa: Dict) -> Dict:
+        """Извлечь placeholders из анкеты"""
+        # Попробуем извлечь из разных полей
+        return {
+            'РЕГИОН': anketa.get('geography', anketa.get('region', 'Россия')),
+            'ПРОБЛЕМА': anketa.get('problem', anketa.get('project_description', 'неизвестная проблема')),
+            'ЦЕЛЕВАЯ_ГРУППА': anketa.get('target_group', 'широкая аудитория'),
+            'СФЕРА': anketa.get('sphere', anketa.get('category', 'социальная сфера')),
+            'ПЕРИОД': '2022-2025'
+        }
+
+    def _research_block1_mvp(self, p: Dict) -> Dict:
+        """
+        MVP: Блок 1 - Проблема и социальная значимость (3 запроса)
+
+        Полная версия будет иметь 10 запросов.
+        """
+        import requests
+        import json
+
+        results = {
+            'block_name': 'Проблема и социальная значимость (MVP)',
+            'queries': []
+        }
+
+        # Получаем Claude Code настройки
+        claude_api_key = os.getenv('CLAUDE_CODE_API_KEY', '1f79b062cf00b8d28546f5bd283dc59a1c6a7f9e9fe5a8e5ef25b0cc27aa0732')
+        claude_base_url = os.getenv('CLAUDE_CODE_BASE_URL', 'http://178.236.17.55:8000')
+
+        # Запрос 1: Официальная статистика
+        logger.info("🔍 Запрос 1: Официальная статистика")
+        q1 = self._websearch_simple(
+            query=f"официальная статистика {p['ПРОБЛЕМА']} {p['РЕГИОН']} 2022-2025",
+            claude_api_key=claude_api_key,
+            claude_base_url=claude_base_url,
+            context="Найди точные цифры и динамику проблемы из официальных источников (Росстат, министерства)"
+        )
+        results['queries'].append({
+            'name': 'Официальная статистика',
+            'query': q1['query'],
+            'result': q1['result']
+        })
+
+        # Запрос 2: Государственные программы
+        logger.info("🔍 Запрос 2: Государственные программы")
+        q2 = self._websearch_simple(
+            query=f"государственные программы нацпроекты {p['СФЕРА']} {p['ПРОБЛЕМА']} 2024-2025",
+            claude_api_key=claude_api_key,
+            claude_base_url=claude_base_url,
+            context="Найди связь с нацпроектами и целевые показатели"
+        )
+        results['queries'].append({
+            'name': 'Государственные программы',
+            'query': q2['query'],
+            'result': q2['result']
+        })
+
+        # Запрос 3: Успешные кейсы
+        logger.info("🔍 Запрос 3: Успешные кейсы")
+        q3 = self._websearch_simple(
+            query=f"успешные проекты решение {p['ПРОБЛЕМА']} {p['РЕГИОН']} примеры 2022-2025",
+            claude_api_key=claude_api_key,
+            claude_base_url=claude_base_url,
+            context="Найди 2-3 успешных кейса с измеримыми результатами"
+        )
+        results['queries'].append({
+            'name': 'Успешные кейсы',
+            'query': q3['query'],
+            'result': q3['result']
+        })
+
+        return results
+
+    def _websearch_simple(self, query: str, claude_api_key: str, claude_base_url: str, context: str = "") -> Dict:
+        """
+        Упрощенный WebSearch через Claude Code /chat endpoint
+
+        Claude Code автоматически использует WebSearch tool при необходимости.
+        """
+        import requests
+        import json
+
+        headers = {
+            "Authorization": f"Bearer {claude_api_key}",
+            "Content-Type": "application/json"
+        }
+
+        # Промпт для Claude с инструкцией использовать WebSearch
+        prompt = f"""
+Выполни поиск информации по запросу: "{query}"
+
+Задача: {context}
+
+Требования:
+- Используй WebSearch для поиска актуальной информации
+- Приоритет российским источникам (rosstat.gov.ru, gov.ru, министерства)
+- Данные не старше 3 лет (2022-2025)
+- Верни краткое резюме (3-5 предложений) с конкретными фактами и цифрами
+- Укажи 1-2 источника
+
+Формат ответа:
+РЕЗЮМЕ: [краткое резюме с фактами]
+ИСТОЧНИКИ: [список URL источников]
+"""
+
+        payload = {
+            "message": prompt,
+            "model": "sonnet",
+            "temperature": 0.3,
+            "max_tokens": 1000
+        }
+
+        try:
+            response = requests.post(
+                f"{claude_base_url}/chat",
+                headers=headers,
+                json=payload,
+                timeout=60
+            )
+
+            if response.status_code == 200:
+                data = response.json()
+                claude_response = data.get('response', 'Нет ответа')
+
+                return {
+                    'query': query,
+                    'result': {
+                        'summary': claude_response,
+                        'raw_response': claude_response
+                    }
+                }
+            else:
+                logger.error(f"Claude API error: {response.status_code}")
+                return {
+                    'query': query,
+                    'result': {
+                        'summary': f"Ошибка API: {response.status_code}",
+                        'raw_response': ''
+                    }
+                }
+
+        except Exception as e:
+            logger.error(f"❌ WebSearch ошибка: {e}")
+            return {
+                'query': query,
+                'result': {
+                    'summary': f"Ошибка поиска: {str(e)}",
+                    'raw_response': ''
+                }
+            }
+
+    def _count_sources(self, blocks: List[Dict]) -> int:
+        """Подсчитать количество источников"""
+        total = 0
+        for block in blocks:
+            for query in block.get('queries', []):
+                # Простой подсчёт - позже улучшим
+                result = query.get('result', {}).get('summary', '')
+                if 'http' in result or 'gov.ru' in result:
+                    total += 1
+        return total

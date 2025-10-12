@@ -1,3 +1,5 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
 """
 Базовый класс для всех агентов GrantService
 """
@@ -12,16 +14,16 @@ from datetime import datetime
 sys.path.append('/var/GrantService/data')
 
 try:
-    from database.prompts import get_prompts_by_agent, format_prompt
+    from data.database.prompts import get_prompts_by_agent, format_prompt
     PROMPTS_AVAILABLE = True
 except ImportError as e:
-    print(f"⚠️ Модуль промптов недоступен: {e}")
+    print(f"[WARN] Модуль промптов недоступен: {e}")
     PROMPTS_AVAILABLE = False
 
 class BaseAgent(ABC):
     """Базовый класс для всех агентов"""
     
-    def __init__(self, agent_type: str, db, llm_provider: str = "auto"):
+    def __init__(self, agent_type: str, db, llm_provider: str = "claude_code"):
         self.agent_type = agent_type
         self.db = db
         self.llm_provider = llm_provider
@@ -31,16 +33,16 @@ class BaseAgent(ABC):
     def _load_prompts(self):
         """Загрузить промпты из базы данных"""
         if not PROMPTS_AVAILABLE:
-            print(f"⚠️ Промпты для агента {self.agent_type} не загружены (модуль недоступен)")
+            print(f"[WARN] Промпты для агента {self.agent_type} не загружены (модуль недоступен)")
             return
-        
+
         try:
             prompts = get_prompts_by_agent(self.agent_type)
             for prompt in prompts:
                 self.prompts[prompt['name']] = prompt
-            print(f"✅ Загружено {len(prompts)} промптов для агента {self.agent_type}")
+            print(f"[OK] Загружено {len(prompts)} промптов для агента {self.agent_type}")
         except Exception as e:
-            print(f"❌ Ошибка загрузки промптов для агента {self.agent_type}: {e}")
+            print(f"[ERROR] Ошибка загрузки промптов для агента {self.agent_type}: {e}")
     
     def get_prompt(self, prompt_name: str) -> Optional[Dict]:
         """Получить промпт по названию"""
@@ -50,13 +52,13 @@ class BaseAgent(ABC):
         """Форматировать промпт с переменными"""
         prompt_data = self.get_prompt(prompt_name)
         if not prompt_data:
-            print(f"⚠️ Промпт '{prompt_name}' не найден для агента {self.agent_type}")
+            print(f"[WARN] Промпт '{prompt_name}' не найден для агента {self.agent_type}")
             return None
-        
+
         try:
             return format_prompt(prompt_data['prompt_template'], variables)
         except Exception as e:
-            print(f"❌ Ошибка форматирования промпта '{prompt_name}': {e}")
+            print(f"[ERROR] Ошибка форматирования промпта '{prompt_name}': {e}")
             return None
     
     def get_available_prompts(self) -> List[str]:
@@ -72,12 +74,12 @@ class BaseAgent(ABC):
                 'timestamp': datetime.now().isoformat(),
                 'data': data or {}
             }
-            
+
             # Здесь можно добавить логирование в базу данных или файл
-            print(f"📝 [{self.agent_type}] {action}: {json.dumps(log_entry, ensure_ascii=False)}")
-            
+            print(f"[LOG] [{self.agent_type}] {action}: {json.dumps(log_entry, ensure_ascii=False)}")
+
         except Exception as e:
-            print(f"❌ Ошибка логирования активности агента {self.agent_type}: {e}")
+            print(f"[ERROR] Ошибка логирования активности агента {self.agent_type}: {e}")
     
     @abstractmethod
     def process(self, data: Dict[str, Any]) -> Dict[str, Any]:

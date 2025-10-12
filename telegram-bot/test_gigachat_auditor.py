@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Тест интеграции GigaChat с AuditorAgent
+Обновлено: Интеграция с agent_router для динамического выбора LLM провайдера
 """
 
 import sys
@@ -12,6 +13,14 @@ from services.gigachat_service import GigaChatService
 sys.path.append('/var/GrantService/agents')
 from auditor_agent import AuditorAgent
 import logging
+
+# NEW: Import agent_router
+try:
+    from agent_router import get_agent_llm_client
+    from data.database import GrantServiceDatabase
+    print("✅ agent_router доступен")
+except ImportError as e:
+    print(f"⚠️ agent_router недоступен: {e}")
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
@@ -49,15 +58,23 @@ def test_gigachat_service():
     return result
 
 def test_auditor_agent():
-    """Тест AuditorAgent с GigaChat"""
-    print("\n🤖 Тестируем AuditorAgent с GigaChat")
+    """Тест AuditorAgent с GigaChat (через agent_router)"""
+    print("\n🤖 Тестируем AuditorAgent с GigaChat (через agent_router)")
     print("=" * 50)
-    
+
     # Мок базы данных
     class MockDB:
         def get_agent_prompts(self, agent_type):
             return {"system_prompt": "Ты эксперт по грантам"}
-    
+
+    # NEW: Получаем LLM провайдер через agent_router
+    try:
+        db = GrantServiceDatabase()
+        auditor_llm = get_agent_llm_client('auditor', db)
+        print(f"✅ LLM провайдер: {type(auditor_llm).__name__}")
+    except Exception as e:
+        print(f"⚠️ Ошибка agent_router: {e}")
+
     auditor = AuditorAgent(MockDB())
     
     # Тестовые данные

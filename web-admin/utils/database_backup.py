@@ -3,9 +3,12 @@
 """
 Database utilities for GrantService admin panel
 Кроссплатформенная версия
+
+DEPRECATED: Backup module for legacy SQLite database
+System migrated to PostgreSQL 18 - use pg_dump for backups
 """
 
-import sqlite3
+import sqlite3  # DEPRECATED: Legacy SQLite - system now uses PostgreSQL
 import sys
 import os
 from datetime import datetime, timedelta
