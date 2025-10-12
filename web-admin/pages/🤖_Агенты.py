@@ -119,13 +119,23 @@ try:
         get_prompt_by_key,
         save_prompt,
         set_default_prompt,
-        format_prompt as format_prompt_template
+        format_prompt as format_prompt_template,
+        DatabasePromptManager,
+        get_database_prompt_manager
     )
     PROMPT_MANAGER_AVAILABLE = True
     PROMPT_MANAGER_ERROR = None
 except ImportError as e:
     PROMPT_MANAGER_AVAILABLE = False
     PROMPT_MANAGER_ERROR = str(e)
+
+# Prompt Editor Component
+try:
+    from utils.prompt_editor import PromptEditor
+    PROMPT_EDITOR_AVAILABLE = True
+except ImportError as e:
+    PROMPT_EDITOR_AVAILABLE = False
+    PromptEditor = None
 
 # Stage Tracker
 try:
@@ -211,7 +221,7 @@ AGENT_INFO = {
     'interviewer': {
         'name': 'Interviewer Agent',
         'emoji': '📝',
-        'description': 'Сбор информации о проекте через 24 вопроса',
+        'description': 'Сбор информации о проекте через структурированное интервью',
         'status': 'active',
         'table': 'sessions',
         'future': 'AI-powered dynamic questioning'
@@ -349,13 +359,20 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
     """Get statistics for specific agent"""
     try:
         if agent_type == 'interviewer':
-            # Get from sessions table
+            # Get from sessions table with calculated duration
             result = execute_query("""
                 SELECT
                     COUNT(*) as total,
                     COUNT(CASE WHEN completion_status = 'completed' THEN 1 END) as completed,
                     ROUND(AVG(progress_percentage), 1) as avg_progress,
-                    ROUND(AVG(session_duration_minutes), 1) as avg_duration_min
+                    ROUND(AVG(
+                        CASE
+                            WHEN completed_at IS NOT NULL THEN
+                                EXTRACT(EPOCH FROM (completed_at - started_at)) / 60
+                            ELSE
+                                EXTRACT(EPOCH FROM (last_activity - started_at)) / 60
+                        END
+                    ), 1) as avg_duration_min
                 FROM sessions
                 WHERE started_at >= NOW() - INTERVAL '30 days'
             """)
@@ -385,13 +402,17 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
             return result[0] if result else {}
 
         elif agent_type == 'researcher':
-            stats = _db.get_research_statistics() if hasattr(_db, 'get_research_statistics') else {}
-            return {
-                'total': stats.get('total_research', 0),
-                'completed': stats.get('status_distribution', {}).get('completed', 0),
-                'processing': stats.get('status_distribution', {}).get('processing', 0),
-                'errors': stats.get('status_distribution', {}).get('error', 0)
-            }
+            # Get from researcher_research table
+            result = execute_query("""
+                SELECT
+                    COUNT(*) as total,
+                    COUNT(CASE WHEN status = 'completed' THEN 1 END) as completed,
+                    COUNT(CASE WHEN status IN ('pending', 'processing') THEN 1 END) as processing,
+                    COUNT(CASE WHEN status = 'error' THEN 1 END) as errors
+                FROM researcher_research
+                WHERE created_at >= NOW() - INTERVAL '30 days'
+            """)
+            return result[0] if result else {}
 
         elif agent_type == 'writer':
             result = execute_query("""
@@ -406,17 +427,26 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
             return result[0] if result else {}
 
         elif agent_type == 'reviewer':
-            # Reviewer uses same data as auditor
+            # Get from grants table (review_score field)
             result = execute_query("""
                 SELECT
                     COUNT(*) as total,
-                    COUNT(CASE WHEN approval_status = 'approved' THEN 1 END) as approved,
-                    COUNT(CASE WHEN approval_status = 'needs_revision' THEN 1 END) as needs_revision,
-                    ROUND(AVG(average_score), 2) as avg_score
-                FROM auditor_results
+                    COUNT(CASE WHEN review_score IS NOT NULL THEN 1 END) as reviewed,
+                    COUNT(CASE WHEN final_status = 'approved' THEN 1 END) as approved,
+                    COUNT(CASE WHEN final_status = 'needs_revision' THEN 1 END) as needs_revision,
+                    ROUND(AVG(review_score), 2) as avg_score
+                FROM grants
                 WHERE created_at >= NOW() - INTERVAL '30 days'
             """)
-            return result[0] if result else {}
+            if result and result[0]:
+                data = result[0]
+                return {
+                    'total': data.get('reviewed', 0),  # Only reviewed grants count
+                    'approved': data.get('approved', 0),
+                    'needs_revision': data.get('needs_revision', 0),
+                    'avg_score': data.get('avg_score', 0)
+                }
+            return {}
 
         # Default fallback
         return {}
@@ -427,9 +457,30 @@ def get_agent_statistics(agent_type: str, _db, days: int = 30):
 
 @st.cache_data(ttl=60)
 def get_researcher_investigations(_db, filters: dict = None):
-    """Get list of researcher investigations"""
+    """Get list of researcher investigations - USES POSTGRESQL"""
     try:
-        return _db.get_all_research(limit=100) if hasattr(_db, 'get_all_research') else []
+        query = """
+            SELECT
+                rr.id,
+                rr.research_id,
+                rr.anketa_id,
+                rr.research_results,
+                rr.status,
+                rr.llm_provider,
+                rr.model,
+                rr.created_at,
+                rr.completed_at,
+                u.username,
+                u.telegram_id as user_id
+            FROM researcher_research rr
+            LEFT JOIN sessions s ON rr.anketa_id = s.anketa_id
+            LEFT JOIN users u ON s.telegram_id = u.telegram_id
+            ORDER BY rr.created_at DESC
+            LIMIT 100
+        """
+        result = execute_query(query)
+        # execute_query already returns list of dicts (RealDictCursor)
+        return result if result else []
     except Exception as e:
         logger.error(f"Error getting investigations: {e}")
         return []
@@ -451,6 +502,263 @@ def get_writer_generated_texts(_db, filters: dict = None):
         logger.error(f"Error getting writer texts: {e}")
         return []
 
+
+def render_agent_execution_controls(agent_name: str):
+    """
+    Render execution mode controls and queue display for an agent
+
+    Args:
+        agent_name: Name of the agent (interviewer, auditor, researcher, writer, reviewer)
+    """
+    from utils.agent_settings import get_agent_settings, save_agent_settings
+    from utils.agent_queue import get_all_queue_sizes
+
+    # Get current settings
+    settings = get_agent_settings(agent_name)
+    current_mode = settings.get('execution_mode', 'manual')
+
+    # Get queue size
+    queues = get_all_queue_sizes()
+    queue_size = queues.get(agent_name, 0)
+
+    # Display execution mode and queue in a nice card
+    st.markdown("---")
+
+    col1, col2, col3 = st.columns([2, 2, 2])
+
+    with col1:
+        st.markdown("##### ⚙️ Режим запуска")
+        new_mode = st.radio(
+            "Выберите режим:",
+            options=['manual', 'automatic'],
+            index=0 if current_mode == 'manual' else 1,
+            format_func=lambda x: "🔧 Ручной" if x == 'manual' else "⚡ Автоматический",
+            key=f"execution_mode_{agent_name}",
+            horizontal=True
+        )
+
+        # Save if changed
+        if new_mode != current_mode:
+            if save_agent_settings(agent_name, execution_mode=new_mode):
+                st.success(f"✅ Режим изменен на: {'Ручной' if new_mode == 'manual' else 'Автоматический'}")
+                st.rerun()
+            else:
+                st.error("❌ Ошибка при сохранении настроек")
+
+    with col2:
+        st.markdown("##### 📋 Очередь обработки")
+        if queue_size > 0:
+            st.metric(
+                label="Элементов в очереди",
+                value=queue_size,
+                delta=f"{'⏳ Ожидают обработки' if current_mode == 'manual' else '⚡ Обрабатываются'}"
+            )
+        else:
+            st.info("✅ Очередь пуста")
+
+    with col3:
+        st.markdown("##### 🔄 Статус агента")
+        if current_mode == 'automatic':
+            st.success("⚡ **Автоматический запуск**\nАгент обрабатывает элементы автоматически")
+        else:
+            st.warning("🔧 **Ручной запуск**\nТребуется ручной запуск обработки")
+            if queue_size > 0:
+                if st.button(f"▶️ Запустить обработку ({queue_size})", key=f"process_{agent_name}"):
+                    # Запуск обработки очереди
+                    from utils.agent_processor import process_agent_queue
+
+                    # Показать индикатор прогресса
+                    with st.spinner(f"🔄 Обработка очереди {agent_name}..."):
+                        try:
+                            # Обработать очередь (максимум 10 элементов за раз)
+                            stats = process_agent_queue(agent_name, limit=10)
+
+                            # Показать результаты
+                            if stats.succeeded > 0:
+                                st.success(f"✅ Обработано успешно: {stats.succeeded}/{stats.total_items}")
+                                st.info(f"⏱️ Время обработки: {stats.get_duration():.1f}s")
+
+                                # Показать детали
+                                with st.expander("📋 Детали обработки"):
+                                    for result in stats.results:
+                                        if result.success:
+                                            st.success(f"✅ {result.item_id}: {result.message}")
+                                        else:
+                                            st.error(f"❌ {result.item_id}: {result.message}")
+
+                            if stats.failed > 0:
+                                st.warning(f"⚠️ Ошибок: {stats.failed}/{stats.total_items}")
+
+                            # Перезагрузить страницу для обновления счетчика очереди
+                            st.rerun()
+
+                        except Exception as e:
+                            st.error(f"❌ Ошибка обработки: {str(e)}")
+                            import traceback
+                            with st.expander("🔍 Подробности ошибки"):
+                                st.code(traceback.format_exc())
+
+    st.markdown("---")
+
+
+def render_auditor_prompt_editor():
+    """
+    Fallback prompt editor for Auditor (if render_agent_prompts not available)
+    """
+    st.markdown("**Управление промптом:**")
+
+    # Get current prompt from database
+    try:
+        result = execute_query("""
+            SELECT ap.id, ap.name, ap.prompt_template, ap.description
+            FROM agent_prompts ap
+            JOIN prompt_categories pc ON ap.category_id = pc.id
+            WHERE pc.agent_type = 'auditor'
+            ORDER BY ap.id
+            LIMIT 1
+        """)
+
+        if result:
+            prompt = result[0]
+            prompt_id = prompt['id']
+            current_name = prompt['name']
+            current_template = prompt['prompt_template']
+            current_desc = prompt.get('description', '')
+
+            st.text_input("Название промпта:", value=current_name, key="auditor_prompt_name", disabled=True)
+            st.text_area("Описание:", value=current_desc, key="auditor_prompt_desc", disabled=True)
+
+            # Editable prompt template
+            new_template = st.text_area(
+                "Промпт шаблон:",
+                value=current_template,
+                height=400,
+                key="auditor_prompt_template",
+                help="Используйте переменные: {anketa_json}, {questions_with_hints}"
+            )
+
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                if st.button("💾 Сохранить", key="save_auditor_prompt"):
+                    if new_template != current_template:
+                        rowcount = execute_update(
+                            "UPDATE agent_prompts SET prompt_template = %s, updated_at = NOW() WHERE id = %s",
+                            (new_template, prompt_id)
+                        )
+                        if rowcount > 0:
+                            st.success("✅ Промпт обновлен!")
+                            st.rerun()
+                        else:
+                            st.error("❌ Ошибка обновления")
+            with col2:
+                st.info("ℹ️ Изменения вступят в силу при следующем запуске аудита")
+
+        else:
+            st.warning("⚠️ Промпт для Auditor не найден в БД")
+            st.info("Создайте промпт через миграцию database/update_auditor_prompt.sql")
+
+    except Exception as e:
+        st.error(f"❌ Ошибка загрузки промпта: {e}")
+        logger.error(f"Error loading auditor prompt: {e}")
+
+
+def render_auditor_mode_switcher():
+    """
+    Render Auditor mode switcher (live/batch/hybrid)
+    """
+    from utils.agent_settings import get_auditor_mode, save_auditor_mode
+
+    st.markdown("---")
+    st.markdown("#### 🎯 Режим аудита анкеты")
+
+    # Get current mode
+    current_mode = get_auditor_mode()
+
+    col1, col2 = st.columns([3, 2])
+
+    with col1:
+        # Mode descriptions
+        mode_descriptions = {
+            'batch': {
+                'icon': '📦',
+                'title': 'Batch (Пакетный)',
+                'desc': 'Аудит всей анкеты после заполнения всех активных вопросов (по умолчанию)'
+            },
+            'hybrid': {
+                'icon': '⚖️',
+                'title': 'Hybrid (Гибридный)',
+                'desc': 'Аудит после заполнения, возврат на 3-5 критичных вопросов для доработки'
+            },
+            'live': {
+                'icon': '⚡',
+                'title': 'Live (В реальном времени)',
+                'desc': 'Проверка после каждого ответа с уточняющими вопросами (экспериментальный)'
+            }
+        }
+
+        # Radio button for mode selection
+        selected_mode = st.radio(
+            "Выберите режим аудита:",
+            options=['batch', 'hybrid', 'live'],
+            index=['batch', 'hybrid', 'live'].index(current_mode),
+            format_func=lambda x: f"{mode_descriptions[x]['icon']} {mode_descriptions[x]['title']}",
+            key="auditor_mode_selector"
+        )
+
+        # Show description for selected mode
+        st.info(f"ℹ️ {mode_descriptions[selected_mode]['desc']}")
+
+        # Save if changed
+        if selected_mode != current_mode:
+            if save_auditor_mode(selected_mode):
+                st.success(f"✅ Режим изменен на: {mode_descriptions[selected_mode]['title']}")
+                st.rerun()
+            else:
+                st.error("❌ Ошибка при сохранении режима")
+
+    with col2:
+        st.markdown("##### 📝 Описание режимов")
+
+        with st.expander("📦 Batch", expanded=(current_mode == 'batch')):
+            st.markdown("""
+            **Как работает:**
+            - Пользователь отвечает на все активные вопросы
+            - Auditor анализирует полную анкету
+            - Выдает общую оценку по 5 критериям
+            - Рекомендации сохраняются в БД
+
+            **Плюсы:** быстро, не утомляет пользователя
+            **Минусы:** нет возможности сразу исправить
+            """)
+
+        with st.expander("⚖️ Hybrid", expanded=(current_mode == 'hybrid')):
+            st.markdown("""
+            **Как работает:**
+            - Пользователь отвечает на все вопросы
+            - Auditor находит 3-5 критичных пробелов (score < 4)
+            - Возвращает в бот: "Уточните 3 момента..."
+            - После доработки → Researcher → Writer
+
+            **Плюсы:** баланс качества и скорости
+            **Минусы:** +10 мин на доработку
+            """)
+
+        with st.expander("⚡ Live (экспериментальный)", expanded=(current_mode == 'live')):
+            st.markdown("""
+            **Как работает:**
+            - После КАЖДОГО ответа → Auditor проверяет
+            - Если score < 6 → уточняющий вопрос сразу
+            - Пользователь дополняет → следующий вопрос
+
+            **Плюсы:** максимальное качество
+            **Минусы:** 60-90 мин интервью, высокая стоимость токенов
+
+            ⚠️ **Внимание:** может утомить пользователя!
+            """)
+
+    st.markdown("---")
+
+
 # =============================================================================
 # UI RENDERING FUNCTIONS
 # =============================================================================
@@ -458,7 +766,14 @@ def get_writer_generated_texts(_db, filters: dict = None):
 def render_interviewer_tab():
     """Render Interviewer Agent tab with sub-tabs"""
     st.markdown("### 📝 Interviewer Agent")
-    st.markdown("**Описание:** Собирает информацию о проекте через структурированное интервью из 24 вопросов")
+
+    # Get active questions count dynamically
+    try:
+        active_count_result = execute_query("SELECT COUNT(*) as count FROM interview_questions WHERE is_active = true")
+        active_count = active_count_result[0]['count'] if active_count_result else 0
+        st.markdown(f"**Описание:** Собирает информацию о проекте через структурированное интервью ({active_count} активных вопросов)")
+    except:
+        st.markdown("**Описание:** Собирает информацию о проекте через структурированное интервью")
 
     # SUB-TABS for Interviewer
     interviewer_subtabs = ["Статистика", "Интервью"]
@@ -479,6 +794,9 @@ def render_interviewer_statistics():
     """Render Interviewer statistics sub-tab"""
     st.markdown("#### 📊 Статистика Interviewer")
 
+    # Execution mode controls and queue display
+    render_agent_execution_controls('interviewer')
+
     # Statistics
     stats = get_agent_statistics('interviewer', db)
 
@@ -495,7 +813,7 @@ def render_interviewer_statistics():
     st.markdown("---")
 
     # Interview questions management
-    st.markdown("### ❓ Вопросы интервью (24 вопроса)")
+    st.markdown("### ❓ Вопросы интервью")
 
     try:
         questions = get_interview_questions()
@@ -738,24 +1056,24 @@ def render_interviewer_interviews():
         query = """
             SELECT
                 s.id as session_id,
-                s.user_id,
+                s.telegram_id,
                 u.username,
                 s.anketa_id,
-                s.current_question,
-                s.answers_json,
+                s.current_step,
+                s.answers_data,
                 s.status,
-                s.created_at,
-                s.updated_at,
-                COUNT(DISTINCT jsonb_object_keys(s.answers_json)) as answered_questions
+                s.started_at as created_at,
+                s.last_activity as updated_at,
+                s.questions_answered as answered_questions
             FROM sessions s
-            LEFT JOIN users u ON s.user_id = u.telegram_id
-            WHERE s.answers_json IS NOT NULL
-            GROUP BY s.id, s.user_id, u.username, s.anketa_id, s.current_question, s.answers_json, s.status, s.created_at, s.updated_at
-            ORDER BY s.updated_at DESC
+            LEFT JOIN users u ON s.telegram_id = u.telegram_id
+            WHERE s.anketa_id IS NOT NULL
+                AND s.answers_data IS NOT NULL
+            ORDER BY s.last_activity DESC
             LIMIT %s
         """
 
-        interviews = execute_query(query, (limit,), fetch=True) or []
+        interviews = execute_query(query, (limit,)) or []
 
         # Apply filters
         if status_filter != "Все":
@@ -776,8 +1094,8 @@ def render_interviewer_interviews():
             anketa_id = interview.get('anketa_id', 'N/A')
             answered = interview.get('answered_questions', 0)
 
-            # Format title with anketa_id if available
-            title = f"{status_emoji} 📋 {anketa_id} - @{username} ({answered}/24 ответов)" if anketa_id != 'N/A' else f"{status_emoji} Интервью #{session_id} - @{username} ({answered}/24 ответов)"
+            # Format title with anketa_id if available (15 active questions)
+            title = f"{status_emoji} 📋 {anketa_id} - @{username} ({answered}/15 ответов)" if anketa_id != 'N/A' else f"{status_emoji} Интервью #{session_id} - @{username} ({answered}/15 ответов)"
 
             with st.expander(title):
                 col1, col2 = st.columns(2)
@@ -791,15 +1109,15 @@ def render_interviewer_interviews():
                     st.write(f"**Статус:** {interview.get('status', 'N/A')}")
 
                 with col2:
-                    st.write(f"**Текущий вопрос:** {interview.get('current_question', 0)}")
-                    st.write(f"**Отвечено:** {answered}/24")
+                    st.write(f"**Текущий шаг:** {interview.get('current_step', 'N/A')}")
+                    st.write(f"**Отвечено:** {answered}")
                     st.write(f"**Создано:** {interview.get('created_at', 'N/A')}")
                     st.write(f"**Обновлено:** {interview.get('updated_at', 'N/A')}")
 
                 # Show answers
-                if interview.get('answers_json'):
+                if interview.get('answers_data'):
                     st.markdown("**Ответы:**")
-                    answers = interview['answers_json']
+                    answers = interview['answers_data']
                     if isinstance(answers, dict):
                         for q_num, answer in sorted(answers.items(), key=lambda x: int(x[0]) if x[0].isdigit() else 0):
                             st.text(f"Q{q_num}: {answer[:100]}..." if len(str(answer)) > 100 else f"Q{q_num}: {answer}")
@@ -833,6 +1151,12 @@ def render_auditor_statistics():
     """Render Auditor statistics sub-tab"""
     st.markdown("#### 📊 Статистика Auditor")
 
+    # Execution mode controls and queue display
+    render_agent_execution_controls('auditor')
+
+    # Auditor mode switcher
+    render_auditor_mode_switcher()
+
     # Statistics
     stats = get_agent_statistics('auditor', db)
 
@@ -848,28 +1172,14 @@ def render_auditor_statistics():
 
     st.markdown("---")
 
-    # Criteria breakdown
-    st.markdown("### 📊 Критерии оценки")
-
-    criteria = {
-        'Полнота': 'Completeness - насколько полно заполнена анкета',
-        'Ясность': 'Clarity - насколько понятно описан проект',
-        'Реалистичность': 'Feasibility - насколько реален проект',
-        'Инновационность': 'Innovation - насколько инновативен проект',
-        'Качество': 'Quality - общее качество подачи'
-    }
-
-    for criterion, description in criteria.items():
-        with st.expander(f"📌 {criterion}"):
-            st.markdown(f"**{description}**")
-            st.markdown("- Оценка от 1 до 10")
-            st.markdown("- Влияет на итоговое решение")
-
-    st.markdown("---")
-
     # Prompt management
     if PROMPT_MANAGER_AVAILABLE:
         render_agent_prompts('auditor', 'Auditor Agent')
+    else:
+        st.markdown("### 📝 Промпты для аудита")
+        render_auditor_prompt_editor()
+
+    st.markdown("---")
 
     # AI Agent Settings
     if AGENT_SETTINGS_AVAILABLE:
@@ -908,31 +1218,40 @@ def render_auditor_audits():
 
     st.markdown("---")
 
-    # Get audits from grant_applications table
+    # Get audits from auditor_results (new unified approach)
     try:
         query = """
             SELECT
-                ga.id as application_id,
-                ga.user_id,
+                ar.id as audit_id,
+                ar.session_id,
+                s.telegram_id as user_id,
                 u.username,
-                ga.anketa_data,
-                ga.audit_score,
-                ga.audit_feedback,
-                ga.status,
-                ga.created_at,
-                ga.updated_at
-            FROM grant_applications ga
-            LEFT JOIN users u ON ga.user_id = u.telegram_id
-            WHERE ga.audit_score IS NOT NULL
-            ORDER BY ga.updated_at DESC
+                u.first_name,
+                u.last_name,
+                s.anketa_id,
+                ar.average_score as audit_score,
+                ar.approval_status,
+                ar.recommendations,
+                ar.completeness_score,
+                ar.clarity_score,
+                ar.feasibility_score,
+                ar.innovation_score,
+                ar.quality_score,
+                s.project_name,
+                ar.created_at,
+                ar.updated_at
+            FROM auditor_results ar
+            LEFT JOIN sessions s ON ar.session_id = s.id
+            LEFT JOIN users u ON s.telegram_id = u.telegram_id
+            ORDER BY ar.created_at DESC
             LIMIT %s
         """
 
-        audits = execute_query(query, (limit,), fetch=True) or []
+        audits = execute_query(query, (limit,)) or []
 
         # Apply filters
         if status_filter != "Все":
-            audits = [a for a in audits if a.get('status') == status_filter]
+            audits = [a for a in audits if a.get('approval_status') == status_filter]
 
         # Display count
         st.write(f"**Найдено проверок: {len(audits)}**")
@@ -943,43 +1262,69 @@ def render_auditor_audits():
 
         # Display audits
         for audit in audits:
-            status_emoji = "✅" if audit.get('status') == 'approved' else "⚠️" if audit.get('status') == 'needs_revision' else "❌"
-            username = audit.get('username', 'Unknown')
-            application_id = audit.get('application_id', 'N/A')
-            score = audit.get('audit_score', 0)
+            approval_status = audit.get('approval_status', 'unknown')
+            status_emoji = "✅" if approval_status == 'approved' else "⚠️" if approval_status == 'needs_revision' else "❌"
 
-            with st.expander(f"{status_emoji} Проверка #{application_id} - @{username} (Балл: {score}/10)"):
+            # User display name
+            first_name = audit.get('first_name', '')
+            last_name = audit.get('last_name', '')
+            username = audit.get('username', 'Unknown')
+            user_display = f"{first_name} {last_name}".strip() or username
+
+            audit_id = audit.get('audit_id', 'N/A')
+            anketa_id = audit.get('anketa_id', 'N/A')
+            avg_score = audit.get('audit_score', 0)
+
+            with st.expander(f"{status_emoji} Аудит #{audit_id} - {user_display} (Средний балл: {avg_score}/10)"):
+                # Main info
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    st.write(f"**ID заявки:** {application_id}")
-                    st.write(f"**Пользователь:** @{username}")
+                    st.write(f"**ID аудита:** {audit_id}")
+                    st.write(f"**Anketa ID:** {anketa_id}")
+                    st.write(f"**Пользователь:** {user_display} (@{username})")
                     st.write(f"**Telegram ID:** {audit.get('user_id', 'N/A')}")
-                    st.write(f"**Статус:** {audit.get('status', 'N/A')}")
+                    st.write(f"**Проект:** {audit.get('project_name', 'N/A')}")
 
                 with col2:
-                    st.write(f"**Балл аудита:** {score}/10")
+                    st.write(f"**Статус:** {approval_status}")
+                    st.write(f"**Средний балл:** {avg_score}/10")
                     st.write(f"**Создано:** {audit.get('created_at', 'N/A')}")
                     st.write(f"**Обновлено:** {audit.get('updated_at', 'N/A')}")
 
-                # Show feedback
-                if audit.get('audit_feedback'):
-                    st.markdown("**Заключение аудитора:**")
-                    st.text_area(
-                        "Feedback",
-                        value=audit['audit_feedback'],
-                        height=150,
-                        key=f"feedback_{application_id}",
-                        disabled=True,
-                        label_visibility="collapsed"
-                    )
+                st.markdown("---")
 
-                # Show anketa summary
-                if audit.get('anketa_data'):
-                    st.markdown("**Данные анкеты:**")
-                    anketa = audit['anketa_data']
-                    if isinstance(anketa, dict):
-                        st.json(anketa)
+                # Detailed scores
+                st.markdown("**📊 Детальные оценки:**")
+                score_col1, score_col2, score_col3, score_col4, score_col5 = st.columns(5)
+
+                with score_col1:
+                    st.metric("Полнота", f"{audit.get('completeness_score', 0)}/10")
+                with score_col2:
+                    st.metric("Ясность", f"{audit.get('clarity_score', 0)}/10")
+                with score_col3:
+                    st.metric("Реализуемость", f"{audit.get('feasibility_score', 0)}/10")
+                with score_col4:
+                    st.metric("Инновация", f"{audit.get('innovation_score', 0)}/10")
+                with score_col5:
+                    st.metric("Качество", f"{audit.get('quality_score', 0)}/10")
+
+                # Show recommendations
+                recommendations = audit.get('recommendations')
+                if recommendations:
+                    st.markdown("**💡 Рекомендации аудитора:**")
+                    if isinstance(recommendations, dict):
+                        if 'strengths' in recommendations:
+                            st.markdown("**Сильные стороны:**")
+                            for strength in recommendations['strengths']:
+                                st.write(f"✅ {strength}")
+
+                        if 'improvements' in recommendations:
+                            st.markdown("**Области для улучшения:**")
+                            for improvement in recommendations['improvements']:
+                                st.write(f"⚠️ {improvement}")
+                    else:
+                        st.json(recommendations)
 
     except Exception as e:
         logger.error(f"Error loading audits: {e}")
@@ -1070,6 +1415,9 @@ def render_researcher_tab():
 def render_researcher_statistics():
     """Render Researcher statistics sub-tab"""
     st.markdown("#### 📊 Статистика работы Researcher")
+
+    # Execution mode controls and queue display
+    render_agent_execution_controls('researcher')
 
     stats = get_agent_statistics('researcher', db)
 
@@ -1306,6 +1654,9 @@ def render_writer_statistics():
     """Render Writer statistics sub-tab"""
     st.markdown("#### 📊 Статистика Writer")
 
+    # Execution mode controls and queue display
+    render_agent_execution_controls('writer')
+
     stats = get_agent_statistics('writer', db)
 
     col1, col2, col3 = st.columns(3)
@@ -1440,6 +1791,9 @@ def render_reviewer_statistics():
     """Render Reviewer statistics sub-tab"""
     st.markdown("#### 📊 Статистика Reviewer")
 
+    # Execution mode controls and queue display
+    render_agent_execution_controls('reviewer')
+
     # Statistics
     stats = get_agent_statistics('reviewer', db)
 
@@ -1526,7 +1880,7 @@ def render_reviewer_reviews():
                 g.grant_id,
                 g.user_id,
                 u.username,
-                g.grant_name,
+                g.grant_title,
                 g.review_score,
                 g.review_feedback,
                 g.final_status,
@@ -1539,7 +1893,7 @@ def render_reviewer_reviews():
             LIMIT %s
         """
 
-        reviews = execute_query(query, (limit,), fetch=True) or []
+        reviews = execute_query(query, (limit,)) or []
 
         # Apply filters
         if status_filter != "Все":
@@ -1951,6 +2305,108 @@ def render_generic_agent_settings(agent_name: str, display_name: str):
             st.error("⚠️ execute_update недоступен")
 
 
+def render_prompts_editor_tab():
+    """Render Prompts Editor tab - NEW for database prompt management"""
+    st.markdown("### 📝 Редактор промптов из БД")
+    st.markdown("**Описание:** Управление всеми промптами агентов через базу данных. Редактирование goal, backstory, LLM prompts, queries.")
+
+    if not PROMPT_EDITOR_AVAILABLE or not PromptEditor:
+        st.error("❌ PromptEditor компонент недоступен. Проверьте импорт utils.prompt_editor")
+        return
+
+    # Initialize AdminDatabase
+    try:
+        db = AdminDatabase()
+    except Exception as e:
+        st.error(f"❌ Ошибка подключения к БД: {e}")
+        return
+
+    # Create PromptEditor instance
+    editor = PromptEditor(db)
+
+    # Bulk operations panel
+    with st.expander("🔧 Панель управления", expanded=False):
+        editor.render_bulk_operations()
+
+    st.markdown("---")
+
+    # Search panel
+    with st.expander("🔍 Поиск по промптам", expanded=False):
+        selected_agent = editor.render_prompt_search()
+        if selected_agent:
+            st.session_state['selected_agent_for_edit'] = selected_agent
+
+    st.markdown("---")
+
+    # Agent selection
+    st.markdown("### Выберите агента для редактирования:")
+
+    agent_options = {
+        'interviewer': '📝 Interviewer Agent (13 промптов)',
+        'auditor': '✅ Auditor Agent (6 промптов)',
+        'researcher_v2': '🔍 Researcher V2 Agent (31 промпт)',
+        'writer_v2': '✍️ Writer V2 Agent (4 промпта)',
+        'reviewer': '🔎 Reviewer Agent (2 промпта)'
+    }
+
+    # Use session state for selected agent (from search or dropdown)
+    if 'selected_agent_for_edit' not in st.session_state:
+        st.session_state['selected_agent_for_edit'] = 'interviewer'
+
+    selected_agent = st.selectbox(
+        "Агент:",
+        options=list(agent_options.keys()),
+        format_func=lambda x: agent_options[x],
+        key='agent_selector',
+        index=list(agent_options.keys()).index(st.session_state.get('selected_agent_for_edit', 'interviewer'))
+    )
+
+    st.markdown("---")
+
+    # Render prompts editor for selected agent
+    try:
+        editor.render_agent_prompts_editor(selected_agent)
+    except Exception as e:
+        st.error(f"❌ Ошибка редактора промптов: {e}")
+        import traceback
+        with st.expander("Технические детали ошибки"):
+            st.code(traceback.format_exc())
+
+    # Help section
+    with st.expander("ℹ️ Справка по редактору промптов"):
+        st.markdown("""
+        **Как использовать редактор:**
+
+        1. **Выбор агента:** Выберите агента из выпадающего списка
+        2. **Редактирование промпта:** Измените текст в поле редактора
+        3. **Переменные:** Используйте формат `{VARIABLE_NAME}` для подстановки данных
+        4. **Сохранение:** Нажмите "💾 Сохранить" после редактирования
+        5. **Сброс кеша:** После сохранения кеш автоматически сбрасывается
+
+        **Доступные переменные (примеры):**
+        - `{ПРОБЛЕМА}` - описание проблемы из анкеты
+        - `{РЕГИОН}` - география проекта
+        - `{БЮДЖЕТ}` - запрашиваемая сумма
+        - `{СРОК}` - длительность проекта
+        - `{project_name}` - название проекта
+        - `{application_text}` - текст заявки
+
+        **Типы промптов:**
+        - `goal` - цель агента (1 промпт)
+        - `backstory` - бэкграунд агента (1 промпт)
+        - `llm_*` - промпты для LLM запросов (Auditor: 4 промпта)
+        - `fallback_question` - запасные вопросы (Interviewer: 10 промптов)
+        - `block*_query` - экспертные запросы (Researcher: 27 промптов)
+        - `stage*` - промпты этапов (Writer: 2 промпта)
+
+        **Важно:**
+        - Все изменения сохраняются в PostgreSQL базе данных
+        - После сохранения агенты автоматически используют новые промпты
+        - Если промпт не найден в БД, используется hardcoded версия (fallback)
+        - Кеш промптов обновляется каждые 5 минут автоматически
+        """)
+
+
 # =============================================================================
 # MAIN PAGE
 # =============================================================================
@@ -1960,35 +2416,52 @@ def render_stage_summary():
     st.markdown("### 🔄 Воронка обработки заявок")
 
     try:
-        # Get all active sessions with anketa_id
-        query = """
+        # Count all active sessions by stage (for funnel metrics)
+        count_query = """
             SELECT
-                anketa_id,
-                COALESCE(current_stage, 'interviewer') as current_stage,
-                COALESCE(agents_passed, ARRAY[]::TEXT[]) as agents_passed,
-                username,
-                created_at,
-                stage_updated_at
+                COALESCE(s.current_step, 'interviewer') as current_stage,
+                COUNT(*) as count
             FROM sessions s
-            LEFT JOIN users u ON s.user_id = u.telegram_id
-            WHERE anketa_id IS NOT NULL
-              AND status != 'archived'
-            ORDER BY COALESCE(stage_updated_at, created_at) DESC
+            WHERE s.anketa_id IS NOT NULL
+              AND s.status != 'archived'
+            GROUP BY s.current_step
+        """
+        stage_results = execute_query(count_query) or []
+
+        # Build stage counts
+        stage_counts = {'interviewer': 0, 'auditor': 0, 'researcher': 0, 'writer': 0, 'reviewer': 0}
+        for row in stage_results:
+            stage = row.get('current_stage', 'interviewer')
+            count = row.get('count', 0)
+            # Handle typos and old statuses
+            if stage == 'interview':  # Typo fix
+                stage = 'interviewer'
+            elif stage == 'completed':  # Completed counts as reviewer
+                stage = 'reviewer'
+
+            if stage in stage_counts:
+                stage_counts[stage] += count  # Use += to handle duplicates
+
+        # Get recent sessions for display
+        sessions_query = """
+            SELECT
+                s.anketa_id,
+                COALESCE(s.current_step, 'interviewer') as current_stage,
+                u.username,
+                s.started_at,
+                s.last_activity
+            FROM sessions s
+            LEFT JOIN users u ON s.telegram_id = u.telegram_id
+            WHERE s.anketa_id IS NOT NULL
+              AND s.status != 'archived'
+            ORDER BY COALESCE(s.last_activity, s.started_at) DESC
             LIMIT 10
         """
+        sessions = execute_query(sessions_query) or []
 
-        sessions = execute_query(query, fetch=True) or []
-
-        if sessions:
-            # Show summary metrics
+        if sessions or any(stage_counts.values()):
+            # Show summary metrics (from ALL active sessions)
             col1, col2, col3, col4, col5 = st.columns(5)
-
-            # Count by stage
-            stage_counts = {'interviewer': 0, 'auditor': 0, 'researcher': 0, 'writer': 0, 'reviewer': 0}
-            for session in sessions:
-                stage = session.get('current_stage', 'interviewer')
-                if stage in stage_counts:
-                    stage_counts[stage] += 1
 
             with col1:
                 st.metric("📝 Interviewer", stage_counts['interviewer'])
@@ -2042,11 +2515,11 @@ def main():
 
     st.markdown("---")
 
-    # MAIN TABS (5 agents, Planner hidden)
-    agent_tabs = ["Interviewer", "Auditor", "Researcher", "Writer", "Reviewer"]
-    agent_icons = ["📝", "✅", "🔍", "✍️", "🔎"]
+    # MAIN TABS (5 agents + Prompts Editor)
+    agent_tabs = ["Interviewer", "Auditor", "Researcher", "Writer", "Reviewer", "Редактор промптов"]
+    agent_icons = ["📝", "✅", "🔍", "✍️", "🔎", "⚙️"]
 
-    tab1, tab2, tab3, tab4, tab5 = st.tabs([f"{icon} {name}" for icon, name in zip(agent_icons, agent_tabs)])
+    tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([f"{icon} {name}" for icon, name in zip(agent_icons, agent_tabs)])
 
     with tab1:
         render_interviewer_tab()
@@ -2063,8 +2536,11 @@ def main():
     with tab5:
         render_reviewer_tab()
 
+    with tab6:
+        render_prompts_editor_tab()
+
     # Planner tab hidden temporarily
-    # with tab6:
+    # with tab7:
     #     render_planner_tab()
 
     # Footer
