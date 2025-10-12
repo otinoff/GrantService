@@ -1,0 +1,80 @@
+"""
+Конфигурация для LLM провайдеров и агентов
+"""
+
+# GigaChat настройки (рабочий ключ из review_generator)
+GIGACHAT_BASE_URL = "https://gigachat.devices.sberbank.ru/api/v1"
+GIGACHAT_AUTH_URL = "https://ngw.devices.sberbank.ru:9443/api/v2/oauth"
+GIGACHAT_API_KEY = "OTY3MzMwZDQtZTVhYi00ZmNhLWE4ZTgtMTJhN2Q1MTBkMjQ5Ojk4MmM0NjIyLTU3OWQtNDYxNi04YzVlLWIyMTY3YTZlNzI0NQ=="
+GIGACHAT_CLIENT_ID = "967330d4-e5ab-4fca-a8e8-12a7d510d249"
+GIGACHAT_SCOPE = "GIGACHAT_API_PERS"
+
+# Claude Code API настройки
+CLAUDE_CODE_API_KEY = "1f79b062cf00b8d28546f5bd283dc59a1c6a7f9e9fe5a8e5ef25b0cc27aa0732"
+CLAUDE_CODE_BASE_URL = "http://178.236.17.55:8000"
+CLAUDE_CODE_DEFAULT_MODEL = "sonnet"  # sonnet (быстрый) или opus (мощный)
+
+# Perplexity настройки
+PERPLEXITY_BASE_URL = "https://api.perplexity.ai"
+PERPLEXITY_API_KEY = "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"
+
+# Ollama настройки
+OLLAMA_BASE_URL = "http://localhost:11434"
+OLLAMA_MODEL = "qwen2.5:3b"
+
+# Общие настройки LLM
+DEFAULT_TEMPERATURE = 0.7
+MAX_TOKENS = 2000
+REQUEST_TIMEOUT = 30
+
+# Настройки асинхронной обработки
+ASYNC_CONNECTION_LIMIT = 10
+ASYNC_CONNECTION_LIMIT_PER_HOST = 5
+ASYNC_REQUEST_TIMEOUT = 120
+
+# Конфигурации агентов (обновлено с Claude Code)
+AGENT_CONFIGS = {
+    "interviewer": {
+        "provider": "gigachat",  # Русский язык для общения
+        "model": "GigaChat",
+        "temperature": 0.5,
+        "max_tokens": 1000
+    },
+    "researcher": {
+        "provider": "claude",  # Claude лучше для анализа и исследования
+        "model": "sonnet",
+        "temperature": 0.3,
+        "max_tokens": 1500
+    },
+    "writer": {
+        "provider": "claude",  # Claude Code - PRODUCTION! Лучшее качество грантов
+        "model": "opus",       # Claude Opus 4 - топовое качество
+        "temperature": 0.7,
+        "max_tokens": 8000
+    },
+    "auditor": {
+        "provider": "claude",  # Claude лучше для оценки и аналитики
+        "model": "sonnet",
+        "temperature": 0.3,
+        "max_tokens": 3000
+    },
+    "planner": {
+        "provider": "claude",  # Claude лучше для структурирования
+        "model": "sonnet",
+        "temperature": 0.4,
+        "max_tokens": 2000
+    }
+}
+
+# Настройки concurrent limits для разных провайдеров
+PROVIDER_CONCURRENT_LIMITS = {
+    "ollama": 5,      # Ollama может обрабатывать несколько запросов параллельно
+    "gigachat": 1,    # GigaChat лучше обрабатывать последовательно из-за rate limits
+    "perplexity": 2,  # Perplexity умеренно параллельно
+    "claude": 3       # Claude Code - хорошая параллельность
+}
+
+# Retry настройки
+RETRY_ATTEMPTS = 3
+RETRY_DELAY = 1.0
+RATE_LIMIT_DELAY = 5.0
