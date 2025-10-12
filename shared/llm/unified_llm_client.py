@@ -11,6 +11,7 @@ from .config import (
     GIGACHAT_BASE_URL, GIGACHAT_AUTH_URL, GIGACHAT_API_KEY, GIGACHAT_CLIENT_ID,
     PERPLEXITY_BASE_URL, PERPLEXITY_API_KEY,
     OLLAMA_BASE_URL, OLLAMA_MODEL,
+    CLAUDE_CODE_BASE_URL, CLAUDE_CODE_API_KEY, CLAUDE_CODE_DEFAULT_MODEL,
     DEFAULT_TEMPERATURE, MAX_TOKENS, REQUEST_TIMEOUT,
     ASYNC_CONNECTION_LIMIT, ASYNC_CONNECTION_LIMIT_PER_HOST, ASYNC_REQUEST_TIMEOUT
 )
@@ -50,6 +51,11 @@ class UnifiedLLMClient:
         elif self.provider == "perplexity":
             self.base_url = PERPLEXITY_BASE_URL
             self.api_key = kwargs.get("api_key", PERPLEXITY_API_KEY)
+        elif self.provider in ["claude_code", "claude"]:
+            self.base_url = CLAUDE_CODE_BASE_URL
+            self.api_key = kwargs.get("api_key", CLAUDE_CODE_API_KEY)
+            if not self.model or self.model == "GigaChat":
+                self.model = CLAUDE_CODE_DEFAULT_MODEL
         else:
             raise ValueError(f"Неподдерживаемый провайдер: {provider}")
         
@@ -99,6 +105,8 @@ class UnifiedLLMClient:
                 return await self._generate_ollama(prompt, temperature, max_tokens)
             elif target_provider == "perplexity":
                 return await self._generate_perplexity(prompt, temperature, max_tokens)
+            elif target_provider in ["claude_code", "claude"]:
+                return await self._generate_claude_code(prompt, temperature, max_tokens)
             else:
                 raise ValueError(f"Неподдерживаемый провайдер: {target_provider}")
                 
@@ -278,7 +286,7 @@ class UnifiedLLMClient:
             "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
-        
+
         data = {
             "model": self.model,
             "messages": [
@@ -287,11 +295,11 @@ class UnifiedLLMClient:
             "temperature": self.temperature,
             "max_tokens": max_tokens
         }
-        
+
         async with self.session.post(url, headers=headers, json=data) as response:
             if response.status == 200:
                 response_data = await response.json()
-                
+
                 if "choices" in response_data and len(response_data["choices"]) > 0:
                     return response_data["choices"][0]["message"]["content"].strip()
                 else:
@@ -299,6 +307,73 @@ class UnifiedLLMClient:
             else:
                 error_text = await response.text()
                 raise Exception(f"Perplexity HTTP {response.status}: {error_text}")
+
+    async def _generate_claude_code(self, prompt: str, temperature: float = None, max_tokens: int = None) -> str:
+        """
+        Генерация через Claude Code HTTP API
+
+        NOTE: Использует HTTP API вместо локального Claude CLI subprocess из-за OAuth IP ограничений.
+        OAuth токены привязаны к IP сервера где были созданы и не работают на production сервере.
+
+        Production architecture:
+        - GrantService (production): 5.35.88.251 -> HTTP API call ->
+        - Claude Code API Server: 178.236.17.55:8000 (с валидным OAuth)
+
+        TODO: Migrate to fully local solution when OAuth IP limitation is resolved.
+        """
+        self.debug_log.append(f"🤖 Начинаем генерацию Claude Code API: {len(prompt)} символов")
+
+        url = f"{self.base_url}/chat"
+        headers = {
+            "Authorization": f"Bearer {self.api_key}",
+            "Content-Type": "application/json"
+        }
+
+        payload = {
+            "message": prompt,
+            "model": self.model if self.model != "GigaChat" else "sonnet",
+            "temperature": temperature or self.temperature,
+        }
+
+        if max_tokens:
+            payload["max_tokens"] = max_tokens
+
+        try:
+            async with self.session.post(url, headers=headers, json=payload) as response:
+                response_text = await response.text()
+
+                if response.status == 200:
+                    data = json.loads(response_text)
+                    result = data.get("response", "").strip()
+
+                    # Логируем статистику если доступна
+                    model_used = data.get("model", self.model)
+                    session_id = data.get("session_id")
+
+                    self.debug_log.append(
+                        f"✅ Claude API ответ: {len(result)} символов, "
+                        f"model={model_used}"
+                    )
+
+                    logger.info(
+                        f"Claude API: {len(result)} chars, model={model_used}"
+                    )
+
+                    return result
+
+                else:
+                    error_msg = f"Claude API error: {response.status} - {response_text}"
+                    logger.error(error_msg)
+                    raise Exception(error_msg)
+
+        except asyncio.TimeoutError:
+            error_msg = "Claude API timeout"
+            logger.error(error_msg)
+            raise Exception(error_msg)
+
+        except Exception as e:
+            logger.error(f"Claude API execution error: {e}")
+            raise
     
     async def check_connection_async(self) -> bool:
         """Асинхронная проверка подключения"""
@@ -332,7 +407,15 @@ class UnifiedLLMClient:
                 headers = {"Authorization": f"Bearer {self.api_key}"}
                 async with self.session.get(url, headers=headers) as response:
                     result = response.status == 200
-            
+
+            elif self.provider in ["claude_code", "claude"]:
+                # Для Claude Code делаем проверку доступности API
+                url = f"{self.base_url}/health"  # Правильный endpoint для проверки здоровья
+                async with self.session.get(url) as response:
+                    result = response.status == 200
+            else:
+                result = False
+
             if should_close:
                 await self.session.close()
                 self.session = None
