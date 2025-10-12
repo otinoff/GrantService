@@ -8,15 +8,17 @@ GrantService is an automated system for creating grant applications using AI age
 ### Core Components
 - **Telegram Bot** - User interface for grant application process
 - **n8n Workflows** - Business logic orchestration
-- **GigaChat API** - Russian LLM for content generation
-- **PostgreSQL/SQLite** - Data persistence
+- **Claude Code API** - Premium AI (Opus 4 & Sonnet 4.5) for grant generation via HTTP wrapper
+- **GigaChat API** - Russian LLM for user communication
+- **PostgreSQL** - Primary data persistence (production)
 - **Streamlit Admin** - Web administration panel
 
 ### AI Agents Pipeline
-1. **Interviewer Agent** - Collects project information through guided dialogue
-2. **Auditor Agent** - Analyzes project viability and scoring (1-10 scale)
-3. **Planner Agent** - Structures grant application sections
-4. **Writer Agent** - Generates professional grant text
+1. **Interviewer Agent** (GigaChat) - Collects project information through guided dialogue in Russian
+2. **Researcher Agent** (Claude Sonnet 4.5 + WebSearch) - Researches grants and competition analysis
+3. **Auditor Agent** (Claude Sonnet 4.5) - Analyzes project viability and scoring (1-10 scale)
+4. **Planner Agent** (Claude Sonnet 4.5) - Structures grant application sections
+5. **Writer Agent** (Claude Opus 4) - Generates professional grant text with premium quality
 
 ## 📂 Project Structure
 ```
@@ -75,6 +77,22 @@ Automates full deployment cycle: git push, monitoring, verification, reporting.
 @deployment-manager deploy latest changes to production
 @deployment-manager check server status
 @deployment-manager rollback last deployment
+```
+
+### claude-code-expert
+Expert in Claude Code CLI integration, OAuth, WebSearch, and troubleshooting.
+```bash
+# Use for Claude Code integration issues
+@claude-code-expert fix wrapper server connection
+@claude-code-expert troubleshoot OAuth IP binding
+```
+
+### garbage-collector
+Specialized agent for analyzing and cleaning temporary files, reports, and project clutter.
+```bash
+# Use for cleanup tasks
+@garbage-collector analyze and clean temporary files
+@garbage-collector identify obsolete documentation
 ```
 
 ## 🚀 Quick Start
@@ -187,12 +205,21 @@ git push origin feature/your-feature
    - Check prompt token limits
    - Review context window size
 
+5. **Claude Code API Issues**
+   - Check wrapper server status: `curl http://178.236.17.55:8000/health`
+   - Verify OAuth credentials on wrapper server
+   - Review logs: `ssh root@178.236.17.55 tail -f /var/log/claude-wrapper.log`
+   - See `Claude Code CLI/SETUP_GUIDE_178_SERVER_DETAILED.md` for troubleshooting
+
 ## 📝 Important Files
 
 - **ARCHITECTURE.md** - Detailed system architecture
 - **ROADMAP_UNIFIED_AGENTS.md** - Agent development roadmap
-- **DEPLOYMENT_STATUS.md** - Current deployment status
 - **launcher.py** - Main application entry point
+- **Claude Code CLI/** - Complete Claude Code integration documentation and setup guides
+  - **BASE_RULES_CLAUDE_CODE.md** - Strategic requirements for Claude usage
+  - **SETUP_GUIDE_178_SERVER_DETAILED.md** - Complete wrapper deployment guide
+  - **SESSION_FINAL_REPORT_2025-10-12.md** - Integration session timeline
 
 ## 🎯 Project Goals
 
@@ -210,21 +237,23 @@ git push origin feature/your-feature
 ## 🚦 Current Status
 
 - ✅ Core architecture implemented
-- ✅ Database schema deployed
+- ✅ Database schema deployed (PostgreSQL production)
 - ✅ Admin panel functional
-- ✅ Basic AI agents configured
+- ✅ Claude Code CLI integrated (Opus 4 + Sonnet 4.5)
+- ✅ All AI agents configured with database-driven prompts
+- ✅ WebSearch integration for Researcher Agent
 - 🔄 Telegram bot in testing
-- 📅 Production launch: September 2025
+- 🚀 Production: http://5.35.88.251:8501
 
 ## 🔄 Next Steps
 
 1. Complete Telegram bot conversation flows
-2. Optimize AI agent prompts for better results
-3. Implement analytics dashboard
-4. Add multi-language support
-5. Deploy to production environment
+2. Test Claude Opus 4 Writer Agent with real grant applications
+3. Optimize AI agent prompts based on results
+4. Implement advanced analytics dashboard
+5. Scale up with multiple concurrent users
 
 ---
 
-*Last Updated: 2025-09-29*
-*Version: 1.0*
+*Last Updated: 2025-10-12*
+*Version: 2.0* (Claude Code Integration Complete)
