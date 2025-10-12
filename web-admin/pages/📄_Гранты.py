@@ -45,9 +45,9 @@ try:
         execute_update
     )
     from utils.logger import setup_logger
-    from utils.grant_lifecycle_manager import GrantLifecycleManager, get_lifecycle_summary
-    from utils.artifact_exporter import ArtifactExporter, export_artifact
-    from utils.grant_stage_visualizer import GrantStageVisualizer, render_grant_lifecycle
+    # from utils.grant_lifecycle_manager import GrantLifecycleManager, get_lifecycle_summary
+    # from utils.artifact_exporter import ArtifactExporter, export_artifact
+    # from utils.grant_stage_visualizer import GrantStageVisualizer, render_grant_lifecycle
 except ImportError as e:
     st.error(f"Import error: {e}")
     st.stop()
@@ -429,7 +429,7 @@ def get_sent_documents(_db):
     query = """
     SELECT
         sd.id,
-        sd.grant_id,
+        sd.grant_application_id as grant_id,
         sd.user_id,
         sd.telegram_message_id,
         sd.file_name,
@@ -441,7 +441,7 @@ def get_sent_documents(_db):
         g.grant_title
     FROM sent_documents sd
     LEFT JOIN users u ON sd.user_id = u.id
-    LEFT JOIN grants g ON sd.grant_id = g.grant_id
+    LEFT JOIN grants g ON sd.grant_application_id = g.grant_id
     ORDER BY sd.sent_at DESC
     LIMIT 100
     """
@@ -1326,7 +1326,7 @@ LLM провайдер: {grant['llm_provider']} ({grant['model'] or 'N/A'})
                         f.write(uploaded_file.read())
 
                     # Generate application_id
-                    application_id = f"MANUAL-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
+                    application_id = None  # NULL for manual uploads (no FK constraint violation)
 
                     # Insert into sent_documents
                     from utils.postgres_helper import execute_update
@@ -1348,10 +1348,37 @@ LLM провайдер: {grant['llm_provider']} ({grant['model'] or 'N/A'})
                         'web-admin'
                     ))
 
-                    st.success(f"✅ Файл загружен и добавлен в очередь отправки!")
+                    st.success(f"✅ Файл сохранён в базу данных!")
                     st.info(f"📁 Сохранён как: {saved_filename}")
-                    st.info(f"👤 Будет отправлен пользователю: {selected_user_label}")
-                    st.balloons()
+
+                    # 🚀 REAL TELEGRAM SEND
+                    try:
+                        from utils.telegram_sender import send_document_to_telegram
+
+                        success, result = send_document_to_telegram(
+                            user_id=selected_user_id,
+                            file_path=str(file_path),
+                            caption=comment,
+                            grant_application_id=None
+                        )
+
+                        if success:
+                            # Update delivery status to 'delivered'
+                            execute_update(
+                                "UPDATE sent_documents SET delivery_status = 'delivered' WHERE file_path = %s",
+                                (str(file_path),)
+                            )
+                            st.success(f"✅ Файл успешно отправлен пользователю в Telegram!")
+                            st.info(f"📱 Message ID: {result.get('message_id', 'N/A')}")
+                            st.info(f"👤 Отправлено пользователю: {selected_user_label}")
+                            st.balloons()
+                        else:
+                            st.warning(f"⚠️ Файл сохранён, но не отправлен: {result.get('error', 'Unknown error')}")
+                            st.info("💡 Файл остался в базе со статусом 'pending'")
+                    except Exception as send_error:
+                        logger.error(f"Telegram send error: {send_error}", exc_info=True)
+                        st.warning(f"⚠️ Файл сохранён в базу, но ошибка отправки: {send_error}")
+                        st.info("💡 Файл остался в базе со статусом 'pending'")
 
                     logger.info(f"Manual grant uploaded: {saved_filename} for user {selected_user_id}")
 

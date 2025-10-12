@@ -104,7 +104,7 @@ class PathManager:
         # Special pages
         self.login_page = self.pages / '🔐_Вход.py'
         self.home_page = self.pages / '🏠_Главная.py'
-        self.main_app = self.web_admin / 'app_main.py'  # Main app file
+        self.main_app = self.web_admin / 'GrantService.py'  # Main app file
     
     def get_path(self, name: str) -> Path:
         """Get a path by name"""
