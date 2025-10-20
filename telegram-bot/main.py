@@ -201,6 +201,9 @@ from config.constants import ADMIN_USERS, ALLOWED_USERS
 # AI Agents
 from agents.interactive_interviewer_agent import InteractiveInterviewerAgent
 
+# NEW: Interactive Interview V2 Handler
+from handlers.interactive_interview_handler import InteractiveInterviewHandler
+
 
 class GrantServiceBotWithMenu:
     def __init__(self):
@@ -221,6 +224,13 @@ class GrantServiceBotWithMenu:
 
         # AI Agents - по одному экземпляру на пользователя
         self.ai_interviewers = {}  # {user_id: InteractiveInterviewerAgent}
+
+        # NEW: Interactive Interview V2 Handler
+        admin_chat_id = os.getenv('ADMIN_CHAT_ID')
+        self.interview_handler = InteractiveInterviewHandler(
+            db=db,
+            admin_chat_id=int(admin_chat_id) if admin_chat_id else None
+        )
 
         # Инициализация БД
         self.init_database()
@@ -714,9 +724,10 @@ class GrantServiceBotWithMenu:
         """Показать главное меню (Экран 1)"""
         user = update.effective_user
         
-        # Создаем клавиатуру с 4 кнопками
+        # Создаем клавиатуру с кнопками
         keyboard = [
-            [InlineKeyboardButton("📝 Начать заполнение", callback_data="start_interview")],
+            [InlineKeyboardButton("🆕 Интервью V2 (Adaptive)", callback_data="start_interview_v2")],
+            [InlineKeyboardButton("📝 Начать заполнение (Classic)", callback_data="start_interview")],
             [InlineKeyboardButton("💳 Оплата", callback_data="payment")],
             [InlineKeyboardButton("📊 Статус заявки", callback_data="status")],
             [InlineKeyboardButton("ℹ️ О Грантсервисе", url="https://грантсервис.рф")]
@@ -947,10 +958,20 @@ class GrantServiceBotWithMenu:
                 await query.answer("❌ Ошибка отзыва токена", show_alert=True)
             return
         
+        elif callback_data == "start_interview_v2":
+            # NEW: Начать V2 интервью с Reference Points
+            await query.answer()
+            await query.message.reply_text(
+                "🆕 Запускаю адаптивное интервью V2...\n\n"
+                "Используйте команду /continue для начала."
+            )
+            # Запустить интервью
+            await self.handle_start_interview_v2(update, context)
+
         elif callback_data == "start_interview":
             # Начинаем интервью с первого вопроса
             await self.show_question_navigation(update, context, 1)
-            
+
         elif callback_data == "payment":
             # Переход на сервис оплаты
             payment_text = """
@@ -1151,12 +1172,17 @@ https://grantservice.onff.ru/payment
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработка текстовых сообщений (ответы на вопросы)"""
         user_id = update.effective_user.id
-        
+
         # Проверка авторизации
         if not self.is_user_authorized(user_id):
             await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
             return
-        
+
+        # NEW: Проверить активное V2 интервью
+        if self.interview_handler.is_interview_active(user_id):
+            await self.interview_handler.handle_message(update, context)
+            return
+
         session = self.get_user_session(user_id)
         
         if session['state'] != 'interviewing':
@@ -1738,7 +1764,41 @@ PDF документ с полной анкетой прикреплен
             import traceback
             traceback.print_exc()
             # Не падаем если отправка не удалась - это не критично для workflow
-    
+
+    # ========================================================================
+    # NEW: Interactive Interview V2 Methods
+    # ========================================================================
+
+    async def handle_start_interview_v2(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Начать интервью V2 с Reference Points"""
+        user_id = update.effective_user.id
+
+        # Подготовить user_data
+        user_data = {
+            'telegram_id': user_id,
+            'username': update.effective_user.username or 'unknown',
+            'first_name': update.effective_user.first_name or '',
+            'last_name': update.effective_user.last_name or '',
+            'grant_fund': 'fpg'  # По умолчанию ФПГ
+        }
+
+        # Запустить интервью
+        await self.interview_handler.start_interview(update, context, user_data)
+
+    async def handle_continue_interview(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Продолжить интервью - получить следующий вопрос"""
+        await self.interview_handler.continue_interview(update, context)
+
+    async def handle_stop_interview(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Остановить интервью"""
+        await self.interview_handler.stop_interview(update, context)
+
+    async def handle_show_progress(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показать прогресс интервью"""
+        await self.interview_handler.show_progress(update, context)
+
+    # ========================================================================
+
     def run(self):
         """Запуск бота"""
         if not self.token:
@@ -1763,7 +1823,13 @@ PDF документ с полной анкетой прикреплен
         # Старые команды для совместимости
         application.add_handler(CommandHandler("login", self.login_command))
         application.add_handler(CommandHandler("admin", self.admin_command))
-        
+
+        # NEW: Interactive Interview V2 Commands
+        application.add_handler(CommandHandler("start_interview_v2", self.handle_start_interview_v2))
+        application.add_handler(CommandHandler("continue", self.handle_continue_interview))
+        application.add_handler(CommandHandler("stop_interview", self.handle_stop_interview))
+        application.add_handler(CommandHandler("progress", self.handle_show_progress))
+
         # Обработчики коллбэков и сообщений
         application.add_handler(CallbackQueryHandler(self.handle_menu_callback))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))

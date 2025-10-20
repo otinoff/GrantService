@@ -47,7 +47,7 @@ try:
     from utils.prompt_manager import DatabasePromptManager, get_database_prompt_manager
     PROMPT_MANAGER_AVAILABLE = True
 except ImportError:
-    print("⚠️ DatabasePromptManager недоступен, используются hardcoded промпты")
+    print("[WARN] DatabasePromptManager недоступен, используются hardcoded промпты")
     PROMPT_MANAGER_AVAILABLE = False
 
 # Импортируем StageReportGenerator для PDF
@@ -55,7 +55,7 @@ try:
     from stage_report_generator import StageReportGenerator
     STAGE_REPORT_AVAILABLE = True
 except ImportError:
-    print("⚠️ StageReportGenerator недоступен, PDF не будет отправляться")
+    print("[WARN] StageReportGenerator недоступен, PDF не будет отправляться")
     STAGE_REPORT_AVAILABLE = False
 
 # Импортируем AdminNotifier для отправки в чат
@@ -63,7 +63,7 @@ try:
     from admin_notifications import AdminNotifier
     ADMIN_NOTIFIER_AVAILABLE = True
 except ImportError:
-    print("⚠️ AdminNotifier недоступен, PDF не будет отправляться")
+    print("[WARN] AdminNotifier недоступен, PDF не будет отправляться")
     ADMIN_NOTIFIER_AVAILABLE = False
 
 logger = logging.getLogger(__name__)
