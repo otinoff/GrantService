@@ -1,0 +1,235 @@
+[INFO] data.database.models: PostgreSQL connection configured: localhost:5432/grantservice
+[INFO] data.database.models: Connected to PostgreSQL: PostgreSQL 18.0 on x86_64-windows, compiled by msv...
+[INFO] data.database.models: Global PostgreSQL database instance created
+[INFO] data.database.models: PostgreSQL connection configured: localhost:5432/grantservice
+[INFO] data.database.models: Connected to PostgreSQL: PostgreSQL 18.0 on x86_64-windows, compiled by msv...
+Таблицы авторизации инициализированы
+============================= test session starts =============================
+platform win32 -- Python 3.12.2, pytest-7.4.3, pluggy-1.5.0 -- C:\Users\Андрей\AppData\Local\Programs\Python\Python312\python.exe
+cachedir: .pytest_cache
+rootdir: C:\SnowWhiteAI\GrantService
+configfile: pytest.ini
+plugins: anyio-4.9.0, asyncio-0.21.1, cov-2.12.1, timeout-2.4.0, zarr-3.1.3
+asyncio: mode=Mode.STRICT
+collecting ... [INFO] models: PostgreSQL connection configured: localhost:5432/grantservice
+[INFO] models: Connected to PostgreSQL: PostgreSQL 18.0 on x86_64-windows, compiled by msv...
+[INFO] models: Global PostgreSQL database instance created
+[INFO] web_admin: \U0001f4dd Логирование инициализировано: C:\SnowWhiteAI\GrantService\web-admin\logs\web_admin.log
+[INFO] database: \U0001f4dd Логирование инициализировано: C:\SnowWhiteAI\GrantService\web-admin\logs\database.log
+[INFO] api: \U0001f4dd Логирование инициализировано: C:\SnowWhiteAI\GrantService\web-admin\logs\api.log
+07:49:43 - web_admin - [92mINFO[0m - рџљЂ GrantService Web Admin - СЃРёСЃС‚РµРјР° Р»РѕРіРёСЂРѕРІР°РЅРёСЏ v2.0 Р·Р°РїСѓС‰РµРЅР°
+07:49:43 - web_admin - [92mINFO[0m - рџ“Ѓ Р›РѕРіРё СЃРѕС…СЂР°РЅСЏСЋС‚СЃСЏ РІ: C:\SnowWhiteAI\GrantService\web-admin\logs
+[INFO] prompt_manager: \U0001f4dd Логирование инициализировано: C:\SnowWhiteAI\GrantService\web-admin\logs\prompt_manager.log
+collected 1 item
+
+tests/integration/test_archery_club_fpg_e2e.py::test_archery_club_full_pipeline [INFO] tests.integration.test_archery_club_fpg_e2e: ================================================================================
+[INFO] tests.integration.test_archery_club_fpg_e2e: E2E TEST: Лучные клубы Кемерово - Президентский грант
+[INFO] tests.integration.test_archery_club_fpg_e2e: ================================================================================
+[INFO] models: PostgreSQL connection configured: localhost:5432/grantservice
+[INFO] models: Connected to PostgreSQL: PostgreSQL 18.0 on x86_64-windows, compiled by msv...
+[INFO] tests.integration.test_archery_club_fpg_e2e: Артефакты будут сохранены в: C:\SnowWhiteAI\GrantService\grants_output\archery_kemerovo
+[INFO] tests.integration.test_archery_club_fpg_e2e: 
+================================================================================
+[INFO] tests.integration.test_archery_club_fpg_e2e: ЭТАП 1: INTERACTIVE INTERVIEW + AUDIT
+[INFO] tests.integration.test_archery_club_fpg_e2e: ================================================================================
+[INFO] llm.unified_llm_client: \U0001f527 Инициализирован GIGACHAT клиент с моделью 'GigaChat'
+[INFO] llm.unified_llm_client: \U0001f527 Инициализирован GIGACHAT клиент с моделью 'GigaChat'
+вљ пёЏ StageReportGenerator РЅРµРґРѕСЃС‚СѓРїРµРЅ, PDF РЅРµ Р±СѓРґРµС‚ РѕС‚РїСЂР°РІР»СЏС‚СЊСЃСЏ
+вљ пёЏ AdminNotifier РЅРµРґРѕСЃС‚СѓРїРµРЅ, PDF РЅРµ Р±СѓРґРµС‚ РѕС‚РїСЂР°РІР»СЏС‚СЊСЃСЏ
+[OK] Р—Р°РіСЂСѓР¶РµРЅРѕ 0 РїСЂРѕРјРїС‚РѕРІ РґР»СЏ Р°РіРµРЅС‚Р° interactive_interviewer
+[OK] Р—Р°РіСЂСѓР¶РµРЅРѕ 6 РїСЂРѕРјРїС‚РѕРІ РґР»СЏ Р°РіРµРЅС‚Р° auditor
+07:49:53 - prompt_manager - [92mINFO[0m - DatabasePromptManager initialized
+[INFO] auditor_agent: \u2705 Auditor Agent: DatabasePromptManager подключен
+[INFO] interactive_interviewer_agent: \u2705 InteractiveInterviewerAgent initialized (provider=gigachat)
+[INFO] interactive_interviewer_agent: ================================================================================
+[INFO] interactive_interviewer_agent: НАЧАЛО ИНТЕРАКТИВНОГО ИНТЕРВЬЮ С АУДИТОМ
+[INFO] interactive_interviewer_agent: ================================================================================
+[INFO] interactive_interviewer_agent: 
+[БЛОК 1/3] Базовая информация о проекте
+[INFO] interactive_interviewer_agent:   Задаём 5 вопросов блока 1...
+[INFO] interactive_interviewer_agent:     Q1: Как называется ваш проект? (100-150 символов)...
+[INFO] interactive_interviewer_agent:     A1: Развитие стрельбы из лука в Кемерово...
+[INFO] interactive_interviewer_agent:     Q2: Какова основная цель вашего проекта?...
+[INFO] interactive_interviewer_agent:     A2: Создание сети лучных клубов для вовлечения молодёжи в традиционные виды спорта и сохранение историче...
+[INFO] interactive_interviewer_agent:     Q3: Какую проблему решает ваш проект? Опишите проблему...
+[INFO] interactive_interviewer_agent:     A3: В Кемерово отсутствует инфраструктура для занятий стрельбой из лука.
+Молодёжь не имеет доступа к это...
+[INFO] interactive_interviewer_agent:     Q4: Кто является целевой аудиторией проекта?...
+[INFO] interactive_interviewer_agent:     A4: Молодёжь 14-25 лет, семьи с детьми 8-14 лет, любители исторической реконструкции, студенты вузов...
+[INFO] interactive_interviewer_agent:     Q5: В каком регионе/городе будет реализован проект?...
+[INFO] interactive_interviewer_agent:     A5: Кемерово, Кемеровская область (Кузбасс)...
+[INFO] interactive_interviewer_agent:   [Interim Audit #1] Анализ ответов...
+[INFO] llm.unified_llm_client: \U0001f510 Получаем токен авторизации для GigaChat...
+[ERROR] llm.unified_llm_client: Ошибка генерации через gigachat: Ошибка авторизации GigaChat: 'NoneType' object has no attribute 'post'
+[ERROR] interactive_interviewer_agent: \u274c Ошибка interim audit: Ошибка авторизации GigaChat: 'NoneType' object has no attribute 'post'
+[INFO] interactive_interviewer_agent:   [Clarifying] Уточнений не требуется
+[INFO] interactive_interviewer_agent: 
+[БЛОК 2/3] Методология и бюджет
+[INFO] interactive_interviewer_agent:   Задаём 5 вопросов блока 2...
+[INFO] interactive_interviewer_agent:     Q1: Какие конкретные задачи вы планируете решить в рам...
+[INFO] interactive_interviewer_agent:     A1: 1. Открыть 3 лучных клуба в разных районах Кемерово
+2. Обучить 5 квалифицированных тренеров
+3. Прове...
+[INFO] interactive_interviewer_agent:     Q2: Опишите методологию реализации проекта (как будете...
+[INFO] interactive_interviewer_agent:     A2: 1. Аренда и оборудование 3 площадок (тиры, мишени, инвентарь)
+2. Обучение тренеров на базе ГЦОЛИФК (...
+[INFO] interactive_interviewer_agent:     Q3: Какие результаты вы планируете получить? (конкретн...
+[INFO] interactive_interviewer_agent:     A3: 1. Открыто 3 лучных клуба (по 50 участников каждый)
+2. Обучено 5 сертифицированных тренеров
+3. Прове...
+[INFO] interactive_interviewer_agent:     Q4: Каков планируемый бюджет проекта? (в рублях)...
+[INFO] interactive_interviewer_agent:     A4: 800000...
+[INFO] interactive_interviewer_agent:     Q5: Расшифруйте основные статьи бюджета (на что пойдут...
+[INFO] interactive_interviewer_agent:     A5: Аренда площадок (3 клуба, 12 месяцев): 300 000 руб
+Оборудование (луки, стрелы, мишени, защита): 250 ...
+[INFO] interactive_interviewer_agent:   [Interim Audit #2] Анализ ответов...
+[INFO] llm.unified_llm_client: \U0001f510 Получаем токен авторизации для GigaChat...
+[ERROR] llm.unified_llm_client: Ошибка генерации через gigachat: Ошибка авторизации GigaChat: 'NoneType' object has no attribute 'post'
+[ERROR] interactive_interviewer_agent: \u274c Ошибка interim audit: Ошибка авторизации GigaChat: 'NoneType' object has no attribute 'post'
+[INFO] interactive_interviewer_agent:   [Clarifying] Уточнений не требуется
+[INFO] interactive_interviewer_agent: 
+[БЛОК 3/3] Команда, партнёры, устойчивость
+[INFO] interactive_interviewer_agent:   Задаём 5 вопросов блока 3...
+[INFO] interactive_interviewer_agent:     Q1: Опишите вашу команду: кто будет реализовывать прое...
+[INFO] interactive_interviewer_agent:     A1: Руководитель проекта: Иван Петров - опыт реализации 2 спортивных проектов
+Тренерский состав: 5 челов...
+[INFO] interactive_interviewer_agent:     Q2: Есть ли у вас партнёры для реализации проекта? Кто...
+[INFO] interactive_interviewer_agent:     A2: 1. Департамент физкультуры и спорта Кемеровской области (поддержка, площадки)
+2. Кемеровский государ...
+[INFO] interactive_interviewer_agent:     Q3: Какие риски видите в реализации проекта и как буде...
+[INFO] interactive_interviewer_agent:     A3: Риск 1: Низкая посещаемость. Митигация: активная реклама, бесплатные пробные занятия.
+Риск 2: Травмы...
+[INFO] interactive_interviewer_agent:     Q4: Как проект будет работать после окончания гранта? ...
+[INFO] interactive_interviewer_agent:     A4: После завершения гранта:
+1. Клубы будут работать на членских взносах (300 руб/месяц с человека)
+2. П...
+[INFO] interactive_interviewer_agent:     Q5: На какой срок рассчитан проект? (в месяцах)...
+[INFO] interactive_interviewer_agent:     A5: 12 месяцев (1 год)...
+[INFO] interactive_interviewer_agent:   [Interim Audit #3] Анализ ответов...
+[INFO] llm.unified_llm_client: \U0001f510 Получаем токен авторизации для GigaChat...
+[ERROR] llm.unified_llm_client: Ошибка генерации через gigachat: Ошибка авторизации GigaChat: 'NoneType' object has no attribute 'post'
+[ERROR] interactive_interviewer_agent: \u274c Ошибка interim audit: Ошибка авторизации GigaChat: 'NoneType' object has no attribute 'post'
+[INFO] interactive_interviewer_agent:   [Clarifying] Уточнений не требуется
+[INFO] interactive_interviewer_agent: 
+[ФИНАЛЬНЫЙ АУДИТ] Комплексная оценка заявки
+[INFO] interactive_interviewer_agent:   [Final Audit] Запуск комплексного аудита...
+[LOG] [auditor] audit_started: {"agent_type": "auditor", "action": "audit_started", "timestamp": "2025-10-20T07:49:53.396400", "data": {"input_keys": ["application", "user_answers", "selected_grant"]}}
+07:49:53 - prompt_manager - [92mINFO[0m - Reloading prompts cache...
+2025-10-20 07:49:53.396 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 07:49:53.500 
+  [33m[1mWarning:[0m to view this Streamlit app on a browser, run it with the following
+  command:
+
+    streamlit run C:\Users\РђРЅРґСЂРµР№\AppData\Local\Programs\Python\Python312\Lib\site-packages\pytest\__main__.py [ARGUMENTS]
+2025-10-20 07:49:53.500 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 07:49:53.500 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 07:49:53.500 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+[INFO] data.database.models: PostgreSQL connection configured: localhost:5432/grantservice
+[INFO] data.database.models: Connected to PostgreSQL: PostgreSQL 18.0 on x86_64-windows, compiled by msv...
+2025-10-20 07:49:53.545 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 07:49:53.545 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 07:49:53.545 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+07:49:53 - prompt_manager - [92mINFO[0m - Loaded 70 prompts from agent_prompts table
+07:49:53 - prompt_manager - [92mINFO[0m - Cache reloaded: 6 agent types, 70 total prompts
+[INFO] llm.unified_llm_client: \U0001f510 Получаем токен авторизации для GigaChat...
+[INFO] llm.unified_llm_client: \U0001f510 Получаем токен авторизации для GigaChat...
+[INFO] llm.unified_llm_client: \U0001f510 Получаем токен авторизации для GigaChat...
+[INFO] llm.unified_llm_client: \U0001f510 Получаем токен авторизации для GigaChat...
+[ERROR] asyncio: Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x000001F4401B0EC0>
+[ERROR] auditor_agent: Ошибка LLM анализа полноты: Ошибка авторизации GigaChat: Ошибка получения токена: 401 - {"code":6,"message":"credentials doesn't match db data"}
+[ERROR] asyncio: Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001F440142CF0>, 136374.765)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000001F4401B0E90>
+[ERROR] asyncio: Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x000001F4401B20C0>
+[ERROR] auditor_agent: Ошибка LLM анализа соответствия: Ошибка авторизации GigaChat: Ошибка получения токена: 429 - <html>
+<head><title>429 Too Many Requests</title></head>
+<body>
+<center><h1>429 Too Many Requests</h1></center>
+<hr><center>SynGX</center>
+</body>
+</html>
+
+[ERROR] asyncio: Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001F440142E10>, 136374.781)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000001F44005AFF0>
+[ERROR] auditor_agent: Ошибка LLM анализа инновационности: Ошибка авторизации GigaChat: Ошибка получения токена: 401 - {"code":6,"message":"credentials doesn't match db data"}
+[ERROR] asyncio: Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x000001F4401B17C0>
+[ERROR] auditor_agent: Ошибка LLM анализа качества: Ошибка авторизации GigaChat: Ошибка получения токена: 429 - <html>
+<head><title>429 Too Many Requests</title></head>
+<body>
+<center><h1>429 Too Many Requests</h1></center>
+<hr><center>SynGX</center>
+</body>
+</html>
+
+[ERROR] asyncio: Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001F440141910>, 136374.796)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000001F44005AFC0>
+[ERROR] asyncio: Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x000001F4401B29F0>
+[ERROR] asyncio: Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x000001F440142F30>, 136374.781)])']
+connector: <aiohttp.connector.TCPConnector object at 0x000001F44005B020>
+[INFO] llm.unified_llm_client: \U0001f510 Получаем токен авторизации для GigaChat...
+[ERROR] auditor_agent: Ошибка создания улучшенной заявки: Ошибка авторизации GigaChat: Ошибка получения токена: 401 - {"code":6,"message":"credentials doesn't match db data"}
+[WARNING] auditor_agent: \u26a0\ufe0f anketa_id не передан, Audit PDF не отправлен
+[INFO] interactive_interviewer_agent:     Total score: 0/100
+[INFO] interactive_interviewer_agent:     Recommendation: N/A
+[INFO] interactive_interviewer_agent:   [Save] Сохранение анкеты в БД...
+[INFO] interactive_interviewer_agent:     Anketa ID: AN-20251020-archery_kemerovo-943
+[INFO] interactive_interviewer_agent:     Audit score: 0/100
+[INFO] interactive_interviewer_agent:     \u2705 Анкета сохранена в БД: AN-20251020-archery_kemerovo-943
+[INFO] interactive_interviewer_agent: ================================================================================
+[INFO] interactive_interviewer_agent: \u2705 ИНТЕРВЬЮ ЗАВЕРШЕНО (audit score: 0/100)
+[INFO] interactive_interviewer_agent: ================================================================================
+[INFO] tests.integration.test_archery_club_fpg_e2e: 
+\u2705 ЭТАП 1 ЗАВЕРШЁН
+[INFO] tests.integration.test_archery_club_fpg_e2e:    Anketa ID: AN-20251020-archery_kemerovo-943
+[INFO] tests.integration.test_archery_club_fpg_e2e:    Audit Score: 0/100
+[INFO] artifact_saver: [ArtifactSaver] Initialized (output_dir=grants_output\archery_kemerovo)
+[INFO] artifact_saver: [Save] Сохранение артефакта: anketa_archery_kemerovo_audit (type=interview)
+[INFO] artifact_saver:   \u2705 MD сохранён: grants_output\archery_kemerovo\anketa_archery_kemerovo_audit.md
+[INFO] artifact_saver:   \u2705 PDF сохранён: grants_output\archery_kemerovo\anketa_archery_kemerovo_audit.pdf
+[INFO] tests.integration.test_archery_club_fpg_e2e:    Артефакты: anketa_archery_kemerovo_audit.md + .pdf
+[INFO] tests.integration.test_archery_club_fpg_e2e: 
+================================================================================
+[INFO] tests.integration.test_archery_club_fpg_e2e: ЭТАП 2: RESEARCH + WEBSEARCH
+[INFO] tests.integration.test_archery_club_fpg_e2e: ================================================================================
+[WARNING] agents.researcher_agent_v2: [ResearcherAgentV2] Failed to load WebSearch settings from DB: attempted relative import with no known parent package
+[INFO] agents.researcher_agent_v2: [ResearcherAgentV2] Using defaults: websearch_provider=claude_code, NO fallback (Claude Code ONLY policy)
+[INFO] agents.researcher_agent_v2: [OK] Researcher V2: DatabasePromptManager connected (27 queries from DB)
+[INFO] agents.researcher_agent_v2: [OK] ResearcherAgentV2 initialized with WebSearchRouter (provider=claude_code)
+[INFO] presidential_grants_researcher: [PresidentialGrantsResearcher] Initialized with WebSearch for FPG
+[INFO] presidential_grants_researcher: ================================================================================
+[INFO] presidential_grants_researcher: PRESIDENTIAL GRANTS RESEARCHER: START
+[INFO] presidential_grants_researcher: ================================================================================
+[INFO] presidential_grants_researcher: [1/2] Выполнение 27 базовых исследовательских запросов...
+[INFO] agents.researcher_agent_v2: \U0001f50d Запуск исследования для anketa_id=AN-20251020-archery_kemerovo-943
+[INFO] agents.researcher_agent_v2: \u2705 Анкета загружена: user_id=999888777666
+[INFO] models: Исследование сохранено: AN-20251020-archery_kemerovo-943-RS-001
+[INFO] agents.researcher_agent_v2: \U0001f4dd Создана запись исследования: AN-20251020-archery_kemerovo-943-RS-001
+[INFO] agents.researcher_agent_v2: \U0001f4dd Статус обновлён: AN-20251020-archery_kemerovo-943-RS-001 \u2192 processing
+[INFO] agents.prompt_loader: \U0001f4cb ResearcherPromptLoader инициализирован
+[INFO] agents.prompt_loader: \u2705 Извлечено 17 placeholders из анкеты
+[INFO] agents.researcher_agent_v2: \U0001f4cb Placeholders извлечены:
+[INFO] agents.researcher_agent_v2:    - ПРОБЛЕМА: не указано...
+[INFO] agents.researcher_agent_v2:    - РЕГИОН: не указано
+[INFO] agents.researcher_agent_v2:    - СФЕРА: не указано
+[INFO] agents.researcher_agent_v2: \U0001f4e5 Загрузка запросов из БД...
+[INFO] agents.researcher_agent_v2: \u2705 Загружено из БД: 12 + 10 + 7 = 29 запросов
+[INFO] agents.researcher_agent_v2: \u2705 Запросы подготовлены:
+[INFO] agents.researcher_agent_v2:    - Блок 1: 12 запросов
+[INFO] agents.researcher_agent_v2:    - Блок 2: 10 запросов
+[INFO] agents.researcher_agent_v2:    - Блок 3: 7 запросов
+[INFO] shared.llm.websearch_router: [WebSearchRouter] Initialized (Claude Code CLI ONLY policy)
+[INFO] shared.llm.claude_code_websearch_client: \U0001f527 ClaudeCodeWebSearchClient инициализирован: http://178.236.17.55:8000
+[INFO] shared.llm.claude_code_websearch_client: \u2705 ClaudeCodeWebSearchClient сессия создана
+[INFO] shared.llm.websearch_router: [WebSearchRouter] \u2705 Claude Code WebSearch client initialized
+[INFO] shared.llm.websearch_router: [WebSearchRouter] Policy: NO fallback - Claude Code CLI ONLY
+[INFO] shared.llm.claude_code_websearch_client: \u2705 Claude Code API здоров
+[INFO] agents.researcher_agent_v2: \U0001f50d БЛОК 1: Проблема и социальная значимость (10 запросов)
+[INFO] agents.researcher_agent_v2:    Выполнение 12 запросов для блока block1_problem...
+[INFO] shared.llm.websearch_router: [WebSearchRouter] Batch search: 12 queries, max_concurrent=3

@@ -1,0 +1,17 @@
+BULK E2E TEST REPORT
+======================================================================
+
+Date: 2025-10-07 01:05:40
+Total anketas processed: 27
+Successfully completed: 0
+Failed: 27
+
+Auditor approved: 0
+Auditor rejected: 0
+Average quality score: 0.00/10
+
+Grants generated: 0
+Reviewer approved: 0
+Success rate: 0.0%
+
+All results saved to database

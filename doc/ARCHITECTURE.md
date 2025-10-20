@@ -1,5 +1,5 @@
 # System Architecture
-**Version**: 1.0.1 | **Last Modified**: 2025-09-30
+**Version**: 1.0.3 | **Last Modified**: 2025-10-17
 
 ## Table of Contents
 - [Overview](#overview)
@@ -25,7 +25,7 @@ GrantService построен на микросервисной архитект
 ┌─────────────────────────────────────────────────────────┐
 │                  Business Logic Layer                    │
 ├─────────────────┬──────────────────┬───────────────────┤
-│   AI Agents     │  n8n Workflows   │  Core Services    │
+│   AI Agents     │  Expert Agent    │  Core Services    │
 └────────┬────────┴──────────┬───────┴──────────┬────────┘
          │                   │                   │
          ▼                   ▼                   ▼
@@ -108,14 +108,14 @@ GrantService построен на микросервисной архитект
 - WebSearchRouter аналогичен LLMRouter для унификации
 - Переключение через UI без изменения кода
 
-#### n8n Workflows
-- **Technology**: n8n.io
-- **Purpose**: Автоматизация процессов
-- **Workflows**:
-  - User Registration
-  - Interview Process
-  - Document Generation
-  - Notification System
+#### Expert Agent
+- **Technology**: Python + PostgreSQL + Qdrant
+- **Purpose**: Центральная база знаний
+- **Features**:
+  - Семантический поиск по базе знаний
+  - Векторные embeddings (384d, multilingual)
+  - Динамическое обучение других агентов
+  - Хранение требований грантов
 
 #### Core Services
 - **Components**:
@@ -162,8 +162,7 @@ sequenceDiagram
     Telegram Bot->>Core Services: Register User
     Core Services->>Database: Create User Record
     Database-->>Core Services: User ID
-    Core Services->>n8n: Trigger Welcome Workflow
-    n8n->>Telegram Bot: Send Welcome Message
+    Core Services->>Telegram Bot: Send Welcome Message
     Telegram Bot-->>User: Welcome + Instructions
 ```
 
@@ -217,11 +216,11 @@ sequenceDiagram
 ### Infrastructure
 | Technology | Version | Purpose |
 |------------|---------|---------|
-| PostgreSQL | 14+ | Main database |
+| PostgreSQL | 18.0 | Main database |
+| Qdrant | Latest | Vector database |
 | Redis | 7+ | Cache layer |
 | Docker | 20+ | Containerization |
 | nginx | 1.21+ | Reverse proxy |
-| n8n | Latest | Workflow automation |
 
 ### Development
 | Technology | Version | Purpose |
@@ -514,6 +513,7 @@ security_headers = {
 
 | Version | Date | Changes |
 |---------|------|---------|
+| 1.0.3 | 2025-10-17 | Removed n8n references, added Expert Agent documentation, updated to reflect real architecture (systemd + Python API) |
 | 1.0.2 | 2025-10-11 | Added WebSearch Provider Configuration (Perplexity API + Claude Code), Database-Driven provider selection |
 | 1.0.1 | 2025-09-30 | Added CI/CD Pipeline architecture and deployment flow |
 | 1.0.0 | 2025-01-29 | Initial architecture documentation |

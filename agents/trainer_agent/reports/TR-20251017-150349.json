@@ -1,0 +1,31 @@
+{
+  "status": "failed",
+  "test_id": "TR-20251017-150349",
+  "agent": "reviewer",
+  "test_type": "functionality",
+  "execution_time": 27.25,
+  "checks": {
+    "can_initialize_reviewer": true,
+    "has_expert_agent": true,
+    "can_review_grant": true,
+    "result_is_valid": true,
+    "saved_to_db": false,
+    "execution_time_ok": true
+  },
+  "checks_passed": 5,
+  "checks_total": 6,
+  "errors": [],
+  "warnings": [
+    "Review не сохранён в БД"
+  ],
+  "timestamp": "2025-10-17T15:04:16.900753",
+  "use_real_llm": true,
+  "result_preview": {
+    "status": "success",
+    "review_id": null,
+    "readiness_score": 6.4,
+    "approval_probability": 43.0,
+    "can_submit": false,
+    "fpg_requirements_count": 12
+  }
+}

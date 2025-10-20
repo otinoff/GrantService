@@ -1,5 +1,5 @@
 # Changelog
-**Version**: 1.0.7 | **Last Modified**: 2025-10-12
+**Version**: 1.0.8 | **Last Modified**: 2025-10-17
 
 All notable changes to GrantService project will be documented in this file.
 
@@ -7,6 +7,69 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
+
+## [1.0.8] - 2025-10-17
+
+### Changed
+
+#### Documentation Architecture Cleanup
+- **Removed n8n references** from all documentation:
+  - STATUS.md: Removed "n8n workflow" mentions, replaced with "Python API integration"
+  - ARCHITECTURE.md: Removed n8n Workflows section and flow diagrams
+  - Updated technology stack to reflect actual architecture
+- **Clarified real architecture**:
+  - Systemd services for automation (grantservice-bot.service, grantservice-admin.service)
+  - Python API for agent communication (direct method calls)
+  - Expert Agent as central knowledge hub (PostgreSQL + Qdrant)
+  - No workflow engine required
+
+#### Files Reorganized
+- **Archived**: `n8n-workflows/` → `doc/archive/n8n-workflows-deprecated-2025-10-17/`
+- **Created**: `ARCHITECTURE_CLEANUP_2025-10-17.md` - Full documentation of changes
+
+### Fixed
+
+#### Documentation Accuracy Issues
+- **Problem**: Documentation mentioned n8n workflows that were never implemented
+- **Evidence**:
+  - Empty `n8n-workflows/` folder
+  - No n8n integration code in project
+  - Systemd services used instead for automation
+- **Solution**: Updated all documentation to match reality
+
+### Documentation
+
+#### Updated Files
+- **STATUS.md**:
+  - Section "Этап 4: Writer Integration": n8n → Python API
+  - Section "Интеграция с n8n": Renamed to "Интеграция с другими агентами"
+- **ARCHITECTURE.md**:
+  - Business Logic Layer diagram: "n8n Workflows" → "Expert Agent"
+  - Removed "n8n Workflows" subsection
+  - Updated User Registration Flow (removed n8n references)
+  - Technology stack: Removed n8n, added Qdrant
+- **New**: `doc/archive/ARCHITECTURE_CLEANUP_2025-10-17.md`
+
+#### Architecture Documentation
+The real automation architecture:
+```
+┌─────────────────────────────────────────────────────────┐
+│                  Business Logic Layer                    │
+├─────────────────┬──────────────────┬───────────────────┤
+│   AI Agents     │  Expert Agent    │  Core Services    │
+│  - Writer       │  (PostgreSQL +   │  - Grant Manager  │
+│  - Reviewer     │   Qdrant)        │  - Anketa Manager │
+│  - Researcher   │                  │                   │
+│  - Interviewer  │  Python API      │                   │
+└─────────────────┴──────────────────┴───────────────────┘
+```
+
+### Related Documents
+- [ARCHITECTURE_CLEANUP_2025-10-17.md](./archive/ARCHITECTURE_CLEANUP_2025-10-17.md) - Complete cleanup documentation
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - Updated architecture v1.0.3
+- [STATUS.md](../STATUS.md) - Updated project status
+
+---
 
 ## [1.0.7] - 2025-10-12
 

@@ -1,0 +1,34 @@
+{
+  "status": "failed",
+  "test_id": "TR-20251017-142502",
+  "agent": "writer_v2",
+  "test_type": "functionality",
+  "execution_time": 19.7,
+  "checks": {
+    "can_initialize_writer": true,
+    "has_expert_agent": true,
+    "can_generate_grant": true,
+    "result_is_valid": false,
+    "saved_to_db": false,
+    "execution_time_ok": true
+  },
+  "checks_passed": 4,
+  "checks_total": 6,
+  "errors": [
+    "Статус не success: error",
+    "Отсутствует поле 'application'"
+  ],
+  "warnings": [
+    "Заявка не сохранена в БД"
+  ],
+  "timestamp": "2025-10-17T14:25:22.292711",
+  "use_real_llm": true,
+  "result_preview": {
+    "status": "error",
+    "application_number": null,
+    "quality_score": 0,
+    "citations_count": 0,
+    "tables_count": 0,
+    "has_application": false
+  }
+}

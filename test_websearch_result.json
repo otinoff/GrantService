@@ -1,0 +1,28 @@
+{
+  "query": "Russian presidential grants 2025 culture requirements",
+  "content": "# Russian Presidential Grants for Culture 2025: Requirements and Application Criteria\n\n## Overview\n\nThe Russian Presidential Fund for Cultural Initiatives (PFCI) represents the primary mechanism for distributing presidential grants to cultural projects in 2025...",
+  "results": [
+    {
+      "title": "The Presidential Fund for Cultural Initiatives has opened the application process for the first grant competition of 2025",
+      "url": "https://kitap.tatar.ru/en/news/294/",
+      "snippet": "Projects can be submitted in nine thematic areas...",
+      "source": "kitap.tatar.ru"
+    }
+  ],
+  "sources": [
+    "президентскийфондкультурныхинициатив.рф",
+    "tadviser.com",
+    "kitap.tatar.ru"
+  ],
+  "total_results": 3,
+  "session_id": null,
+  "usage": {
+    "input_tokens": 10,
+    "cache_creation_input_tokens": 12320,
+    "cache_read_input_tokens": 19962,
+    "output_tokens": 1693
+  },
+  "cost": 0.26319915,
+  "search_time": 55.03,
+  "status": "success"
+}

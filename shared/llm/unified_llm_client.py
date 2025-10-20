@@ -82,22 +82,26 @@ class UnifiedLLMClient:
     async def generate_async(self, prompt: str, provider: str = None, **kwargs) -> str:
         """
         Универсальный метод для генерации текста
-        
+
         Args:
             prompt: Текст промпта
             provider: Провайдер ('gigachat', 'ollama', 'perplexity') или None для автоопределения
             **kwargs: Дополнительные параметры (temperature, max_tokens и т.д.)
-        
+
         Returns:
             Сгенерированный текст
         """
+        # ВАЖНО: Инициализируем session если его нет (для использования БЕЗ context manager)
+        if self.session is None:
+            await self.__aenter__()
+
         # Определяем провайдера
         target_provider = provider or self.provider
-        
+
         # Применяем параметры из kwargs
         temperature = kwargs.get('temperature', self.temperature)
         max_tokens = kwargs.get('max_tokens', MAX_TOKENS)
-        
+
         try:
             if target_provider == "gigachat":
                 return await self._generate_gigachat(prompt, temperature, max_tokens)

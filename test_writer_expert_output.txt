@@ -1,0 +1,8 @@
+2025-10-17 13:32:26,330 - data.database.models - WARNING - PostgreSQL environment variables not set, db instance not created
+2025-10-17 13:32:26,330 - data.database.models - INFO - PostgreSQL connection configured: localhost:5432/grantservice
+2025-10-17 13:32:26,399 - data.database.models - INFO - Connected to PostgreSQL: PostgreSQL 18.0 on x86_64-windows, compiled by msv...
+“аблицы авторизации инициализированы
+Traceback (most recent call last):
+  File "C:\SnowWhiteAI\GrantService\test_writer_with_expert.py", line 23, in <module>
+    from data.database.models import Database
+ImportError: cannot import name 'Database' from 'data.database.models' (C:\SnowWhiteAI\GrantService\data\database\models.py)

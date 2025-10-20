@@ -6,17 +6,26 @@ Auditor Agent - агент для анализа качества заявок �
 """
 import sys
 import os
+
+# Cross-platform path setup
+from pathlib import Path
+_project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(_project_root))
+sys.path.insert(0, str(_project_root / "shared"))
+sys.path.insert(0, str(_project_root / "telegram-bot" / "services"))
+sys.path.insert(0, str(_project_root / "web-admin"))
+sys.path.insert(0, str(_project_root / "web-admin" / "utils"))
+sys.path.insert(0, str(_project_root / "data" / "database"))
+sys.path.insert(0, str(_project_root / "agents"))
+
 from typing import Dict, Any, List, Optional
+
 import logging
 import asyncio
 import time
 from datetime import datetime
 
 # Добавляем пути к модулям
-sys.path.append('/var/GrantService/shared')
-sys.path.append('/var/GrantService/telegram-bot/services')
-sys.path.append('/var/GrantService/web-admin')
-sys.path.append('/var/GrantService/telegram-bot/utils')
 
 from base_agent import BaseAgent
 

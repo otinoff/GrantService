@@ -5,13 +5,25 @@
 """
 import sys
 import os
+
+# Cross-platform path setup
+from pathlib import Path
+_project_root = Path(__file__).parent.parent
+sys.path.insert(0, str(_project_root))
+sys.path.insert(0, str(_project_root / "shared"))
+sys.path.insert(0, str(_project_root / "telegram-bot" / "services"))
+sys.path.insert(0, str(_project_root / "web-admin"))
+sys.path.insert(0, str(_project_root / "web-admin" / "utils"))
+sys.path.insert(0, str(_project_root / "data" / "database"))
+sys.path.insert(0, str(_project_root / "agents"))
+
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
+
 import json
 from datetime import datetime
 
 # Добавляем путь к модулям базы данных
-sys.path.append('/var/GrantService/data')
 
 try:
     from data.database.prompts import get_prompts_by_agent, format_prompt

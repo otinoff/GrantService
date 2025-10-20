@@ -1,0 +1,35 @@
+INFO:expert_agent.expert_agent:Инициализация Expert Agent...
+INFO:expert_agent.expert_agent:\u2705 PostgreSQL подключен (localhost:5432)
+INFO:httpx:HTTP Request: GET http://localhost:6333 "HTTP/1.1 200 OK"
+INFO:expert_agent.expert_agent:\u2705 Qdrant подключен (localhost:6333)
+INFO:expert_agent.expert_agent:Загрузка модели: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+INFO:sentence_transformers.SentenceTransformer:Use pytorch device_name: cpu
+INFO:sentence_transformers.SentenceTransformer:Load pretrained SentenceTransformer: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+INFO:expert_agent.expert_agent:\u2705 Модель загружена
+INFO:expert_agent.expert_agent:\U0001f389 Expert Agent готов к работе!
+INFO:httpx:HTTP Request: GET http://localhost:6333/collections/knowledge_sections "HTTP/1.1 200 OK"
+INFO:expert_agent.expert_agent:Запрос: Какие требования к названию проекта?...
+1. Импорт модулей...
+2. Создание Expert Agent (это займёт ~30 секунд - загружается модель)...
+3. Получение статистики...
+
+Статистика:
+  PostgreSQL разделов: 2
+  Qdrant векторов: 2
+
+5. Тестовый запрос...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 20.50it/s]
+INFO:httpx:HTTP Request: POST http://localhost:6333/collections/knowledge_sections/points/search "HTTP/1.1 200 OK"
+INFO:expert_agent.expert_agent:Найдено 2 релевантных разделов
+INFO:expert_agent.expert_agent:Соединения закрыты
+
+Найдено 2 результатов:
+
+1. Название проекта (score: 0.719)
+   Название проекта должно быть кратким, понятным и отражать суть проекта. Избегайте длинных формулировок....
+
+2. Обоснование социальной значимости (score: 0.606)
+   Необходимо описать проблему, которую решает проект, с указанием статистики и конкретных данных....
+
+
+Тест завершён успешно!

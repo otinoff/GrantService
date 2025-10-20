@@ -1,0 +1,29 @@
+{
+  "status": "passed",
+  "test_id": "TR-20251017-141918",
+  "agent": "writer_v2",
+  "test_type": "functionality",
+  "execution_time": 21.31,
+  "checks": {
+    "can_initialize_writer": true,
+    "has_expert_agent": true,
+    "can_generate_grant": true,
+    "result_is_valid": true,
+    "saved_to_db": true,
+    "execution_time_ok": true
+  },
+  "checks_passed": 6,
+  "checks_total": 6,
+  "errors": [],
+  "warnings": [],
+  "timestamp": "2025-10-17T14:19:39.600304",
+  "use_real_llm": false,
+  "result_preview": {
+    "status": "success",
+    "application_number": null,
+    "quality_score": 8.0,
+    "citations_count": 2,
+    "tables_count": 2,
+    "has_application": true
+  }
+}

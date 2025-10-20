@@ -1,0 +1,155 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Improved User Identifier for Anketa ID
+=======================================
+Generates human-readable identifiers from Telegram user data
+
+Author: Database Manager Agent
+Created: 2025-10-09
+"""
+
+import re
+from typing import Dict, Any
+
+
+# Таблица транслитерации (ГОСТ 7.79-2000)
+TRANSLIT_TABLE = {
+    'а': 'a', 'б': 'b', 'в': 'v', 'г': 'g', 'д': 'd',
+    'е': 'e', 'ё': 'yo', 'ж': 'zh', 'з': 'z', 'и': 'i',
+    'й': 'y', 'к': 'k', 'л': 'l', 'м': 'm', 'н': 'n',
+    'о': 'o', 'п': 'p', 'р': 'r', 'с': 's', 'т': 't',
+    'у': 'u', 'ф': 'f', 'х': 'kh', 'ц': 'ts', 'ч': 'ch',
+    'ш': 'sh', 'щ': 'shch', 'ъ': '', 'ы': 'y', 'ь': '',
+    'э': 'e', 'ю': 'yu', 'я': 'ya',
+    # Uppercase
+    'А': 'A', 'Б': 'B', 'В': 'V', 'Г': 'G', 'Д': 'D',
+    'Е': 'E', 'Ё': 'Yo', 'Ж': 'Zh', 'З': 'Z', 'И': 'I',
+    'Й': 'Y', 'К': 'K', 'Л': 'L', 'М': 'M', 'Н': 'N',
+    'О': 'O', 'П': 'P', 'Р': 'R', 'С': 'S', 'Т': 'T',
+    'У': 'U', 'Ф': 'F', 'Х': 'Kh', 'Ц': 'Ts', 'Ч': 'Ch',
+    'Ш': 'Sh', 'Щ': 'Shch', 'Ъ': '', 'Ы': 'Y', 'Ь': '',
+    'Э': 'E', 'Ю': 'Yu', 'Я': 'Ya'
+}
+
+
+def transliterate(text: str) -> str:
+    """
+    Транслитерация кириллицы в латиницу
+
+    Examples:
+        >>> transliterate("Екатерина")
+        'ekaterina'
+        >>> transliterate("Максимова")
+        'maksimova'
+        >>> transliterate("Наталья")
+        'natalya'
+    """
+    result = []
+    for char in text:
+        if char in TRANSLIT_TABLE:
+            result.append(TRANSLIT_TABLE[char])
+        else:
+            result.append(char)
+
+    # Lowercase and clean
+    result_str = ''.join(result).lower()
+
+    # Remove non-alphanumeric except underscore
+    result_str = re.sub(r'[^a-z0-9_]', '', result_str)
+
+    # Limit length to 20 characters
+    return result_str[:20]
+
+
+def get_user_identifier(user_data: Dict[str, Any]) -> str:
+    """
+    Получить читаемый идентификатор пользователя
+
+    Приоритет:
+    1. first_name + last_name (транслитерация) - самый профессиональный вариант
+    2. first_name только (транслитерация)
+    3. username (если есть)
+    4. telegram_id (fallback, всегда есть)
+
+    Args:
+        user_data: dict с полями username, first_name, last_name, telegram_id
+
+    Returns:
+        Читаемый идентификатор для anketa_id
+
+    Examples:
+        >>> get_user_identifier({'first_name': 'Екатерина', 'last_name': 'Максимова'})
+        'ekaterina_maksimova'
+
+        >>> get_user_identifier({'first_name': 'Валерия'})
+        'valeriya'
+
+        >>> get_user_identifier({'username': 'Otinoff'})
+        'otinoff'
+
+        >>> get_user_identifier({'telegram_id': 182639995})
+        '182639995'
+    """
+    # 1. Имя + Фамилия (транслитерация кириллицы) - ПРИОРИТЕТ
+    first_name = user_data.get('first_name', '').strip()
+    last_name = user_data.get('last_name', '').strip()
+
+    if first_name and last_name:
+        # Екатерина Максимова → ekaterina_maksimova
+        first_trans = transliterate(first_name)
+        last_trans = transliterate(last_name)
+        if first_trans and last_trans:
+            return f"{first_trans}_{last_trans}"[:20]
+
+    # 2. Только имя (транслитерация)
+    if first_name:
+        # Валерия → valeriya
+        first_trans = transliterate(first_name)
+        if first_trans:
+            return first_trans[:20]
+
+    # 3. Username (fallback если нет имени)
+    username = user_data.get('username', '').strip()
+    if username:
+        # Очистка от @ если есть
+        username = username.lstrip('@').lower()
+        # Очистка от спецсимволов
+        username = re.sub(r'[^a-z0-9_]', '', username)
+        if username:
+            return username[:20]
+
+    # 4. Fallback - telegram_id (всегда есть, гарантированно уникальный)
+    telegram_id = user_data.get('telegram_id')
+    if telegram_id:
+        return str(telegram_id)
+
+    # 5. Крайний случай - генерируем random (не должно случиться)
+    import random
+    return f"user_{random.randint(100000, 999999)}"
+
+
+if __name__ == '__main__':
+    # Тесты
+    test_cases = [
+        {'username': 'Otinoff', 'first_name': 'Andrew', 'telegram_id': 182639995},
+        {'username': 'ekaterina_maximova', 'first_name': 'Екатерина', 'last_name': 'Максимова'},
+        {'first_name': 'Екатерина', 'last_name': 'Максимова', 'telegram_id': 791123834200},
+        {'first_name': 'Валерия', 'telegram_id': 888999000},
+        {'first_name': 'Наталья', 'last_name': 'Брюзгина'},
+        {'telegram_id': 999999999},
+        {'first_name': 'Очень Длинное Составное Имя', 'last_name': 'ЕщёБолееДлиннаяФамилия'},
+    ]
+
+    print("=" * 70)
+    print("USER IDENTIFIER TESTS")
+    print("=" * 70)
+
+    for i, user_data in enumerate(test_cases, 1):
+        identifier = get_user_identifier(user_data)
+        print(f"\n{i}. User data:")
+        print(f"   {user_data}")
+        print(f"   => Identifier: {identifier}")
+        print(f"   => Anketa ID: #AN-20251008-{identifier}-001")
+
+    print("\n" + "=" * 70)

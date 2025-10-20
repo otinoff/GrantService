@@ -504,15 +504,23 @@ class GrantServiceDatabase:
 
             cursor.execute("""
                 INSERT INTO grant_applications (
-                    application_number, session_id, status, content_json
+                    application_number, session_id, status, content_json,
+                    title, summary, admin_user, grant_fund,
+                    requested_amount, project_duration
                 )
-                VALUES (%s, %s, %s, %s)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
                 RETURNING application_number
             """, (
                 application_number,
                 application_data.get('session_id'),
                 application_data.get('status', 'draft'),
-                json.dumps(application_data.get('content', {}))
+                json.dumps(application_data.get('content', application_data.get('application', {}))),
+                application_data.get('title', 'Проект'),
+                application_data.get('summary', '')[:500] if application_data.get('summary') else '',
+                application_data.get('admin_user', 'ai_agent'),
+                application_data.get('grant_fund', ''),
+                application_data.get('requested_amount', 0.0),
+                application_data.get('project_duration', 12)
             ))
 
             result = cursor.fetchone()[0]
@@ -836,6 +844,41 @@ class GrantServiceDatabase:
             # Fallback to simple format
             return f"{anketa_id}-GR-{datetime.now().strftime('%H%M%S')}"
 
+    def generate_review_id(self, anketa_id: str) -> str:
+        """
+        Generate review ID in unified format: anketa_id + RV suffix + counter
+
+        Examples:
+            #AN-20251008-ekaterina_maksimova-001-RV-001
+            #AN-20251008-ekaterina_maksimova-001-RV-002
+
+        Note: Review - это независимое экспертное мнение о готовом гранте.
+              Review НЕ изменяет грант, а создает отдельную оценочную запись.
+        """
+        from datetime import datetime
+
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # Count existing reviews for this anketa
+                cursor.execute("""
+                    SELECT COUNT(*) FROM grant_reviews
+                    WHERE anketa_id = %s
+                """, (anketa_id,))
+
+                count = cursor.fetchone()[0] or 0
+                cursor.close()
+
+                # Generate ID: anketa_id-RV-NNN
+                review_id = f"{anketa_id}-RV-{count + 1:03d}"
+                return review_id
+
+        except Exception as e:
+            logger.error(f"Ошибка генерации review_id: {e}")
+            # Fallback to simple format
+            return f"{anketa_id}-RV-{datetime.now().strftime('%H%M%S')}"
+
     def save_research_results(self, research_data: Dict[str, Any]) -> str:
         """Сохранить результаты исследования и вернуть research_id"""
         try:
@@ -892,6 +935,100 @@ class GrantServiceDatabase:
 
         except Exception as e:
             logger.error(f"Ошибка сохранения исследования: {e}")
+            return None
+
+    def save_review_results(self, review_data: Dict[str, Any]) -> str:
+        """
+        Сохранить результаты Review и вернуть review_id
+
+        Review - это независимое экспертное мнение о готовом гранте.
+        Review НЕ изменяет грант, а создает отдельную оценочную запись.
+
+        Args:
+            review_data: Словарь с результатами review_grant_async() из ReviewerAgent
+                - anketa_id: ID анкеты
+                - grant_id: ID гранта, который оценивается
+                - readiness_score: Общая оценка готовности (0-10)
+                - approval_probability: Вероятность одобрения (0-100%)
+                - criteria_scores: Детальные оценки по 4 критериям
+                - strengths: Список сильных сторон
+                - weaknesses: Список слабых сторон
+                - recommendations: Список рекомендаций
+                - can_submit: Флаг готовности к подаче
+                - quality_tier: Уровень качества
+                - review_content: Полный текст review отчета (optional)
+                - review_md_path: Путь к MD файлу (optional)
+                - review_pdf_path: Путь к PDF файлу (optional)
+                - llm_provider: LLM провайдер (optional)
+                - model: Модель LLM (optional)
+                - processing_time: Время обработки (optional)
+                - tokens_used: Количество токенов (optional)
+
+        Returns:
+            review_id: Уникальный ID review в формате #AN-YYYYMMDD-username-NNN-RV-NNN
+        """
+        try:
+            anketa_id = review_data['anketa_id']
+            grant_id = review_data['grant_id']
+            review_id = self.generate_review_id(anketa_id)
+
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # Extract criteria scores
+                criteria = review_data.get('criteria_scores', {})
+                evidence = criteria.get('evidence_base', {})
+                structure = criteria.get('structure', {})
+                matching = criteria.get('matching', {})
+                economics = criteria.get('economics', {})
+
+                cursor.execute("""
+                    INSERT INTO grant_reviews
+                    (review_id, grant_id, anketa_id,
+                     readiness_score, approval_probability, can_submit, quality_tier,
+                     evidence_score, structure_score, matching_score, economics_score,
+                     criteria_scores, strengths, weaknesses, recommendations,
+                     review_content, review_md_path, review_pdf_path,
+                     llm_provider, model, processing_time, tokens_used,
+                     created_at, updated_at)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())
+                    RETURNING review_id
+                """, (
+                    review_id,
+                    grant_id,
+                    anketa_id,
+                    review_data.get('readiness_score'),
+                    review_data.get('approval_probability'),
+                    review_data.get('can_submit', False),
+                    review_data.get('quality_tier', 'Unknown'),
+                    evidence.get('score'),
+                    structure.get('score'),
+                    matching.get('score'),
+                    economics.get('score'),
+                    Json(review_data.get('criteria_scores', {})),
+                    review_data.get('strengths', []),
+                    review_data.get('weaknesses', []),
+                    review_data.get('recommendations', []),
+                    review_data.get('review_content'),
+                    review_data.get('review_md_path'),
+                    review_data.get('review_pdf_path'),
+                    review_data.get('llm_provider', 'claude_code'),
+                    review_data.get('model', 'sonnet-4.5'),
+                    review_data.get('processing_time'),
+                    review_data.get('tokens_used')
+                ))
+
+                result = cursor.fetchone()[0]
+                conn.commit()
+                cursor.close()
+
+                logger.info(f"Review сохранен: {result} для grant_id={grant_id}")
+                return result
+
+        except Exception as e:
+            logger.error(f"Ошибка сохранения review: {e}")
+            import traceback
+            traceback.print_exc()
             return None
 
     def get_grant_by_id(self, grant_id: int) -> Optional[Dict]:

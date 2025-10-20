@@ -1,0 +1,105 @@
+INFO:__main__:============================================================
+INFO:__main__:Загрузка базы знаний ФПГ в Expert Agent
+INFO:__main__:============================================================
+INFO:__main__:Чтение файла: C:\SnowWhiteAI\GrantService\fpg_docs_2025\UNIFIED_KNOWLEDGE_BASE.md
+INFO:__main__:Размер файла: 187548 символов
+INFO:__main__:Категория: ПОЛНАЯ БАЗА ЗНАНИЙ: Грантовые заявки ФПГ
+INFO:__main__:Категория: ЧАСТЬ 1: ОФИЦИАЛЬНЫЕ ТРЕБОВАНИЯ ФПГ
+INFO:__main__:Категория: База знаний: Грантовые заявки ФПГ
+INFO:__main__:Категория: Общие правила
+INFO:__main__:Категория: Разделы заявки
+INFO:__main__:  Добавлена статья: Общие требования к заполнению заявки (4938 символов)
+INFO:__main__:  Добавлена статья: Как заполнить раздел "О проекте" (35308 символов)
+INFO:__main__:  Добавлена статья: Как заполнить раздел "Руководитель проекта" (2748 символов)
+INFO:__main__:  Добавлена статья: Как заполнить раздел "Команда проекта" (4378 символов)
+INFO:__main__:  Добавлена статья: Как заполнить раздел "Организация-заявитель" (10901 символов)
+INFO:__main__:  Добавлена статья: Как заполнить раздел "Календарный план" (7008 символов)
+INFO:__main__:Категория: Бюджет
+INFO:__main__:  Добавлена статья: Как заполнить раздел "Бюджет проекта" (1703 символов)
+INFO:__main__:  Добавлена статья: Общие принципы формирования бюджета проекта (11613 символов)
+INFO:__main__:  Добавлена статья: На что НЕЛЬЗЯ запрашивать и тратить средства гранта (2521 символов)
+INFO:__main__:  Добавлена статья: На что НЕ РЕКОМЕНДУЕТСЯ запрашивать и тратить средства (2367 символов)
+INFO:__main__:Категория: Подготовка
+INFO:__main__:  Добавлена статья: Комментарии по отдельным статьям бюджета (26266 символов)
+INFO:__main__:  Добавлена статья: Как разработать социальный проект (6563 символов)
+INFO:__main__:Категория: О конкурсе
+INFO:__main__:  Добавлена статья: Почему нет смысла подавать заявку, не имея проекта (2713 символов)
+INFO:__main__:  Добавлена статья: Кто может участвовать в конкурсе (4548 символов)
+INFO:__main__:Категория: ЧАСТЬ 2: ПРАКТИЧЕСКИЕ РЕКОМЕНДАЦИИ
+INFO:__main__:Категория: База знаний по созданию заявки в Фонд президентских грантов
+INFO:__main__:  Добавлена статья: Грантовые направления и примерные тематики (2776 символов)
+INFO:__main__:Категория: ЧАСТЬ 3: ПРИМЕРЫ ИЗ УСПЕШНЫХ ЗАЯВОК ФПГ
+INFO:__main__:
+Всего найдено статей: 15
+INFO:__main__:
+Инициализация Expert Agent...
+INFO:expert_agent:Инициализация Expert Agent...
+INFO:expert_agent:\u2705 PostgreSQL подключен (localhost:5432)
+INFO:httpx:HTTP Request: GET http://localhost:6333 "HTTP/1.1 200 OK"
+INFO:expert_agent:\u2705 Qdrant подключен (localhost:6333)
+INFO:expert_agent:Загрузка модели: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+INFO:sentence_transformers.SentenceTransformer:Use pytorch device_name: cpu
+INFO:sentence_transformers.SentenceTransformer:Load pretrained SentenceTransformer: sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
+INFO:expert_agent:\u2705 Модель загружена
+INFO:expert_agent:\U0001f389 Expert Agent готов к работе!
+INFO:__main__:
+Загрузка в базу данных...
+INFO:__main__:Создан новый источник (ID: 4)
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 11.12it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[1/15] Загружено: Общие требования к заполнению заявки...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 10.33it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[2/15] Загружено: Как заполнить раздел "О проекте"...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 18.51it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[3/15] Загружено: Как заполнить раздел "Руководитель проекта"...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 17.93it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[4/15] Загружено: Как заполнить раздел "Команда проекта"...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 14.59it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[5/15] Загружено: Как заполнить раздел "Организация-заявитель"...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 15.86it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[6/15] Загружено: Как заполнить раздел "Календарный план"...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 18.35it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[7/15] Загружено: Как заполнить раздел "Бюджет проекта"...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 18.73it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[8/15] Загружено: Общие принципы формирования бюджета проекта...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 16.74it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[9/15] Загружено: На что НЕЛЬЗЯ запрашивать и тратить средства грант...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 17.04it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[10/15] Загружено: На что НЕ РЕКОМЕНДУЕТСЯ запрашивать и тратить сред...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 12.18it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[11/15] Загружено: Комментарии по отдельным статьям бюджета...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 16.70it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[12/15] Загружено: Как разработать социальный проект...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 16.99it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[13/15] Загружено: Почему нет смысла подавать заявку, не имея проекта...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 17.78it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[14/15] Загружено: Кто может участвовать в конкурсе...
+Batches:   0%|          | 0/1 [00:00<?, ?it/s]Batches: 100%|##########| 1/1 [00:00<00:00, 16.30it/s]
+INFO:httpx:HTTP Request: PUT http://localhost:6333/collections/knowledge_sections/points?wait=true "HTTP/1.1 200 OK"
+INFO:__main__:[15/15] Загружено: Грантовые направления и примерные тематики...
+INFO:__main__:
+\u2713 Загружено: 15
+INFO:__main__:  Пропущено: 0
+INFO:__main__:  Всего: 15
+INFO:httpx:HTTP Request: GET http://localhost:6333/collections/knowledge_sections "HTTP/1.1 200 OK"
+INFO:__main__:
+============================================================
+INFO:__main__:Финальная статистика:
+INFO:__main__:============================================================
+INFO:__main__:PostgreSQL разделов: 17
+INFO:__main__:Qdrant векторов: 17
+INFO:__main__:============================================================
+INFO:expert_agent:Соединения закрыты

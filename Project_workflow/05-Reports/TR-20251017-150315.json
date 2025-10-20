@@ -1,0 +1,24 @@
+{
+  "status": "failed",
+  "test_id": "TR-20251017-150315",
+  "agent": "reviewer",
+  "test_type": "functionality",
+  "execution_time": 0.02,
+  "checks": {
+    "can_initialize_reviewer": false,
+    "has_expert_agent": false,
+    "can_review_grant": false,
+    "result_is_valid": false,
+    "saved_to_db": false,
+    "execution_time_ok": false
+  },
+  "checks_passed": 0,
+  "checks_total": 6,
+  "errors": [
+    "Ошибка инициализации Reviewer: No module named 'base_agent'",
+    "Критическая ошибка: No module named 'base_agent'"
+  ],
+  "warnings": [],
+  "timestamp": "2025-10-17T15:03:15.717304",
+  "use_real_llm": true
+}

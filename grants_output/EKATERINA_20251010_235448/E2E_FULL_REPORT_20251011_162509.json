@@ -1,0 +1,29 @@
+{
+  "anketa_id": "EKATERINA_20251010_235448",
+  "test_started": "2025-10-11T16:25:09.131975",
+  "stages": {
+    "stage1_load_anketa": {
+      "status": "success",
+      "duration": 0.5,
+      "anketa_id": "EKATERINA_20251010_235448",
+      "user": "ekaterina_maximova"
+    },
+    "stage2_research": {
+      "status": "success",
+      "duration": 62.499076,
+      "research_id": "RES-20251011162509",
+      "total_queries": 27,
+      "total_sources": 0
+    }
+  },
+  "artifacts": [
+    "C:\\SnowWhiteAI\\GrantService\\grants_output\\EKATERINA_20251010_235448\\01_anketa.json",
+    "C:\\SnowWhiteAI\\GrantService\\grants_output\\EKATERINA_20251010_235448\\02_research_results.json",
+    "C:\\SnowWhiteAI\\GrantService\\grants_output\\EKATERINA_20251010_235448\\02_research_summary.txt"
+  ],
+  "errors": [],
+  "status": "error",
+  "error": "Writer failed: Ошибка создания заявки: Ошибка авторизации GigaChat: Ошибка получения токена: 401 - {\"code\":6,\"message\":\"credentials doesn't match db data\"}",
+  "error_traceback": "Traceback (most recent call last):\n  File \"C:\\SnowWhiteAI\\GrantService\\tests\\integration\\test_ekaterina_e2e_full_pipeline.py\", line 349, in run_e2e_test\n    raise ValueError(f\"Writer failed: {writer_result.get('message')}\")\nValueError: Writer failed: Ошибка создания заявки: Ошибка авторизации GigaChat: Ошибка получения токена: 401 - {\"code\":6,\"message\":\"credentials doesn't match db data\"}\n",
+  "test_completed": "2025-10-11T16:26:13.704793"
+}

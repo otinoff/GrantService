@@ -1,0 +1,20 @@
+{
+  "anketa_id": "EKATERINA_20251010_235448",
+  "test_started": "2025-10-11T17:22:17.869676",
+  "stages": {
+    "stage1_load_anketa": {
+      "status": "success",
+      "duration": 0.5,
+      "anketa_id": "EKATERINA_20251010_235448",
+      "user": "ekaterina_maximova"
+    }
+  },
+  "artifacts": [
+    "C:\\SnowWhiteAI\\GrantService\\grants_output\\EKATERINA_20251010_235448\\01_anketa.json"
+  ],
+  "errors": [],
+  "status": "error",
+  "error": "Research failed: 'result'",
+  "error_traceback": "Traceback (most recent call last):\n  File \"C:\\SnowWhiteAI\\GrantService\\tests\\integration\\test_ekaterina_e2e_full_pipeline.py\", line 280, in run_e2e_test\n    raise ValueError(f\"Research failed: {research_result.get('error')}\")\nValueError: Research failed: 'result'\n",
+  "test_completed": "2025-10-11T17:23:12.238226"
+}

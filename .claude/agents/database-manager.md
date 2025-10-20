@@ -213,6 +213,28 @@ pg_dump -h localhost -U grantservice -d grantservice > backup.sql
 psql -h localhost -U grantservice -d grantservice < backup.sql
 ```
 
+## Документация проекта
+
+### Где искать документацию
+- **Основная папка**: `C:\SnowWhiteAI\GrantService\doc`
+- **Документация агентов**: `.claude/agents/*/`
+- **Миграции БД**: `database/migrations/`
+- **Скрипты**: `scripts/`
+
+### Ключевые документы
+- `doc/ARCHITECTURE.md` - архитектура системы
+- `doc/AI_AGENTS_SETTINGS_ARCHITECTURE.md` - настройки AI агентов
+- `doc/NOMENCLATURE.md` - номенклатура и термины
+- `CLAUDE.md` - общая информация о проекте
+- `.claude/agents/database-manager/README.md` - документация database manager
+- `.claude/agents/database-manager/database_structure.md` - структура БД
+
+### Production сервер
+- **Адрес**: 5.35.88.251
+- **БД**: PostgreSQL на порту 5432
+- **Web-админ**: http://5.35.88.251:8501
+- **Подключение**: `psql -h 5.35.88.251 -U postgres -d grantservice`
+
 ## Контекст проекта
 
 База данных - критически важный компонент системы GrantService. Она хранит все данные о пользователях, их заявках, промпты AI-агентов и аналитику. Важно обеспечить высокую доступность, производительность и безопасность данных.
