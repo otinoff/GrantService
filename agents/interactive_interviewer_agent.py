@@ -529,10 +529,16 @@ class InteractiveInterviewerAgent(BaseAgent):
             }
 
             # Вызываем аудитор
-            audit_result = await self.auditor.audit_application_async(audit_input)
+            audit_wrapped = await self.auditor.audit_application_async(audit_input)
 
-            logger.info(f"    Total score: {audit_result.get('total_score', 0)}/100")
-            logger.info(f"    Recommendation: {audit_result.get('recommendation', 'N/A')}")
+            # BaseAgent.prepare_output() оборачивает результат в {'result': {...}}
+            audit_result = audit_wrapped.get('result', audit_wrapped)
+
+            # Debug: выводим что вернул аудитор
+            overall_score = audit_result.get('overall_score', 0)
+            logger.info(f"    Overall score: {overall_score:.3f} ({int(overall_score * 100)}/100)")
+            logger.info(f"    Readiness: {audit_result.get('readiness_status', 'N/A')}")
+            logger.info(f"    Analysis keys: {list(audit_result.get('analysis', {}).keys())}")
 
             return audit_result
 
