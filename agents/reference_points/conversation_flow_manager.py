@@ -283,7 +283,17 @@ class ConversationFlowManager:
         remaining_follow_ups = self.context.get_remaining_follow_ups()
 
         # Логика выбора в зависимости от состояния
-        if self.context.current_state == ConversationState.EXPLORING:
+        if self.context.current_state == ConversationState.INIT:
+            # В начале интервью: взять первый RP
+            next_rp = self.rp_manager.get_next_reference_point(exclude_completed=True)
+            if next_rp:
+                logger.info(f"INIT state: Starting with first RP: {next_rp.id}")
+                return (next_rp, TransitionType.LINEAR)
+            else:
+                logger.error("CRITICAL: No reference points available!")
+                return (None, TransitionType.FINALIZE)
+
+        elif self.context.current_state == ConversationState.EXPLORING:
             # В режиме исследования: брать следующий незавершённый RP
             next_rp = self.rp_manager.get_next_reference_point(exclude_completed=True)
             if next_rp:
