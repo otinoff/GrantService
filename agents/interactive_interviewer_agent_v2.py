@@ -175,6 +175,17 @@ class InteractiveInterviewerAgentV2(BaseAgent):
             logger.error(f"Failed to initialize LLM: {e}")
             self.llm = None
 
+    def process(self, data: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Основной метод обработки (требуется BaseAgent)
+
+        Для V2 используйте async метод conduct_interview()
+        """
+        raise NotImplementedError(
+            "InteractiveInterviewerAgentV2 is async-only. "
+            "Use: await agent.conduct_interview(user_data, callback)"
+        )
+
     async def conduct_interview(
         self,
         user_data: Dict[str, Any],
