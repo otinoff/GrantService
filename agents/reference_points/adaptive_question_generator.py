@@ -374,12 +374,11 @@ class AdaptiveQuestionGenerator:
 Верни ТОЛЬКО текст вопроса, без комментариев."""
 
         try:
-            # Вызов LLM
-            response = await self.llm.chat(
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt}
-                ],
+            # Вызов LLM - UnifiedLLMClient использует generate_async с единым промптом
+            full_prompt = f"{system_prompt}\n\n{user_prompt}"
+
+            response = await self.llm.generate_async(
+                prompt=full_prompt,
                 temperature=0.7  # Креативность
             )
 
