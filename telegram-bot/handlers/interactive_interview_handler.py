@@ -49,8 +49,12 @@ class InteractiveInterviewHandler:
         self.admin_chat_id = admin_chat_id
 
         # Хранилище активных интервью
-        # {user_id: {agent, update, context, conversation_state}}
+        # {user_id: {agent, update, context, conversation_state, answer_queue}}
         self.active_interviews = {}
+
+        # Import asyncio для Queue
+        import asyncio
+        self.asyncio = asyncio
 
     def is_interview_active(self, user_id: int) -> bool:
         """Проверить активно ли интервью для пользователя"""
@@ -93,13 +97,18 @@ class InteractiveInterviewHandler:
                 qdrant_port=6333
             )
 
+            # Создать очередь для ответов
+            import asyncio
+            answer_queue = asyncio.Queue()
+
             # Сохранить в активные
             self.active_interviews[user_id] = {
                 'agent': agent,
                 'update': update,
                 'context': context,
                 'user_data': user_data,
-                'started_at': datetime.now()
+                'started_at': datetime.now(),
+                'answer_queue': answer_queue  # Очередь для ответов
             }
 
             # Приветствие
@@ -163,6 +172,7 @@ class InteractiveInterviewHandler:
 
         interview = self.active_interviews[user_id]
         agent = interview['agent']
+        answer_queue = interview['answer_queue']
 
         # Создать callback для задавания вопросов
         async def ask_question_callback(question: str) -> str:
@@ -178,13 +188,12 @@ class InteractiveInterviewHandler:
             # Отправить вопрос
             await update.message.reply_text(question)
 
-            # Ждем ответа (это должно быть обработано в handle_message)
-            # Здесь мы сохраняем состояние "ожидает ответ"
-            interview['waiting_for_answer'] = True
-            interview['current_question'] = question
+            # Ждем реального ответа из очереди
+            logger.info(f"[WAITING] Waiting for answer from user {user_id}")
+            answer = await answer_queue.get()
+            logger.info(f"[RECEIVED] Got answer from user {user_id}: {answer[:50]}...")
 
-            # Возвращаем placeholder - реальный ответ будет в handle_message
-            return "[WAITING_FOR_USER_RESPONSE]"
+            return answer
 
         try:
             # Запустить интервью
@@ -230,9 +239,10 @@ class InteractiveInterviewHandler:
             return
 
         interview = self.active_interviews[user_id]
+        answer_queue = interview.get('answer_queue')
 
-        if not interview.get('waiting_for_answer'):
-            # Не ждем ответа - игнорируем
+        if not answer_queue:
+            # Нет очереди - старая версия handler
             return
 
         # Получить ответ
@@ -240,17 +250,8 @@ class InteractiveInterviewHandler:
 
         logger.info(f"[ANSWER] User {user_id}: {answer[:50]}...")
 
-        # Сохранить ответ
-        interview['last_answer'] = answer
-        interview['waiting_for_answer'] = False
-
-        # TODO: Передать ответ обратно в agent
-        # Это требует рефакторинга agent для поддержки async callbacks
-
-        # Пока что просто благодарим
-        await update.message.reply_text(
-            "Спасибо! Обрабатываю ваш ответ..."
-        )
+        # Положить ответ в очередь - callback его заберёт
+        await answer_queue.put(answer)
 
     async def stop_interview(
         self,

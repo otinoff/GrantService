@@ -41,7 +41,7 @@ class GrantServiceDatabase:
             # Читаем из переменных окружения
             self.connection_params = {
                 'host': os.getenv('PGHOST', 'localhost'),
-                'port': int(os.getenv('PGPORT', '5432')),
+                'port': int(os.getenv('PGPORT', '5434')),  # Custom port 5434 (not default 5432)
                 'database': os.getenv('PGDATABASE', 'grantservice'),
                 'user': os.getenv('PGUSER', 'postgres'),
                 'password': os.getenv('PGPASSWORD', 'root')
