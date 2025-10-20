@@ -183,12 +183,14 @@ class ReferencePointManager:
         # Проверить критичные и важные
         critical_rps = [rp for rp in self.reference_points.values()
                        if rp.priority == ReferencePointPriority.P0_CRITICAL]
-        critical_completed = all(rp.is_complete() for rp in critical_rps)
+        # SAFETY: all([]) возвращает True, но нам нужно False если список пуст!
+        critical_completed = len(critical_rps) > 0 and all(rp.is_complete() for rp in critical_rps)
 
         important_rps = [rp for rp in self.reference_points.values()
                         if rp.priority in [ReferencePointPriority.P0_CRITICAL,
                                           ReferencePointPriority.P1_IMPORTANT]]
-        important_completed = all(rp.is_complete() for rp in important_rps)
+        # SAFETY: all([]) возвращает True, но нам нужно False если список пуст!
+        important_completed = len(important_rps) > 0 and all(rp.is_complete() for rp in important_rps)
 
         # Общая завершённость
         overall = completed / total if total > 0 else 0.0

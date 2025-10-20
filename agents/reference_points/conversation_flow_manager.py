@@ -251,6 +251,11 @@ class ConversationFlowManager:
         # 2. ИЛИ все критичные + важные завершены и общая полнота >= 80%
         # 3. ИЛИ задано слишком много вопросов (>25)
 
+        # SAFETY: Не финализируем если не задали ни одного вопроса!
+        if self.context.questions_asked == 0:
+            logger.info("Cannot finalize: no questions asked yet")
+            return False
+
         if self.context.current_state == ConversationState.FINALIZING:
             return True
 
