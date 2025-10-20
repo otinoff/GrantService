@@ -116,22 +116,28 @@ class InteractiveInterviewHandler:
 Готовы начать? Нажмите /continue для продолжения.
             """
 
-            await update.message.reply_text(greeting)
+            # Send greeting (works with both message and callback)
+            chat = update.effective_chat
+            await context.bot.send_message(chat_id=chat.id, text=greeting)
 
             logger.info(f"[OK] Interview initialized for user {user_id}")
 
         except ImportError as e:
             logger.error(f"[ERROR] Failed to import InteractiveInterviewerAgentV2: {e}")
-            await update.message.reply_text(
-                "Извините, система интервью временно недоступна. "
-                "Попробуйте позже или обратитесь в поддержку."
+            chat = update.effective_chat
+            await context.bot.send_message(
+                chat_id=chat.id,
+                text="Извините, система интервью временно недоступна. "
+                     "Попробуйте позже или обратитесь в поддержку."
             )
         except Exception as e:
             logger.error(f"[ERROR] Failed to start interview: {e}")
             import traceback
             traceback.print_exc()
-            await update.message.reply_text(
-                f"Произошла ошибка при запуске интервью: {e}"
+            chat = update.effective_chat
+            await context.bot.send_message(
+                chat_id=chat.id,
+                text=f"Произошла ошибка при запуске интервью: {e}"
             )
 
     async def continue_interview(

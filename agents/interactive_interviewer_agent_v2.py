@@ -443,7 +443,15 @@ class InteractiveInterviewerAgentV2(BaseAgent):
             Результаты аудита
         """
         try:
-            audit_result = await self.auditor.evaluate_anketa(anketa, grant_fund='fpg')
+            # Prepare audit input
+            audit_input = {
+                'application': anketa,
+                'user_answers': anketa,  # Same as application for V2
+                'research_data': {},
+                'selected_grant': {'fund_name': 'fpg'}
+            }
+
+            audit_result = await self.auditor.audit_application_async(audit_input)
 
             # Пересчитать score с учётом Reference Points
             rp_progress = self.rp_manager.get_progress()
