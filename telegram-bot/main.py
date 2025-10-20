@@ -198,6 +198,9 @@ from data.database import (
 
 from config.constants import ADMIN_USERS, ALLOWED_USERS
 
+# AI Agents
+from agents.interactive_interviewer_agent import InteractiveInterviewerAgent
+
 
 class GrantServiceBotWithMenu:
     def __init__(self):
@@ -205,17 +208,20 @@ class GrantServiceBotWithMenu:
         self.token = os.getenv('TELEGRAM_BOT_TOKEN')
         self.n8n_webhook_url = os.getenv('N8N_WEBHOOK_URL', 'http://localhost:5678/webhook/grant-service')
         self.gigachat_api_key = os.getenv('GIGACHAT_API_KEY')
-        
+
         # Состояния пользователей
         self.user_sessions = {}
-        
+
         # Состояния меню
         self.menu_states = {
             'main_menu': 'main_menu',
-            'interviewing': 'interviewing', 
+            'interviewing': 'interviewing',
             'review': 'review'
         }
-        
+
+        # AI Agents - по одному экземпляру на пользователя
+        self.ai_interviewers = {}  # {user_id: InteractiveInterviewerAgent}
+
         # Инициализация БД
         self.init_database()
     
@@ -246,7 +252,22 @@ class GrantServiceBotWithMenu:
             logger.error(self.config.format_log_message(
                 f"Ошибка инициализации БД: {e}", "❌"
             ))
-    
+
+    def get_or_create_ai_interviewer(self, user_id: int, user_data: Dict[str, Any]) -> InteractiveInterviewerAgent:
+        """Получить или создать AI интервьюера для пользователя"""
+        if user_id not in self.ai_interviewers:
+            logger.info(f"Создаю нового AI интервьюера для пользователя {user_id}")
+            self.ai_interviewers[user_id] = InteractiveInterviewerAgent(
+                telegram_id=user_data.get('telegram_id', user_id),
+                username=user_data.get('username', ''),
+                email=user_data.get('email'),
+                phone=user_data.get('phone'),
+                first_name=user_data.get('first_name', ''),
+                last_name=user_data.get('last_name', ''),
+                grant_fund=user_data.get('grant_fund', 'Фонд президентских грантов')
+            )
+        return self.ai_interviewers[user_id]
+
     def get_total_questions(self) -> int:
         """Получить общее количество активных вопросов"""
         try:
@@ -1255,6 +1276,13 @@ https://grantservice.onff.ru/payment
             logger.info(f"Пользователь {user_id} ответил на все {actual_total_questions} активных вопросов")
             anketa_id = await self.auto_save_anketa(update, context, user_id)
             if anketa_id:
+                # 🤖 AI AUDIT: Оцениваем качество анкеты
+                audit_result = await self.run_ai_audit(update, context, user_id, anketa_id)
+                if audit_result:
+                    session['audit_score'] = audit_result.get('audit_score', 0)
+                    session['audit_recommendations'] = audit_result.get('recommendations', [])
+                    logger.info(f"✅ AI Audit завершён: {session['audit_score']}/100")
+
                 await self.show_completion_screen(update, context, anketa_id)
             else:
                 # Если не удалось сохранить, показываем экран проверки
@@ -1394,28 +1422,96 @@ https://grantservice.onff.ru/payment
         except Exception as e:
             logger.error(f"Ошибка автосохранения анкеты: {e}")
             return None
-    
+
+    async def run_ai_audit(self, update: Update, context: ContextTypes.DEFAULT_TYPE, user_id: int, anketa_id: str) -> Optional[Dict[str, Any]]:
+        """Запустить AI аудит анкеты через InteractiveInterviewerAgent"""
+        try:
+            logger.info(f"🤖 Запуск AI audit для пользователя {user_id}, анкета {anketa_id}")
+
+            session = self.get_user_session(user_id)
+            user = update.effective_user
+
+            # Подготовка данных для агента
+            user_data = {
+                'telegram_id': user.id,
+                'username': user.username or '',
+                'first_name': user.first_name or '',
+                'last_name': user.last_name or '',
+                'email': session.get('email'),
+                'phone': session.get('phone'),
+                'grant_fund': 'Фонд президентских грантов'
+            }
+
+            # Получаем или создаём AI агента
+            ai_agent = self.get_or_create_ai_interviewer(user_id, user_data)
+
+            # Вызываем аудит (синхронный метод в отдельном потоке)
+            import asyncio
+            loop = asyncio.get_event_loop()
+            audit_result = await loop.run_in_executor(
+                None,
+                ai_agent.process,
+                {'user_data': user_data, 'answers': session['answers']}
+            )
+
+            logger.info(f"✅ AI Audit completed: score={audit_result.get('audit_score', 0)}/100")
+            return audit_result
+
+        except Exception as e:
+            logger.error(f"❌ Ошибка AI audit: {e}")
+            import traceback
+            traceback.print_exc()
+            return None
+
     async def show_completion_screen(self, update: Update, context: ContextTypes.DEFAULT_TYPE, anketa_id: str):
-        """Показать экран успешного завершения анкеты"""
+        """Показать экран успешного завершения анкеты с AI оценкой"""
         user_id = update.effective_user.id
         session = self.get_user_session(user_id)
-        
+
         # Проверяем, создана ли грантовая заявка
         app_number = session.get('application_number')
-        
+
+        # Получаем AI audit результаты
+        audit_score = session.get('audit_score', 0)
+        audit_recommendations = session.get('audit_recommendations', [])
+
+        # Формируем сообщение с AI оценкой
+        audit_section = ""
+        if audit_score > 0:
+            # Определяем эмодзи по уровню оценки
+            if audit_score >= 70:
+                score_emoji = "🟢"
+                readiness = "Отличное качество!"
+            elif audit_score >= 50:
+                score_emoji = "🟡"
+                readiness = "Хорошее качество"
+            else:
+                score_emoji = "🟠"
+                readiness = "Требует доработки"
+
+            audit_section = f"""
+🤖 *AI Оценка качества анкеты:*
+{score_emoji} *{audit_score}/100* — {readiness}
+"""
+            # Добавляем топ-3 рекомендации
+            if audit_recommendations and len(audit_recommendations) > 0:
+                audit_section += "\n📝 *Рекомендации по улучшению:*\n"
+                for i, rec in enumerate(audit_recommendations[:3], 1):
+                    audit_section += f"{i}. {rec}\n"
+
         if app_number:
             # Если заявка создана - показываем упрощенное меню
             keyboard = [
                 [InlineKeyboardButton("📝 Заполнить новую анкету", callback_data="new_anketa")],
                 [InlineKeyboardButton("🏠 Вернуться в меню", callback_data="main_menu")]
             ]
-            
+
             completion_text = f"""
 🎉 *Поздравляем! Интервью завершено!*
 
 ✅ *Анкета сохранена:* `{anketa_id}`
 📋 *Грантовая заявка создана:* `{app_number}`
-
+{audit_section}
 🚀 *Ваша заявка автоматически создана и находится в обработке!*
 
 📞 *Что дальше:*
@@ -1432,12 +1528,12 @@ https://grantservice.onff.ru/payment
                 [InlineKeyboardButton("📤 Отправить на обработку", callback_data=f"send_to_processing_{anketa_id}")],
                 [InlineKeyboardButton("🏠 Вернуться в меню", callback_data="main_menu")]
             ]
-            
+
             completion_text = f"""
 ✅ *Анкета успешно сохранена!*
 
 📋 *Номер вашей анкеты:* `{anketa_id}`
-
+{audit_section}
 Все ваши ответы сохранены в базе данных.
 Вы можете скопировать номер анкеты для дальнейшего использования.
 
