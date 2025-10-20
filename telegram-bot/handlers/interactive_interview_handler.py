@@ -233,16 +233,20 @@ class InteractiveInterviewHandler:
             context: Telegram Context
         """
         user_id = update.effective_user.id
+        logger.info(f"[DEBUG] handle_message called for user {user_id}")
 
         if not self.is_interview_active(user_id):
             # Не активное интервью - игнорируем
+            logger.info(f"[DEBUG] No active interview for user {user_id}")
             return
 
+        logger.info(f"[DEBUG] Interview is active for user {user_id}")
         interview = self.active_interviews[user_id]
         answer_queue = interview.get('answer_queue')
 
         if not answer_queue:
             # Нет очереди - старая версия handler
+            logger.warning(f"[DEBUG] No answer_queue for user {user_id}")
             return
 
         # Получить ответ
@@ -252,6 +256,7 @@ class InteractiveInterviewHandler:
 
         # Положить ответ в очередь - callback его заберёт
         await answer_queue.put(answer)
+        logger.info(f"[DEBUG] Answer put in queue for user {user_id}")
 
     async def stop_interview(
         self,
