@@ -22,8 +22,9 @@ from enum import Enum
 from dataclasses import dataclass, field
 import logging
 
-from .reference_point import ReferencePoint, ReferencePointState
+from .reference_point import ReferencePoint, ReferencePointState, ReferencePointPriority
 from .reference_point_manager import ReferencePointManager
+from .fallback_questions import get_fallback_bank
 
 logger = logging.getLogger(__name__)
 
@@ -63,6 +64,10 @@ class ConversationContext:
     dialogue_history: List[Dict[str, Any]] = field(default_factory=list)
     collected_data: Dict[str, Any] = field(default_factory=dict)
     covered_topics: List[str] = field(default_factory=list)
+
+    # Fallback tracking
+    used_questions: List[str] = field(default_factory=list)  # Заданные вопросы (для fallback)
+    using_fallback: bool = False  # Используем ли fallback сейчас
 
     # Метрики
     user_engagement_score: float = 1.0  # 0-1, насколько охотно отвечает
@@ -118,6 +123,7 @@ class ConversationFlowManager:
         """
         self.rp_manager = rp_manager
         self.context = ConversationContext()
+        self.fallback_bank = get_fallback_bank()  # Extended Mind: question bank
 
     def decide_next_action(
         self,
@@ -299,11 +305,16 @@ class ConversationFlowManager:
                 if total_rps == 0:
                     logger.error("FATAL: ReferencePointManager is empty! load_fpg_reference_points() not called?")
 
-                # Не возвращаем finalize если задано мало вопросов
-                if self.context.questions_asked < 5:
-                    logger.warning(f"Cannot finalize: only {self.context.questions_asked} questions asked")
-                    # Возвращаем None но НЕ finalize - пусть основной цикл обработает
-                    return (None, TransitionType.LINEAR)
+                # FALLBACK: Не финализируем если задано мало вопросов
+                MIN_QUESTIONS = 10
+                if self.context.questions_asked < MIN_QUESTIONS:
+                    logger.warning(f"INIT state: Cannot finalize with {self.context.questions_asked} < {MIN_QUESTIONS} questions")
+                    # Попробовать создать fallback RP
+                    fallback_rp = self._create_fallback_rp()
+                    if fallback_rp:
+                        logger.info(f"Using fallback in INIT state: {fallback_rp.id}")
+                        self.context.using_fallback = True
+                        return (fallback_rp, TransitionType.LINEAR)
 
                 return (None, TransitionType.FINALIZE)
 
@@ -317,14 +328,19 @@ class ConversationFlowManager:
                 progress = self.rp_manager.get_progress()
                 logger.warning(f"EXPLORING state: No next RP! Progress: {progress.completed_rps}/{progress.total_rps}")
 
-                # Если задано слишком мало вопросов - это проблема
-                if self.context.questions_asked < 5:
-                    logger.error(f"CRITICAL: Only {self.context.questions_asked} questions in EXPLORING state!")
-                    # Попробовать взять хоть какой-то RP (даже завершённый)
-                    any_rp = self.rp_manager.get_next_reference_point(exclude_completed=False)
-                    if any_rp:
-                        logger.warning(f"Using already completed RP: {any_rp.id}")
-                        return (any_rp, TransitionType.LOOP_BACK)
+                # FALLBACK STRATEGY: Если все RP покрыты, но вопросов < MIN_QUESTIONS
+                MIN_QUESTIONS = 10
+                if self.context.questions_asked < MIN_QUESTIONS:
+                    logger.info(f"Using fallback: {self.context.questions_asked} < {MIN_QUESTIONS} questions")
+
+                    # Создать виртуальный RP с fallback вопросом
+                    fallback_rp = self._create_fallback_rp()
+                    if fallback_rp:
+                        logger.info(f"Created fallback RP with question from bank")
+                        self.context.using_fallback = True
+                        return (fallback_rp, TransitionType.DEEP_DIVE)
+                    else:
+                        logger.error("Failed to create fallback RP - fallback bank exhausted?")
 
                 # Если всё ещё нет - продолжаем к следующему состоянию
 
@@ -425,6 +441,49 @@ class ConversationFlowManager:
         self.context.follow_ups_asked += 1
         logger.info(f"Follow-ups: {self.context.follow_ups_asked}/{self.context.max_follow_ups}")
 
+    def _create_fallback_rp(self) -> Optional[ReferencePoint]:
+        """
+        Создать виртуальный RP с fallback вопросом
+
+        Extended Mind pattern: используем question bank как когнитивное расширение
+        когда все Reference Points покрыты, но нужно задать больше вопросов
+
+        Returns:
+            ReferencePoint с fallback вопросом или None если вопросы закончились
+        """
+        # Определить категорию для fallback (последний RP или случайная)
+        category = None
+        if self.context.current_rp:
+            # Взять категорию из последнего RP (например "rp_002_problem" -> "problem")
+            category = self.context.current_rp.id.split('_')[-1]
+
+        # Получить fallback вопрос
+        question_text = self.fallback_bank.get_fallback_question(
+            category=category,
+            used_questions=self.context.used_questions
+        )
+
+        if not question_text:
+            logger.error("Fallback bank returned no question!")
+            return None
+
+        # Отметить вопрос как использованный
+        self.context.used_questions.append(question_text)
+
+        # Создать виртуальный RP
+        fallback_rp = ReferencePoint(
+            id=f"rp_fallback_{self.context.questions_asked}",
+            name=f"Дополнительный вопрос {self.context.questions_asked}",
+            description=f"Fallback question for deepening understanding",
+            priority=ReferencePointPriority.P3_OPTIONAL,
+            required=False,
+            question_hints=[question_text],  # Прямой вопрос из банка
+            tags=["fallback", category] if category else ["fallback"]
+        )
+
+        logger.info(f"Created fallback RP: {fallback_rp.id} with question: {question_text[:50]}...")
+        return fallback_rp
+
     def to_dict(self) -> Dict[str, Any]:
         """Сериализация в dict"""
         return {
@@ -433,6 +492,8 @@ class ConversationFlowManager:
             'follow_ups_asked': self.context.follow_ups_asked,
             'collected_data': self.context.collected_data,
             'covered_topics': self.context.covered_topics,
+            'used_questions': self.context.used_questions,
+            'using_fallback': self.context.using_fallback,
             'engagement': self.context.user_engagement_score,
             'quality': self.context.conversation_quality,
             'rp_manager': self.rp_manager.to_dict()
@@ -449,6 +510,8 @@ class ConversationFlowManager:
         flow.context.follow_ups_asked = data['follow_ups_asked']
         flow.context.collected_data = data['collected_data']
         flow.context.covered_topics = data['covered_topics']
+        flow.context.used_questions = data.get('used_questions', [])
+        flow.context.using_fallback = data.get('using_fallback', False)
         flow.context.user_engagement_score = data['engagement']
         flow.context.conversation_quality = data['quality']
 
