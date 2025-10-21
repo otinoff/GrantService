@@ -251,9 +251,10 @@ class ConversationFlowManager:
         # 2. ИЛИ все критичные + важные завершены и общая полнота >= 80%
         # 3. ИЛИ задано слишком много вопросов (>25)
 
-        # SAFETY: Не финализируем если не задали ни одного вопроса!
-        if self.context.questions_asked == 0:
-            logger.info("Cannot finalize: no questions asked yet")
+        # SAFETY: Не финализируем если задано мало вопросов!
+        # FIX: Изменено с 0 на 10 - минимум 10 вопросов перед завершением
+        if self.context.questions_asked < 10:
+            logger.info(f"Cannot finalize: only {self.context.questions_asked} questions asked (min 10)")
             return False
 
         if self.context.current_state == ConversationState.FINALIZING:
@@ -290,7 +291,20 @@ class ConversationFlowManager:
                 logger.info(f"INIT state: Starting with first RP: {next_rp.id}")
                 return (next_rp, TransitionType.LINEAR)
             else:
-                logger.error("CRITICAL: No reference points available!")
+                # DEBUG: Показать сколько всего RP в менеджере
+                total_rps = len(self.rp_manager.reference_points)
+                logger.error(f"CRITICAL: No reference points available! Total RPs in manager: {total_rps}")
+
+                # Если RP вообще нет - это критичная ошибка
+                if total_rps == 0:
+                    logger.error("FATAL: ReferencePointManager is empty! load_fpg_reference_points() not called?")
+
+                # Не возвращаем finalize если задано мало вопросов
+                if self.context.questions_asked < 5:
+                    logger.warning(f"Cannot finalize: only {self.context.questions_asked} questions asked")
+                    # Возвращаем None но НЕ finalize - пусть основной цикл обработает
+                    return (None, TransitionType.LINEAR)
+
                 return (None, TransitionType.FINALIZE)
 
         elif self.context.current_state == ConversationState.EXPLORING:
@@ -298,6 +312,21 @@ class ConversationFlowManager:
             next_rp = self.rp_manager.get_next_reference_point(exclude_completed=True)
             if next_rp:
                 return (next_rp, TransitionType.LINEAR)
+            else:
+                # DEBUG: Почему нет следующего RP?
+                progress = self.rp_manager.get_progress()
+                logger.warning(f"EXPLORING state: No next RP! Progress: {progress.completed_rps}/{progress.total_rps}")
+
+                # Если задано слишком мало вопросов - это проблема
+                if self.context.questions_asked < 5:
+                    logger.error(f"CRITICAL: Only {self.context.questions_asked} questions in EXPLORING state!")
+                    # Попробовать взять хоть какой-то RP (даже завершённый)
+                    any_rp = self.rp_manager.get_next_reference_point(exclude_completed=False)
+                    if any_rp:
+                        logger.warning(f"Using already completed RP: {any_rp.id}")
+                        return (any_rp, TransitionType.LOOP_BACK)
+
+                # Если всё ещё нет - продолжаем к следующему состоянию
 
         elif self.context.current_state == ConversationState.DEEPENING:
             # В режиме углубления: приоритет неполным критичным

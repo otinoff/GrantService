@@ -108,21 +108,30 @@ class ReferencePointManager:
         completed_ids = self.get_completed_rp_ids()
 
         candidates = []
+        skipped_completed = 0
+        skipped_blocked = 0
 
         for rp_id in self._rp_order:
             rp = self.reference_points[rp_id]
 
             # Пропустить завершённые
             if exclude_completed and rp.is_complete():
+                skipped_completed += 1
+                logger.debug(f"Skipping completed RP: {rp_id} (state={rp.state.value})")
                 continue
 
             # Пропустить заблокированные
             if rp.is_blocked(completed_ids):
+                skipped_blocked += 1
+                logger.debug(f"Skipping blocked RP: {rp_id}")
                 continue
 
             candidates.append(rp)
 
         if not candidates:
+            logger.warning(f"No candidates! Total RPs: {len(self.reference_points)}, "
+                          f"Skipped (completed): {skipped_completed}, "
+                          f"Skipped (blocked): {skipped_blocked}")
             return None
 
         # Сортировка:
