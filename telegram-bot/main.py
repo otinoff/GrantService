@@ -961,12 +961,8 @@ class GrantServiceBotWithMenu:
         elif callback_data == "start_interview_v2":
             # NEW: Начать V2 интервью с Reference Points
             await query.answer()
-            await query.message.reply_text(
-                "🆕 Запускаю адаптивное интервью V2...\n\n"
-                "Используйте команду /continue для начала."
-            )
-            # Запустить интервью
-            await self.handle_start_interview_v2(update, context)
+            # Запустить интервью сразу (без лишних сообщений)
+            await self.handle_start_interview_v2_direct(update, context)
 
         elif callback_data == "start_interview":
             # Начинаем интервью с первого вопроса
@@ -1172,15 +1168,27 @@ https://grantservice.onff.ru/payment
     async def handle_message(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Обработка текстовых сообщений (ответы на вопросы)"""
         user_id = update.effective_user.id
+        message_text = update.message.text if update.message else "None"
+
+        logger.info(f"[DEBUG MAIN] handle_message called for user {user_id}, message: {message_text[:50]}")
 
         # Проверка авторизации
-        if not self.is_user_authorized(user_id):
+        is_authorized = self.is_user_authorized(user_id)
+        logger.info(f"[DEBUG MAIN] Authorization check: {is_authorized}")
+
+        if not is_authorized:
+            logger.warning(f"[DEBUG MAIN] User {user_id} not authorized, exiting")
             await update.message.reply_text("❌ Доступ запрещен. Обратитесь к администратору.")
             return
 
         # NEW: Проверить активное V2 интервью
-        if self.interview_handler.is_interview_active(user_id):
+        is_active = self.interview_handler.is_interview_active(user_id)
+        logger.info(f"[DEBUG MAIN] Interview active check: {is_active}")
+
+        if is_active:
+            logger.info(f"[DEBUG MAIN] Routing to interview_handler.handle_message for user {user_id}")
             await self.interview_handler.handle_message(update, context)
+            logger.info(f"[DEBUG MAIN] Returned from interview_handler.handle_message")
             return
 
         session = self.get_user_session(user_id)
@@ -1784,6 +1792,168 @@ PDF документ с полной анкетой прикреплен
 
         # Запустить интервью
         await self.interview_handler.start_interview(update, context, user_data)
+
+    async def handle_start_interview_v2_direct(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """
+        Начать интервью V2 с мгновенной реакцией
+
+        Отправляет хардкодный первый вопрос сразу (без delay),
+        затем инициализирует агента параллельно пока пользователь набирает ответ.
+        """
+        user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
+
+        # 1. МГНОВЕННО отправить хардкодный вопрос про имя (без ожидания инициализации)
+        await context.bot.send_message(
+            chat_id=chat_id,
+            text="Скажите, как Ваше имя, как я могу к Вам обращаться?"
+        )
+        logger.info(f"[INSTANT] Sent name question to user {user_id}")
+
+        # 2. Создать очередь для ответов
+        import asyncio
+        answer_queue = asyncio.Queue()
+
+        # 3. Создать минимальную запись в active_interviews
+        # (чтобы handle_message мог принимать ответы пока агент инициализируется)
+        self.interview_handler.active_interviews[user_id] = {
+            'answer_queue': answer_queue,
+            'initializing': True
+        }
+
+        # 4. Подготовить user_data
+        user_data = {
+            'telegram_id': user_id,
+            'username': update.effective_user.username or 'unknown',
+            'first_name': update.effective_user.first_name or '',
+            'last_name': update.effective_user.last_name or '',
+            'grant_fund': 'fpg'
+        }
+
+        # 5. Запустить инициализацию агента и продолжение интервью в фоне
+        # Пока пользователь набирает имя, агент инициализируется параллельно
+        asyncio.create_task(
+            self._init_and_continue_interview(user_id, update, context, user_data, answer_queue)
+        )
+        logger.info(f"[BACKGROUND] Started agent initialization for user {user_id}")
+
+    async def _init_and_continue_interview(
+        self,
+        user_id: int,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE,
+        user_data: Dict[str, Any],
+        answer_queue
+    ):
+        """
+        Инициализировать агента и продолжить интервью в фоне
+
+        Параллельно:
+        - Пользователь набирает имя
+        - Агент инициализируется
+
+        После получения имени и завершения инициализации продолжает интервью.
+        """
+        import asyncio
+        from datetime import datetime
+
+        try:
+            # Запустить инициализацию агента параллельно
+            logger.info(f"[INIT] Starting agent initialization for user {user_id}")
+            init_task = asyncio.create_task(
+                self._init_agent_for_user(user_id, user_data)
+            )
+
+            # Ждать ответа на вопрос про имя (пока агент инициализируется)
+            logger.info(f"[WAITING] Waiting for name from user {user_id}")
+            name = await answer_queue.get()
+            logger.info(f"[NAME] Received name from user {user_id}: {name}")
+
+            # Сохранить имя в user_data
+            user_data['applicant_name'] = name
+
+            # ✅ ITERATION 24: Отметить что имя УЖЕ СОБРАНО
+            # Чтобы LLM не спрашивал имя повторно
+            user_data['collected_fields'] = {'applicant_name'}
+            user_data['covered_topics'] = ['applicant_name', 'greeting']
+            logger.info(f"[CONTEXT] Marked 'applicant_name' as collected for user {user_id}")
+
+            # ✅ ITERATION 26: Отправить hardcoded вопрос #2 про суть проекта (INSTANT!)
+            # Экономим ~9 секунд на LLM generation
+            essence_question = (
+                f"{name}, расскажите, пожалуйста, в чем суть вашего проекта? "
+                f"Что вы планируете делать и какую главную цель хотите достичь?"
+            )
+
+            await context.bot.send_message(
+                chat_id=user_id,
+                text=essence_question
+            )
+            logger.info(f"[INSTANT] Sent hardcoded essence question to user {user_id}")
+
+            # Отметить что rp_001_project_essence уже задан
+            user_data['covered_topics'].append('project_essence_asked')
+            user_data['hardcoded_rps'] = ['rp_001_project_essence']  # Какие RP захардкожены
+            logger.info(f"[HARDCODED] Marked rp_001_project_essence as already asked")
+
+            # Дождаться завершения инициализации агента
+            logger.info(f"[INIT] Waiting for agent initialization to complete for user {user_id}")
+            agent = await init_task
+            logger.info(f"[INIT] Agent initialized for user {user_id}")
+
+            # Обновить запись в active_interviews с полными данными
+            self.interview_handler.active_interviews[user_id] = {
+                'agent': agent,
+                'update': update,
+                'context': context,
+                'user_data': user_data,
+                'started_at': datetime.now(),
+                'answer_queue': answer_queue
+            }
+
+            # Продолжить интервью (второй вопрос)
+            logger.info(f"[CONTINUE] Starting interview for user {user_id}")
+            await self.interview_handler.continue_interview(update, context)
+
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to initialize interview for user {user_id}: {e}")
+            import traceback
+            traceback.print_exc()
+
+            # Очистить active_interviews
+            if user_id in self.interview_handler.active_interviews:
+                del self.interview_handler.active_interviews[user_id]
+
+            # Сообщить пользователю
+            await context.bot.send_message(
+                chat_id=update.effective_chat.id,
+                text=f"Произошла ошибка при инициализации интервью: {e}"
+            )
+
+    async def _init_agent_for_user(self, user_id: int, user_data: Dict[str, Any]):
+        """
+        Инициализировать агента для пользователя
+
+        Это долгая операция (~6 секунд):
+        - Загрузка embedding модели
+        - Подключение к Qdrant
+        - Инициализация LLM клиента
+        """
+        from agents.interactive_interviewer_agent_v2 import InteractiveInterviewerAgentV2
+
+        # Получить LLM провайдер пользователя
+        llm_provider = self.interview_handler.db.get_user_llm_preference(user_id)
+        logger.info(f"[INIT] User {user_id} LLM provider: {llm_provider}")
+
+        # Создать агента (ДОЛГО - ~6 сек для загрузки embedding модели)
+        agent = InteractiveInterviewerAgentV2(
+            db=self.interview_handler.db,
+            llm_provider=llm_provider,
+            qdrant_host="5.35.88.251",
+            qdrant_port=6333
+        )
+
+        return agent
 
     async def handle_continue_interview(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
         """Продолжить интервью - получить следующий вопрос"""
