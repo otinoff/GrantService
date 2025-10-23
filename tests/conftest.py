@@ -2,6 +2,7 @@
 # -*- coding: utf-8 -*-
 """
 Конфигурация pytest для GrantService
+FIXED: Lazy imports для database modules чтобы не ломать smoke tests
 """
 
 import os
@@ -54,22 +55,23 @@ def pytest_configure(config):
     config.addinivalue_line(
         "markers", "slow: mark test as slow running"
     )
+    config.addinivalue_line(
+        "markers", "smoke: mark test as smoke test"
+    )
 
 
 # ========== DATABASE FIXTURES ==========
-
-from data.database.models import GrantServiceDatabase
-from data.database.users import UserManager
-from data.database.interview import InterviewManager
-from data.database.sessions import SessionManager
-
+# IMPORTANT: Lazy imports inside fixtures to not break smoke tests!
 
 @pytest.fixture(scope='function')
 def db():
     """
     Фикстура PostgreSQL database instance
     Scope: function - создается для каждого теста
+
+    LAZY IMPORT: импорт происходит только когда фикстура используется
     """
+    from data.database.models import GrantServiceDatabase
     database = GrantServiceDatabase()
     yield database
     # Cleanup после каждого теста не требуется - работаем с реальной БД
@@ -78,18 +80,21 @@ def db():
 @pytest.fixture(scope='function')
 def user_manager(db):
     """Менеджер пользователей"""
+    from data.database.users import UserManager
     return UserManager(db)
 
 
 @pytest.fixture(scope='function')
 def interview_manager(db):
     """Менеджер интервью"""
+    from data.database.interview import InterviewManager
     return InterviewManager(db)
 
 
 @pytest.fixture(scope='function')
 def session_manager(db):
     """Менеджер сессий"""
+    from data.database.sessions import SessionManager
     return SessionManager(db)
 
 
