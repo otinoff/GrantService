@@ -226,6 +226,63 @@ class GrantServiceDatabase:
                 'new_users_30d': new_users
             }
 
+    def get_user_llm_preference(self, telegram_id: int) -> str:
+        """
+        Получить предпочитаемый LLM провайдер пользователя
+
+        Args:
+            telegram_id: Telegram ID пользователя
+
+        Returns:
+            str: 'claude_code' или 'gigachat', по умолчанию 'claude_code'
+        """
+        with self.connect() as conn:
+            cursor = conn.cursor()
+
+            cursor.execute("""
+                SELECT preferred_llm_provider FROM users
+                WHERE telegram_id = %s
+            """, (telegram_id,))
+
+            row = cursor.fetchone()
+            cursor.close()
+
+            return row[0] if row and row[0] else 'claude_code'
+
+    def set_user_llm_preference(self, telegram_id: int, provider: str) -> bool:
+        """
+        Установить предпочитаемый LLM провайдер для пользователя
+
+        Args:
+            telegram_id: Telegram ID пользователя
+            provider: 'claude_code' или 'gigachat'
+
+        Returns:
+            bool: True если успешно, False если ошибка
+        """
+        if provider not in ['claude_code', 'gigachat']:
+            logger.error(f"Invalid LLM provider: {provider}. Must be 'claude_code' or 'gigachat'")
+            return False
+
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    UPDATE users
+                    SET preferred_llm_provider = %s
+                    WHERE telegram_id = %s
+                """, (provider, telegram_id))
+
+                conn.commit()
+                cursor.close()
+
+                logger.info(f"User {telegram_id} LLM preference set to: {provider}")
+                return True
+        except Exception as e:
+            logger.error(f"Failed to set LLM preference for user {telegram_id}: {e}")
+            return False
+
     # ========== МЕТОДЫ ДЛЯ РАБОТЫ С SESSIONS ==========
 
     def create_session(self, telegram_id: int) -> int:
