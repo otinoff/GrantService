@@ -295,12 +295,42 @@ class InteractiveInterviewerAgentV2(BaseAgent):
             rp = action['reference_point']
             logger.info(f"Current RP: {rp.id} ({rp.name}) [P{rp.priority.value}]")
 
-            # Показать прогресс (каждые 5 вопросов)
-            if turn % 5 == 1 and turn > 1:
-                progress_msg = self.flow_manager.get_progress_message()
+            # ✅ ITERATION 26: Проверить не был ли RP захардкожен
+            hardcoded_rps = user_data.get('hardcoded_rps', [])
+            if rp.id in hardcoded_rps:
+                logger.info(f"[HARDCODED] {rp.id} already asked as hardcoded question, collecting answer...")
+
+                # Вопрос уже задан handler'ом, просто ждём ответа
+                # Используем callback с пустой строкой чтобы НЕ отправлять вопрос повторно
+                # Callback просто дождётся ответа из очереди
                 if callback_ask_question:
-                    await callback_ask_question(progress_msg)
-                logger.info(progress_msg)
+                    # Передаём None чтобы callback пропустил отправку и просто дождался ответа
+                    answer = await callback_ask_question(None)
+                else:
+                    # Mock для тестов
+                    answer = f"[Mock answer for hardcoded {rp.name}]"
+                    logger.info(f"[TEST MODE] Mock answer: {answer}")
+
+                # Сохранить ответ
+                rp.add_data('text', answer)
+                logger.info(f"Collected answer for hardcoded {rp.id}: {answer[:100]}...")
+
+                # Отметить как завершённый
+                self.rp_manager.mark_completed(rp.id, confidence=0.9)
+
+                # Обновить контекст
+                self.flow_manager.context.covered_topics.append(rp.name)
+
+                last_answer = answer
+                turn += 1
+                continue  # Перейти к следующему RP
+
+            # Показать прогресс (каждые 5 вопросов)
+            # НЕ ОТПРАВЛЯЕМ через callback - это информационное сообщение, не вопрос!
+            # if turn % 5 == 1 and turn > 1:
+            #     progress_msg = self.flow_manager.get_progress_message()
+            #     logger.info(progress_msg)
+            #     # TODO: отправить через отдельный callback для уведомлений
 
             # Сгенерировать вопрос
             question = await self._generate_question_for_rp(
@@ -311,6 +341,12 @@ class InteractiveInterviewerAgentV2(BaseAgent):
             if not question:
                 # Skip - уже отвечено
                 logger.info(f"Skipping {rp.id} - already covered")
+
+                # BUGFIX: Помечаем RP как завершённый, чтобы get_next_reference_point()
+                # не возвращал его снова (иначе бесконечный цикл!)
+                self.rp_manager.mark_completed(rp.id, confidence=1.0)
+                logger.info(f"Marked {rp.id} as completed (confidence=1.0)")
+
                 turn += 1
                 continue
 

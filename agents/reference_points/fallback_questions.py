@@ -11,7 +11,15 @@ Date: 2025-10-21
 import logging
 import random
 from typing import List, Dict, Optional
-from data.database import db
+
+# Импорт функции для получения вопросов из БД
+try:
+    from data.database.interview import get_interview_questions
+    DB_AVAILABLE = True
+except ImportError:
+    DB_AVAILABLE = False
+    logger = logging.getLogger(__name__)
+    logger.warning("Could not import get_interview_questions, using hardcoded fallbacks only")
 
 logger = logging.getLogger(__name__)
 
@@ -32,8 +40,12 @@ class FallbackQuestionBank:
 
     def _load_db_questions(self) -> List[Dict]:
         """Load active questions from interview_questions table"""
+        if not DB_AVAILABLE:
+            logger.info("DB questions not available, using hardcoded fallbacks")
+            return []
+
         try:
-            questions = db.get_interview_questions()
+            questions = get_interview_questions()
             active = [q for q in questions if q.get('is_active', True)]
             logger.info(f"Loaded {len(active)} active questions from DB")
             return active

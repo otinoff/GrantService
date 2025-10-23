@@ -107,6 +107,10 @@ class ReferencePointManager:
         """
         completed_ids = self.get_completed_rp_ids()
 
+        # DEBUG: Логируем начало поиска
+        logger.info(f"[get_next_reference_point] Searching for next RP...")
+        logger.info(f"[get_next_reference_point] Total RPs: {len(self.reference_points)}, Completed IDs: {completed_ids}")
+
         candidates = []
         skipped_completed = 0
         skipped_blocked = 0
@@ -114,24 +118,40 @@ class ReferencePointManager:
         for rp_id in self._rp_order:
             rp = self.reference_points[rp_id]
 
+            # DEBUG: Подробное логирование для каждого RP
+            logger.debug(f"[get_next_reference_point] Checking {rp_id}: "
+                        f"state={rp.state.value}, is_complete={rp.is_complete()}, "
+                        f"data_length={len(rp.collected_data)}")
+
             # Пропустить завершённые
             if exclude_completed and rp.is_complete():
                 skipped_completed += 1
-                logger.debug(f"Skipping completed RP: {rp_id} (state={rp.state.value})")
+                logger.info(f"[get_next_reference_point] ❌ SKIPPED (completed): {rp_id} "
+                           f"(state={rp.state.value}, data={len(rp.collected_data)} items)")
                 continue
 
             # Пропустить заблокированные
             if rp.is_blocked(completed_ids):
                 skipped_blocked += 1
-                logger.debug(f"Skipping blocked RP: {rp_id}")
+                logger.info(f"[get_next_reference_point] ❌ SKIPPED (blocked): {rp_id}")
                 continue
 
+            logger.info(f"[get_next_reference_point] ✅ CANDIDATE: {rp_id}")
             candidates.append(rp)
 
         if not candidates:
-            logger.warning(f"No candidates! Total RPs: {len(self.reference_points)}, "
-                          f"Skipped (completed): {skipped_completed}, "
-                          f"Skipped (blocked): {skipped_blocked}")
+            logger.error(f"[get_next_reference_point] ❌ NO CANDIDATES FOUND!")
+            logger.error(f"  Total RPs: {len(self.reference_points)}")
+            logger.error(f"  Skipped (completed): {skipped_completed}")
+            logger.error(f"  Skipped (blocked): {skipped_blocked}")
+
+            # DEBUG: Покажем состояние всех RP
+            logger.error(f"  All RPs states:")
+            for rp_id in self._rp_order[:5]:  # Первые 5 для дебага
+                rp = self.reference_points[rp_id]
+                logger.error(f"    {rp_id}: state={rp.state.value}, complete={rp.is_complete()}, "
+                           f"data={list(rp.collected_data.keys())}")
+
             return None
 
         # Сортировка:

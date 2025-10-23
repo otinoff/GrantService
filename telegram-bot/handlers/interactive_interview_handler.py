@@ -64,7 +64,8 @@ class InteractiveInterviewHandler:
         self,
         update: Update,
         context: ContextTypes.DEFAULT_TYPE,
-        user_data: Dict[str, Any]
+        user_data: Dict[str, Any],
+        skip_greeting: bool = False
     ):
         """
         Начать интерактивное интервью
@@ -86,13 +87,17 @@ class InteractiveInterviewHandler:
 
         logger.info(f"[START] Interactive Interview V2 for user {user_id}")
 
+        # Получить предпочитаемый LLM провайдер пользователя
+        llm_provider = self.db.get_user_llm_preference(user_id)
+        logger.info(f"User {user_id} preferred LLM: {llm_provider}")
+
         # Инициализировать агента
         try:
             from agents.interactive_interviewer_agent_v2 import InteractiveInterviewerAgentV2
 
             agent = InteractiveInterviewerAgentV2(
                 db=self.db,
-                llm_provider="claude_code",
+                llm_provider=llm_provider,  # Используем настройку пользователя
                 qdrant_host="5.35.88.251",
                 qdrant_port=6333
             )
@@ -111,8 +116,9 @@ class InteractiveInterviewHandler:
                 'answer_queue': answer_queue  # Очередь для ответов
             }
 
-            # Приветствие
-            greeting = f"""
+            # Приветствие (если не пропускаем)
+            if not skip_greeting:
+                greeting = f"""
 Здравствуйте! 👋
 
 Я помогу вам оформить заявку на грант Фонда президентских грантов.
@@ -123,13 +129,13 @@ class InteractiveInterviewHandler:
 Не беспокойтесь о структуре - я сам соберу всю информацию правильно.
 
 Готовы начать? Нажмите /continue для продолжения.
-            """
+                """
 
-            # Send greeting (works with both message and callback)
-            chat = update.effective_chat
-            await context.bot.send_message(chat_id=chat.id, text=greeting)
+                # Send greeting (works with both message and callback)
+                chat = update.effective_chat
+                await context.bot.send_message(chat_id=chat.id, text=greeting)
 
-            logger.info(f"[OK] Interview initialized for user {user_id}")
+            logger.info(f"[OK] Interview initialized for user {user_id} (skip_greeting={skip_greeting})")
 
         except ImportError as e:
             logger.error(f"[ERROR] Failed to import InteractiveInterviewerAgentV2: {e}")
@@ -175,18 +181,25 @@ class InteractiveInterviewHandler:
         answer_queue = interview['answer_queue']
 
         # Создать callback для задавания вопросов
-        async def ask_question_callback(question: str) -> str:
+        async def ask_question_callback(question: str = None) -> str:
             """
             Callback для задавания вопросов через Telegram
 
             Args:
-                question: Вопрос от агента
+                question: Вопрос от агента (None = пропустить отправку, только ждать ответа)
 
             Returns:
                 Ответ пользователя
             """
-            # Отправить вопрос
-            await update.message.reply_text(question)
+            # Отправить вопрос (если он есть)
+            # ✅ ITERATION 26: Если question=None, пропускаем отправку (для hardcoded вопросов)
+            if question is not None:
+                # Отправить вопрос (используем context.bot вместо update.message для совместимости с callback)
+                chat_id = update.effective_chat.id if update.effective_chat else user_id
+                await context.bot.send_message(chat_id=chat_id, text=question)
+                logger.info(f"[SENT] Question sent to user {user_id}")
+            else:
+                logger.info(f"[SKIP] Skipping question send (hardcoded RP) for user {user_id}")
 
             # Ждем реального ответа из очереди
             logger.info(f"[WAITING] Waiting for answer from user {user_id}")
@@ -196,28 +209,51 @@ class InteractiveInterviewHandler:
             return answer
 
         try:
-            # Запустить интервью
-            result = await agent.conduct_interview(
-                user_data=interview['user_data'],
-                callback_ask_question=ask_question_callback
-            )
+            # ВАЖНО: Запустить интервью в отдельной задаче (task)
+            # чтобы не блокировать event loop
+            async def run_interview():
+                """Запустить интервью в фоне"""
+                try:
+                    result = await agent.conduct_interview(
+                        user_data=interview['user_data'],
+                        callback_ask_question=ask_question_callback
+                    )
 
-            # Интервью завершено
-            logger.info(f"[COMPLETE] Interview completed for user {user_id}")
-            logger.info(f"[SCORE] Audit score: {result['audit_score']}/100")
+                    # Интервью завершено
+                    logger.info(f"[COMPLETE] Interview completed for user {user_id}")
+                    logger.info(f"[SCORE] Audit score: {result['audit_score']}/100")
 
-            # Отправить результаты
-            await self._send_results(update, result)
+                    # Отправить результаты
+                    await self._send_results(update, result)
 
-            # Удалить из активных
-            del self.active_interviews[user_id]
+                    # Удалить из активных
+                    if user_id in self.active_interviews:
+                        del self.active_interviews[user_id]
+
+                except Exception as e:
+                    logger.error(f"[ERROR] Interview error for user {user_id}: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+                    # Отправить сообщение об ошибке
+                    chat = update.effective_chat
+                    await context.bot.send_message(
+                        chat_id=chat.id,
+                        text=f"Произошла ошибка во время интервью: {e}"
+                    )
+
+            # Запустить в background task
+            import asyncio
+            asyncio.create_task(run_interview())
+
+            logger.info(f"[BACKGROUND] Interview task created for user {user_id}")
 
         except Exception as e:
-            logger.error(f"[ERROR] Interview error for user {user_id}: {e}")
+            logger.error(f"[ERROR] Failed to start interview task for user {user_id}: {e}")
             import traceback
             traceback.print_exc()
             await update.message.reply_text(
-                f"Произошла ошибка во время интервью: {e}"
+                f"Произошла ошибка при запуске интервью: {e}"
             )
 
     async def handle_message(
