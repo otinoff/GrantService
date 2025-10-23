@@ -236,18 +236,23 @@ class GrantServiceDatabase:
         Returns:
             str: 'claude_code' или 'gigachat', по умолчанию 'claude_code'
         """
-        with self.connect() as conn:
-            cursor = conn.cursor()
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
 
-            cursor.execute("""
-                SELECT preferred_llm_provider FROM users
-                WHERE telegram_id = %s
-            """, (telegram_id,))
+                cursor.execute("""
+                    SELECT preferred_llm_provider FROM users
+                    WHERE telegram_id = %s
+                """, (telegram_id,))
 
-            row = cursor.fetchone()
-            cursor.close()
+                row = cursor.fetchone()
+                cursor.close()
 
-            return row[0] if row and row[0] else 'claude_code'
+                return row[0] if row and row[0] else 'claude_code'
+        except Exception as e:
+            # Column might not exist yet or other DB error - return default
+            logger.warning(f"Failed to get LLM preference for user {telegram_id}: {e}")
+            return 'claude_code'
 
     def set_user_llm_preference(self, telegram_id: int, provider: str) -> bool:
         """
