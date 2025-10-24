@@ -1120,7 +1120,7 @@ class GrantServiceDatabase:
 
                 cursor.execute("""
                     SELECT * FROM sessions
-                    WHERE user_id = %s AND status = 'completed'
+                    WHERE telegram_id = %s AND status = 'completed'
                     ORDER BY completed_at DESC
                     LIMIT 1
                 """, (user_id,))

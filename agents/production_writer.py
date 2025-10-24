@@ -184,8 +184,8 @@ class ProductionWriter:
         self.rate_limit_delay = rate_limit_delay
         self.db = db
 
-        # Инициализируем LLM client
-        self.llm_client = UnifiedLLMClient(provider=llm_provider)
+        # Инициализируем LLM client с GigaChat-Max для использования токенов по пакетам
+        self.llm_client = UnifiedLLMClient(provider=llm_provider, model="GigaChat-Max")
 
         # Инициализируем Expert Agent
         logger.info(f"[ProductionWriter] Connecting to Qdrant: {qdrant_host}:{qdrant_port}")

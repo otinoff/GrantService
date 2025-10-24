@@ -101,7 +101,7 @@ class GrantHandler:
                     f"❌ Анкета {anketa_id} не найдена."
                 )
                 return
-            if anketa['user_id'] != user_id:
+            if anketa['telegram_id'] != user_id:
                 await update.message.reply_text(
                     f"❌ Анкета {anketa_id} не принадлежит вам."
                 )
