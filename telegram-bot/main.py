@@ -204,6 +204,9 @@ from agents.interactive_interviewer_agent import InteractiveInterviewerAgent
 # NEW: Interactive Interview V2 Handler
 from handlers.interactive_interview_handler import InteractiveInterviewHandler
 
+# NEW: Grant Handler for ProductionWriter
+from handlers.grant_handler import GrantHandler
+
 
 class GrantServiceBotWithMenu:
     def __init__(self):
@@ -228,6 +231,12 @@ class GrantServiceBotWithMenu:
         # NEW: Interactive Interview V2 Handler
         admin_chat_id = os.getenv('ADMIN_CHAT_ID')
         self.interview_handler = InteractiveInterviewHandler(
+            db=db,
+            admin_chat_id=int(admin_chat_id) if admin_chat_id else None
+        )
+
+        # NEW: Grant Handler for ProductionWriter
+        self.grant_handler = GrantHandler(
             db=db,
             admin_chat_id=int(admin_chat_id) if admin_chat_id else None
         )
@@ -1968,6 +1977,32 @@ PDF документ с полной анкетой прикреплен
         await self.interview_handler.show_progress(update, context)
 
     # ========================================================================
+    # GRANT COMMANDS - ProductionWriter Integration
+    # ========================================================================
+
+    async def handle_generate_grant(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Генерировать грантовую заявку"""
+        # Получить anketa_id из аргументов команды
+        anketa_id = None
+        if context.args and len(context.args) > 0:
+            anketa_id = context.args[0]
+
+        await self.grant_handler.generate_grant(update, context, anketa_id)
+
+    async def handle_get_grant(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Получить готовую грантовую заявку"""
+        # Получить anketa_id из аргументов команды
+        anketa_id = None
+        if context.args and len(context.args) > 0:
+            anketa_id = context.args[0]
+
+        await self.grant_handler.get_grant(update, context, anketa_id)
+
+    async def handle_list_grants(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показать список грантовых заявок"""
+        await self.grant_handler.list_grants(update, context)
+
+    # ========================================================================
 
     def run(self):
         """Запуск бота"""
@@ -1999,6 +2034,11 @@ PDF документ с полной анкетой прикреплен
         application.add_handler(CommandHandler("continue", self.handle_continue_interview))
         application.add_handler(CommandHandler("stop_interview", self.handle_stop_interview))
         application.add_handler(CommandHandler("progress", self.handle_show_progress))
+
+        # NEW: Grant Commands - ProductionWriter Integration
+        application.add_handler(CommandHandler("generate_grant", self.handle_generate_grant))
+        application.add_handler(CommandHandler("get_grant", self.handle_get_grant))
+        application.add_handler(CommandHandler("list_grants", self.handle_list_grants))
 
         # Обработчики коллбэков и сообщений
         application.add_handler(CallbackQueryHandler(self.handle_menu_callback))

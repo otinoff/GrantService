@@ -1112,6 +1112,135 @@ class GrantServiceDatabase:
             logger.error(f"Ошибка получения гранта по ID: {e}")
             return None
 
+    def get_latest_completed_anketa(self, user_id: int) -> Optional[Dict]:
+        """Получить последнюю завершенную анкету пользователя"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT * FROM sessions
+                    WHERE user_id = %s AND status = 'completed'
+                    ORDER BY completed_at DESC
+                    LIMIT 1
+                """, (user_id,))
+
+                row = cursor.fetchone()
+                cursor.close()
+
+                return self._dict_row(cursor, row) if row else None
+
+        except Exception as e:
+            logger.error(f"Ошибка получения последней анкеты: {e}")
+            return None
+
+    def get_session_by_anketa_id(self, anketa_id: str) -> Optional[Dict]:
+        """Получить сессию по anketa_id"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT * FROM sessions
+                    WHERE anketa_id = %s
+                """, (anketa_id,))
+
+                row = cursor.fetchone()
+                cursor.close()
+
+                return self._dict_row(cursor, row) if row else None
+
+        except Exception as e:
+            logger.error(f"Ошибка получения сессии по anketa_id: {e}")
+            return None
+
+    def get_grant_by_anketa_id(self, anketa_id: str) -> Optional[Dict]:
+        """Получить грант по anketa_id"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT * FROM grants
+                    WHERE anketa_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (anketa_id,))
+
+                row = cursor.fetchone()
+                cursor.close()
+
+                return self._dict_row(cursor, row) if row else None
+
+        except Exception as e:
+            logger.error(f"Ошибка получения гранта по anketa_id: {e}")
+            return None
+
+    def get_latest_grant_for_user(self, user_id: int) -> Optional[Dict]:
+        """Получить последний грант пользователя"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT * FROM grants
+                    WHERE user_id = %s AND status = 'completed'
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (user_id,))
+
+                row = cursor.fetchone()
+                cursor.close()
+
+                return self._dict_row(cursor, row) if row else None
+
+        except Exception as e:
+            logger.error(f"Ошибка получения последнего гранта: {e}")
+            return None
+
+    def get_user_grants(self, user_id: int) -> List[Dict]:
+        """Получить все гранты пользователя"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT * FROM grants
+                    WHERE user_id = %s
+                    ORDER BY created_at DESC
+                """, (user_id,))
+
+                rows = cursor.fetchall()
+                cursor.close()
+
+                return self._dict_rows(cursor, rows)
+
+        except Exception as e:
+            logger.error(f"Ошибка получения грантов пользователя: {e}")
+            return []
+
+    def mark_grant_sent_to_user(self, grant_id: str) -> bool:
+        """Отметить что грант отправлен пользователю"""
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    UPDATE grants
+                    SET sent_to_user_at = CURRENT_TIMESTAMP,
+                        status = 'sent_to_user'
+                    WHERE grant_id = %s
+                """, (grant_id,))
+
+                conn.commit()
+                cursor.close()
+
+                return True
+
+        except Exception as e:
+            logger.error(f"Ошибка обновления статуса гранта: {e}")
+            return False
+
 
 # Для обратной совместимости - создаем глобальный экземпляр
 # НО только если переменные окружения настроены
