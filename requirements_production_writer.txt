@@ -1,0 +1,15 @@
+# ProductionWriter Dependencies
+# Date: 2025-10-24
+# For: Production grant generation with Qdrant integration
+
+# Qdrant vector database client
+qdrant-client==1.7.0
+
+# Sentence transformers for embeddings
+sentence-transformers==2.2.2
+
+# PostgreSQL adapter (if not already installed)
+psycopg2-binary==2.9.9
+
+# Python dotenv for environment variables
+python-dotenv==1.0.0
