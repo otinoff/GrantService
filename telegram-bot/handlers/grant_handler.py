@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
 import asyncio
+import time
 
 # Setup paths
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -164,16 +165,67 @@ class GrantHandler:
 
             logger.info(f"[GRANT] ProductionWriter initialized for anketa {anketa_id}")
 
-            # Генерируем грант
-            result = await asyncio.to_thread(
-                writer.generate_grant,
-                anketa_id=anketa_id
+            # Получить anketa data из БД
+            anketa_session = self.db.get_session_by_anketa_id(anketa_id)
+            if not anketa_session or not anketa_session.get('conversation_data'):
+                await update.message.reply_text(
+                    f"❌ Не удалось получить данные анкеты {anketa_id}"
+                )
+                logger.error(f"[GRANT] No conversation_data for anketa {anketa_id}")
+                return
+
+            # Парсим JSON anketa data
+            import json
+            try:
+                if isinstance(anketa_session['conversation_data'], str):
+                    anketa_data = json.loads(anketa_session['conversation_data'])
+                else:
+                    anketa_data = anketa_session['conversation_data']
+            except Exception as e:
+                await update.message.reply_text(
+                    f"❌ Ошибка при парсинге данных анкеты: {e}"
+                )
+                logger.error(f"[GRANT] Failed to parse conversation_data: {e}")
+                return
+
+            logger.info(f"[GRANT] Anketa data loaded, keys: {list(anketa_data.keys())}")
+
+            # Генерируем грант через write() method
+            generation_start = time.time()
+            grant_content = await asyncio.to_thread(
+                writer.write,
+                anketa_data=anketa_data
+            )
+            generation_duration = time.time() - generation_start
+
+            logger.info(f"[GRANT] Grant generated in {generation_duration:.1f}s, {len(grant_content)} characters")
+
+            # Сохраняем грант в БД
+            import uuid
+            grant_id = f"grant-{anketa_id}-{uuid.uuid4().hex[:8]}"
+
+            character_count = len(grant_content)
+            word_count = len(grant_content.split())
+            sections_generated = grant_content.count('\n\n##')  # Approximate section count
+
+            # Вставляем grant в БД
+            self.db.insert_grant(
+                grant_id=grant_id,
+                anketa_id=anketa_id,
+                user_id=user_id,
+                grant_content=grant_content,
+                status='completed',
+                character_count=character_count,
+                word_count=word_count,
+                sections_generated=sections_generated,
+                duration_seconds=generation_duration
             )
 
-            # Проверяем результат
-            if result['success']:
-                grant_id = result['grant_id']
-                grant = self.db.get_grant_by_id(grant_id)
+            # Получаем сохраненный grant
+            grant = self.db.get_grant_by_id(grant_id)
+
+            # Проверяем что сохранился
+            if grant:
 
                 # Обновить статус генерации
                 self.active_generations[user_id]['status'] = 'completed'
@@ -209,22 +261,20 @@ class GrantHandler:
                 logger.info(f"[GRANT] Successfully generated grant {grant_id} for anketa {anketa_id}")
 
             else:
-                # Ошибка генерации
-                error_msg = result.get('error', 'Unknown error')
+                # Grant не сохранился в БД
+                logger.error(f"[GRANT] Failed to save grant to database for anketa {anketa_id}")
 
                 self.active_generations[user_id]['status'] = 'failed'
-                self.active_generations[user_id]['error'] = error_msg
+                self.active_generations[user_id]['error'] = "Failed to save grant to database"
 
                 await context.bot.edit_message_text(
                     chat_id=update.effective_chat.id,
                     message_id=status_message.message_id,
-                    text=f"❌ Ошибка при генерации грантовой заявки\n\n"
+                    text=f"❌ Ошибка при сохранении грантовой заявки\n\n"
                          f"📋 Анкета: {anketa_id}\n"
-                         f"❗️ Ошибка: {error_msg}\n\n"
+                         f"❗️ Grant сгенерирован, но не сохранен в БД\n\n"
                          f"Пожалуйста, попробуйте еще раз или обратитесь к администратору."
                 )
-
-                logger.error(f"[GRANT] Failed to generate grant for anketa {anketa_id}: {error_msg}")
 
         except Exception as e:
             logger.error(f"[GRANT] Exception during grant generation: {e}", exc_info=True)
