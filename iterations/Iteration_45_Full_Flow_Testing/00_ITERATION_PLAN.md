@@ -2,11 +2,31 @@
 
 **Date:** 2025-10-25
 **Status:** PLANNED
-**Goal:** Execute and validate complete production flow with working GigaChat API
+**Methodology:** Project-Evolution-Methodology (5-step workflow)
+**Sprint Goal:** Validate end-to-end production flow with working GigaChat API
 
 ---
 
-## Context from Previous Iterations
+## 📚 Following Methodology
+
+Эта итерация следует **Project-Evolution-Methodology**:
+- **STEP 1: PLAN** (этот документ) - 10-15% времени
+- **STEP 2: DEVELOP** - малые commits, automated tests
+- **STEP 3: INTEGRATE** - CI checks, green pipeline
+- **STEP 4: DEPLOY** - N/A (тестовая итерация)
+- **STEP 5: MEASURE** - performance baselines, DORA metrics
+
+**См.:** `C:\SnowWhiteAI\GrantService\METHODOLOGY.md`
+
+---
+
+## 🎯 SPRINT GOAL (One Sentence)
+
+**Протестировать полный production flow (hardcoded + adaptive phases) и собрать performance baselines для DORA metrics.**
+
+---
+
+## 📊 Context from Previous Iterations
 
 ### Iteration 43: Full Flow Architecture (RESOLVED)
 - **Architecture:** FullFlowManager created (332 lines)
@@ -18,222 +38,355 @@
 - **API Fix:** GigaChat key updated, quota restored
 - **Verification:** 2 successful requests (1.06s, 0.93s)
 - **Status:** All blockers removed, ready to proceed
+- **Learnings:** 1 concurrent stream достаточно для development/MVP
 
 ---
 
-## 🎯 Primary Goal
-
-**Execute COMPLETE production flow testing** as users experience in Telegram bot:
-
-```
-PHASE 1: Hardcoded Questions (interview_handler.py)
-  Q1: "Скажите, как Ваше имя, как я могу к Вам обращаться?"
-  Q2: "Расскажите о вашей организации"
-       ↓
-PHASE 2: Adaptive Questions (InteractiveInterviewerAgentV2)
-  Q3-Q15: Dynamic questions based on P0-P3 Reference Points
-       ↓
-RESULT: Complete dialog_history with BOTH phases
-```
-
----
-
-## 📋 Tasks
-
-### Phase 1: Pre-Flight Checks (15 min)
-
-1. **Verify API Status**
-   - [ ] Run `python test_gigachat_status.py`
-   - [ ] Confirm 2+ successful requests
-   - [ ] Check response times < 5s
-
-2. **Database Verification**
-   - [ ] Verify PostgreSQL running (localhost:5432)
-   - [ ] Check grantservice database accessible
-   - [ ] Confirm interview_sessions table exists
-
-3. **Qdrant Verification**
-   - [ ] Verify production Qdrant (5.35.88.251:6333)
-   - [ ] Check collection exists and accessible
-   - [ ] Confirm vector dimensions match
-
-### Phase 2: Run Full Flow Test (30-60 min)
-
-4. **Execute Test Script**
-   - [ ] Run `python scripts/test_iteration_43_full_flow.py`
-   - [ ] Monitor console output for errors
-   - [ ] Track progress through both phases
-
-5. **Expected Flow:**
-   ```
-   Interview 1 (Medium Quality):
-   - Hardcoded Q1: User name → Response
-   - Hardcoded Q2: Organization → Response
-   - Adaptive Q3-Q15: Dynamic questions → Responses
-   - Total: ~17 questions
-   - Duration: ~5-10 minutes
-
-   Interview 2 (High Quality):
-   - Same flow, different responses
-   - Total: ~17 questions
-   - Duration: ~5-10 minutes
-   ```
-
-6. **Monitor for Issues:**
-   - [ ] GigaChat API errors (429, 401, etc.)
-   - [ ] Database connection errors
-   - [ ] Qdrant search failures
-   - [ ] Question generation failures
-   - [ ] Response parsing errors
-
-### Phase 3: Results Analysis (15 min)
-
-7. **Verify Output Files**
-   - [ ] Check JSON results file created
-   - [ ] Verify interview count = 2
-   - [ ] Confirm dialog_history completeness
-
-8. **Database Verification**
-   - [ ] Check interview_sessions records created
-   - [ ] Verify dialog_history JSONB contains both phases
-   - [ ] Confirm hardcoded + adaptive markers present
-
-9. **Quality Metrics**
-   - [ ] Hardcoded questions asked = 2
-   - [ ] Adaptive questions asked >= 10
-   - [ ] Total questions >= 12
-   - [ ] No duplicate questions
-   - [ ] All responses recorded
-
-### Phase 4: Documentation (15 min)
-
-10. **Create Summary Document**
-    - [ ] Test execution details
-    - [ ] Results statistics
-    - [ ] Sample dialog_history
-    - [ ] Issues encountered (if any)
-    - [ ] Performance metrics
-
-11. **Update Session State**
-    - [ ] Mark Iteration 45 as completed
-    - [ ] Document any new findings
-    - [ ] Note performance baselines
-
-12. **Git Commit**
-    - [ ] Commit test results
-    - [ ] Commit summary document
-    - [ ] Update iteration index
-
----
-
-## 📊 Success Criteria
+## ✅ Success Criteria (Metrics)
 
 ### Must Have:
-- ✅ 2 complete interviews executed
-- ✅ Both hardcoded + adaptive phases work
-- ✅ dialog_history saved to database
-- ✅ No GigaChat API errors
-- ✅ All questions unique (no duplicates)
+- ✅ **2 complete interviews** executed (medium + high quality)
+- ✅ **Both phases work:** Hardcoded (2 questions) + Adaptive (10-15 questions)
+- ✅ **dialog_history saved** to PostgreSQL JSONB
+- ✅ **No GigaChat API errors** (0 errors = success)
+- ✅ **All questions unique** (no duplicates within interview)
 
-### Should Have:
-- ✅ Response times < 5s per question
-- ✅ Adaptive questions relevant to user data
-- ✅ Proper phase markers in dialog
-- ✅ Clean error handling (if any errors)
+### Performance Baselines (for DORA metrics):
+- 📊 **Question generation time:** Avg time per question (target: <5s)
+- 📊 **Total interview duration:** Time for full interview (expect: 5-10 min)
+- 📊 **API response time:** GigaChat latency (target: <3s per request)
+- 📊 **Database write latency:** Time to save dialog_history (target: <1s)
 
-### Nice to Have:
-- ✅ Performance metrics documented
-- ✅ Quality assessment of generated questions
-- ✅ Comparison with previous iterations
+### Quality Metrics:
+- ✅ **Phase markers present:** Both "hardcoded" and "adaptive" in dialog_history
+- ✅ **Adaptive questions relevant:** Questions align with user data (P0-P3 framework)
+- ✅ **No errors in logs:** Clean execution without exceptions
 
 ---
 
-## 🔍 What We're Testing
+## 🔄 STEP 1: PLAN (This Document)
 
-### 1. FullFlowManager Integration
-**Component:** `agents/full_flow_manager.py`
+### Capacity Allocation:
+- **80% New Features:** Full flow testing execution
+- **20% Technical Debt:** Code review of FullFlowManager, documentation updates
 
-**Testing:**
-- Phase transition (hardcoded → adaptive)
-- Dialog history tracking across phases
-- Data passing between phases
-- Session management
+### Task Breakdown (<1 day each):
 
-### 2. Hardcoded Questions Phase
-**Source:** Production interview_handler.py questions
+**Task 1: Pre-Flight Checks** (Est: 15 min)
+- Verify GigaChat API status
+- Verify PostgreSQL database
+- Verify Qdrant vector DB
+- **Output:** Green light to proceed OR issues identified
 
-**Testing:**
-- Question delivery
-- Response collection
-- Field name inference
-- Phase markers
+**Task 2: Execute Full Flow Test** (Est: 30-60 min)
+- Run test script (2 interviews)
+- Monitor execution
+- Capture logs and metrics
+- **Output:** Test results JSON + console logs
 
-### 3. Adaptive Questions Phase
-**Component:** `agents/interactive_interviewer_agent_v2.py`
+**Task 3: Results Analysis** (Est: 15 min)
+- Verify output files
+- Check database records
+- Analyze quality metrics
+- **Output:** Pass/fail determination + metrics
 
-**Testing:**
-- Reference Points Framework (P0-P3)
-- Question generation based on previous answers
-- Qdrant search for relevant philosophy
-- Response quality adaptation
+**Task 4: Performance Baseline** (Est: 15 min)
+- Extract timing metrics
+- Calculate averages
+- Compare with targets
+- **Output:** Performance baseline document
 
-### 4. Database Integration
-**Component:** PostgreSQL dialog_history JSONB
+**Task 5: Documentation** (Est: 30 min)
+- Create ITERATION_45_SUMMARY.md
+- Update ITERATION_HISTORY.md
+- Document learnings
+- **Output:** Complete iteration documentation
 
-**Testing:**
-- Complete conversation storage
-- Both phases preserved
-- Query capabilities
-- Data integrity
+**Task 6: Git Commit** (Est: 5 min)
+- Stage all changes
+- Commit with detailed message
+- **Output:** Clean git history
+
+**Total Estimated Time:** 2-2.5 hours
+
+---
+
+## 🔄 STEP 2: DEVELOP (Execution Plan)
+
+### Pre-Flight Checks (Task 1)
+
+**API Status Check:**
+```bash
+cd "C:\SnowWhiteAI\GrantService"
+python test_gigachat_status.py
+```
+**Expected:** 2 successful requests, response times <5s
+
+**Database Check:**
+```bash
+# Verify PostgreSQL running
+pg_isready -h localhost -p 5432
+
+# Check grantservice database
+psql -h localhost -U postgres -d grantservice -c "\dt interview_sessions"
+```
+**Expected:** Table exists, connection successful
+
+**Qdrant Check:**
+```bash
+curl -s http://5.35.88.251:6333/collections | python -m json.tool
+```
+**Expected:** Collections list returned, no errors
+
+### Execute Test (Task 2)
+
+**Run Full Flow Test:**
+```bash
+cd "C:\SnowWhiteAI\GrantService"
+python scripts/test_iteration_43_full_flow.py 2>&1 | tee iteration_45_test_output.log
+```
+
+**Monitor Progress:**
+- Watch console for phase transitions
+- Check for GigaChat API errors
+- Monitor database writes
+- Capture timing metrics
+
+**Expected Flow:**
+```
+Interview 1 (Medium Quality):
+  [HARDCODED] Q1: "Скажите, как Ваше имя?"
+  [HARDCODED] Q2: "Расскажите о вашей организации"
+  [ADAPTIVE] Q3-Q15: Dynamic questions (P0-P3 framework)
+  Duration: ~5-10 minutes
+  Questions: 12-17 total
+
+Interview 2 (High Quality):
+  Same structure, different quality responses
+  Duration: ~5-10 minutes
+  Questions: 12-17 total
+```
+
+**Potential Issues & Mitigation:**
+- **429 API Error:** Wait 5-10s, retry (already handled in code)
+- **Database Connection:** Restart PostgreSQL, verify credentials
+- **Qdrant Timeout:** Check network, verify production server accessible
+- **Question Duplication:** Log and continue, analyze in post-test review
+
+### Small Commits Strategy:
+
+**Commit Points:**
+1. After pre-flight checks pass
+2. After test execution starts
+3. After first interview completes
+4. After second interview completes
+5. After analysis complete
+6. After documentation complete
+
+**Commit Message Format:**
+```
+test: [stage] - [what happened]
+
+Examples:
+- test: pre-flight checks passed - all systems green
+- test: interview 1 completed - 15 questions, 8min duration
+- test: full flow test complete - 2/2 interviews successful
+```
+
+---
+
+## 🔄 STEP 3: INTEGRATE (Validation)
+
+### Automated Checks:
+
+**Data Validation:**
+```python
+# Verify dialog_history structure
+assert len(interview_results) == 2
+assert all('dialog_history' in r for r in interview_results)
+assert all(len(r['dialog_history']) >= 12 for r in interview_results)
+```
+
+**Phase Marker Validation:**
+```python
+# Verify both phases present
+for result in interview_results:
+    phases = [msg.get('phase') for msg in result['dialog_history']]
+    assert 'hardcoded' in phases
+    assert 'adaptive' in phases
+```
+
+**Quality Validation:**
+```python
+# No duplicate questions
+for result in interview_results:
+    questions = [msg['content'] for msg in result['dialog_history'] if msg['role'] == 'assistant']
+    assert len(questions) == len(set(questions))  # No duplicates
+```
+
+### Manual Review Checklist:
+
+- [ ] Console output shows no errors
+- [ ] Both interviews completed fully
+- [ ] dialog_history saved to database
+- [ ] Questions are relevant and unique
+- [ ] Response times acceptable (<5s per question)
+
+---
+
+## 🔄 STEP 4: DEPLOY
+
+**N/A for testing iteration** - no production deployment
+
+---
+
+## 🔄 STEP 5: MEASURE (Metrics Collection)
+
+### Performance Baselines:
+
+**Timing Metrics (extract from logs):**
+```
+Question Generation Time:
+- Q1 (hardcoded): [X]s
+- Q2 (hardcoded): [X]s
+- Q3 (adaptive): [X]s
+- ...
+- Average: [X]s
+
+Total Interview Duration:
+- Interview 1: [X] min
+- Interview 2: [X] min
+- Average: [X] min
+
+API Response Time:
+- Min: [X]s
+- Max: [X]s
+- Average: [X]s
+- Median: [X]s
+
+Database Write Latency:
+- Interview 1: [X]ms
+- Interview 2: [X]ms
+```
+
+### DORA Metrics (Initial Baselines):
+
+**Deployment Frequency:** N/A (testing iteration)
+
+**Lead Time for Changes:**
+- From: Iteration 43 complete (2025-10-25 morning)
+- To: Iteration 45 complete (2025-10-25 evening)
+- **Baseline:** ~8-12 hours (API fix + consolidation + testing)
+
+**MTTR (Mean Time to Recovery):**
+- GigaChat blocker (Iteration 43) → Fixed (Iteration 44)
+- **Baseline:** ~6 hours (diagnosis + fix + test)
+
+**Change Failure Rate:**
+- Iterations 43-44: 0 rollbacks needed
+- **Baseline:** 0% (both iterations successful)
+
+### Quality Metrics:
+
+**Test Coverage:**
+- Unit tests: [coverage %]
+- Integration tests: Full flow tested
+- **Target:** >80% coverage
+
+**Code Review:**
+- FullFlowManager reviewed: [ ] Yes / [ ] No
+- Test scripts reviewed: [ ] Yes / [ ] No
+
+**Technical Debt:**
+- CI/CD setup: [ ] TODO
+- Monitoring: [ ] TODO
+- Automated testing: [ ] Partial (manual execution)
+
+---
+
+## 📝 Output Artifacts
+
+### Required Files:
+
+1. **Test Results:**
+   - `iteration_45_full_flow_results_YYYYMMDD_HHMMSS.json`
+   - `iteration_45_test_output.log`
+
+2. **Documentation:**
+   - `iterations/Iteration_45_Full_Flow_Testing/ITERATION_45_SUMMARY.md`
+   - `iterations/Iteration_45_Full_Flow_Testing/PROGRESS_LOG.md`
+   - `iterations/Iteration_45_Full_Flow_Testing/PERFORMANCE_BASELINE.md`
+
+3. **ITERATION_HISTORY.md Update:**
+   ```markdown
+   ## Iteration 45: Full Flow Testing
+
+   **Дата:** 2025-10-25
+   **Что было:** API восстановлен, архитектура готова
+   **Что сделали:** Протестировали полный production flow (2 интервью)
+   **Результат:** ✅ 2/2 успешно, baselines собраны
+   ```
+
+4. **Git Commits:**
+   - Minimum 3 commits (pre-flight, test execution, documentation)
+   - Clear commit messages following convention
+
+---
+
+## 🚨 Risk Management
+
+### Known Risks & Mitigation:
+
+**Risk 1: GigaChat Daily Quota Exhaustion**
+- **Probability:** Low (key updated, quota restored)
+- **Impact:** High (blocks testing)
+- **Mitigation:** Monitor token usage, limit to 2 interviews
+- **Contingency:** Wait 24h for quota reset OR switch to mock LLM
+
+**Risk 2: Qdrant Production Server Unreachable**
+- **Probability:** Low (historically stable)
+- **Impact:** Medium (blocks adaptive questions)
+- **Mitigation:** Pre-flight check validates connectivity
+- **Contingency:** Use local Qdrant OR skip philosophy search (testing mode)
+
+**Risk 3: PostgreSQL Not Running**
+- **Probability:** Low (local service)
+- **Impact:** High (blocks data persistence)
+- **Mitigation:** Pre-flight check validates database
+- **Contingency:** Start PostgreSQL service
+
+**Risk 4: Test Takes Longer Than Expected**
+- **Probability:** Medium (GigaChat can be slow)
+- **Impact:** Low (only time constraint)
+- **Mitigation:** Set realistic expectations (30-60 min)
+- **Contingency:** Accept longer duration, document in metrics
 
 ---
 
 ## 🎓 Expected Learnings
 
-### Performance Baselines:
-- Average question generation time
-- Total interview duration
-- API response times
-- Database write latency
+### Questions to Answer:
 
-### Quality Assessment:
-- Question relevance to user data
-- Response coherence
-- Phase transition smoothness
-- Overall user experience simulation
+1. **Performance:** What are actual production flow timings?
+2. **Quality:** How relevant are adaptive questions?
+3. **Scalability:** Does 1 concurrent stream work smoothly?
+4. **Error Handling:** Are retry mechanisms sufficient?
+5. **User Experience:** Is ~10 min interview duration acceptable?
 
-### Production Readiness:
-- Identify any edge cases
-- Validate error handling
-- Confirm scalability potential
-- Document limitations
+### Metrics to Establish:
+
+1. **Performance Baselines:** For future optimization comparison
+2. **DORA Metrics:** Initial baselines for continuous improvement
+3. **Quality Standards:** What is "good" question relevance?
+4. **Capacity Planning:** How many interviews can we process daily?
 
 ---
 
-## 🚨 Known Risks
-
-### GigaChat API:
-- **Risk:** Daily quota exhaustion
-- **Mitigation:** Monitor token usage, limit test count
-- **Contingency:** Wait 24h for quota reset
-
-### Database:
-- **Risk:** PostgreSQL not running
-- **Mitigation:** Pre-flight check in Phase 1
-- **Contingency:** Start PostgreSQL service
-
-### Qdrant:
-- **Risk:** Production server unreachable
-- **Mitigation:** Network connectivity check
-- **Contingency:** Use local Qdrant or skip philosophy search
-
----
-
-## 📁 Files Involved
+## 📚 Related Files
 
 ### Test Scripts:
-- `scripts/test_iteration_43_full_flow.py` - Main test script (301 lines)
-- `test_gigachat_status.py` - API status checker (118 lines)
+- `scripts/test_iteration_43_full_flow.py` - Main test (301 lines)
+- `test_gigachat_status.py` - API status check (118 lines)
 - `test_gigachat_simple.py` - API diagnostic (181 lines)
 
 ### Production Code:
@@ -242,56 +395,75 @@ RESULT: Complete dialog_history with BOTH phases
 - `agents/synthetic_user_simulator.py` - User simulator (500+ lines)
 
 ### Configuration:
-- `config/.env` - API keys and database config
-- `data/database/` - PostgreSQL adapter
+- `config/.env` - API keys, database config
+- `METHODOLOGY.md` - Development methodology
+- `ITERATION_HISTORY.md` - История изменений
 
-### Documentation:
-- `iterations/Iteration_43_Full_Flow/ITERATION_43_SUMMARY.md` - Architecture details
-- `iterations/Iteration_44_Project_Consolidation/ITERATION_44_SUMMARY.md` - API fix details
-
----
-
-## 🔄 After Completion
-
-### If Successful:
-1. **Document Results:**
-   - Create `ITERATION_45_SUMMARY.md`
-   - Include performance metrics
-   - Document any findings
-
-2. **Next Iteration Planning:**
-   - **Iteration 46:** Scale testing (5-10 concurrent users)
-   - **Iteration 47:** Production deployment prep
-   - **Iteration 48:** Monitoring setup
-
-### If Issues Found:
-1. **Diagnose Root Cause:**
-   - Analyze error logs
-   - Check component integration
-   - Identify failure point
-
-2. **Create Hotfix Plan:**
-   - Prioritize blocking issues
-   - Document workarounds
-   - Plan fixes for next iteration
+### Previous Iterations:
+- `iterations/Iteration_43_Full_Flow/ITERATION_43_SUMMARY.md`
+- `iterations/Iteration_44_Project_Consolidation/ITERATION_44_SUMMARY.md`
 
 ---
 
-## 📝 Notes
+## ✅ Pre-Iteration Checklist
 
-### Architecture Validation:
-This iteration validates the COMPLETE production architecture end-to-end for the first time. Previous iterations tested components in isolation or partial flows.
+Before starting execution:
 
-### Production Parity:
-Test uses EXACT same code as production Telegram bot, only difference is SyntheticUserSimulator instead of real users.
+- [ ] **Read METHODOLOGY.md** - понять 5-step процесс
+- [ ] **Read ITERATION_HISTORY.md** - контекст последних итераций
+- [ ] **GigaChat API operational** - ключ обновлён, quota restored
+- [ ] **PostgreSQL running** - database accessible
+- [ ] **Qdrant accessible** - production server reachable
+- [ ] **Test script ready** - scripts/test_iteration_43_full_flow.py
+- [ ] **Git clean** - no uncommitted changes
+- [ ] **Time allocated** - 2-2.5 hours available
 
-### Baseline Establishment:
-This iteration establishes performance baselines for future optimizations and comparisons.
+---
+
+## 🔄 Post-Iteration Actions
+
+After completion:
+
+1. **Update ITERATION_HISTORY.md** - 3-5 строк о результатах
+2. **Create ITERATION_45_SUMMARY.md** - полный отчёт
+3. **Git commit** - зафиксировать всё
+4. **Measure against DORA** - сравнить с целями
+5. **Identify improvements** - что улучшить в Iteration 46
+6. **Plan next iteration** - Iteration 46 (масштабное тестирование?)
+
+---
+
+## 🎯 Alignment with Methodology
+
+### Project-Evolution-Methodology Principles:
+
+**✅ Малые частые изменения:**
+- Testing iteration (not weeks of development)
+- Small commits during execution
+- Incremental validation
+
+**✅ Автоматизация стабильности:**
+- Automated test script
+- Data validation checks
+- Pre-flight verification
+
+**✅ Управление техническим долгом:**
+- 20% time: Code review, documentation
+- Identify CI/CD needs
+- Plan monitoring setup
+
+**✅ Измерение прогресса:**
+- Performance baselines
+- DORA metrics tracking
+- Quality metrics
 
 ---
 
 **Ready to Execute:** YES
 **Blockers:** NONE
-**Dependencies:** GigaChat API (operational), PostgreSQL (running), Qdrant (accessible)
-**Estimated Duration:** 1-2 hours total
-**Priority:** HIGH (critical path for production deployment)
+**Dependencies:** GigaChat API (✅ operational), PostgreSQL (✅ running), Qdrant (✅ accessible)
+**Estimated Duration:** 2-2.5 hours
+**Priority:** HIGH (critical path для production deployment)
+
+**Методология:** See `METHODOLOGY.md` for details on 5-step workflow
+**История:** See `ITERATION_HISTORY.md` for context from Iterations 1-44
