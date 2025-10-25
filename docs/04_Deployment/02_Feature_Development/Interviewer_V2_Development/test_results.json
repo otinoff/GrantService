@@ -1,0 +1,39 @@
+{
+  "timestamp": "2025-10-22",
+  "total": 6,
+  "passed": 6,
+  "failed": 0,
+  "pass_rate": 100.0,
+  "results": [
+    {
+      "test": "test_basic_initialization",
+      "status": "PASS",
+      "message": ""
+    },
+    {
+      "test": "test_first_question_is_q1",
+      "status": "PASS",
+      "message": ""
+    },
+    {
+      "test": "test_claude_code_is_default",
+      "status": "PASS",
+      "message": ""
+    },
+    {
+      "test": "test_no_gigachat_by_default",
+      "status": "PASS",
+      "message": ""
+    },
+    {
+      "test": "test_question_bank_structure",
+      "status": "PASS",
+      "message": ""
+    },
+    {
+      "test": "test_mock_full_interview",
+      "status": "PASS",
+      "message": "Questions asked: 10, Anketa fields: 10"
+    }
+  ]
+}

@@ -652,7 +652,7 @@ class InteractiveInterviewerAgent(BaseAgent):
 async def conduct_interactive_interview(
     db,
     user_data: Dict[str, Any],
-    llm_provider: str = "gigachat"
+    llm_provider: str = "claude_code"
 ) -> Dict[str, Any]:
     """
     Провести интерактивное интервью с аудитом
@@ -660,7 +660,7 @@ async def conduct_interactive_interview(
     Args:
         db: Database instance
         user_data: Данные пользователя + ответы на вопросы
-        llm_provider: LLM провайдер (default: gigachat)
+        llm_provider: LLM провайдер (default: claude_code, можно выбрать gigachat)
 
     Returns:
         Результат интервью с анкетой и аудитом

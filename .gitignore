@@ -81,3 +81,4 @@ nohup.out
 # Telegram bot token (security)
 config.py
 token.txt qdrant_storage/
+qdrant_storage/

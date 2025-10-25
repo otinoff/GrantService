@@ -1,171 +1,235 @@
-# Тесты GrantService
+# GrantService Test Suite
 
-Комплексное тестирование системы GrantService после миграции на PostgreSQL 18.
+**Total Tests:** 87 files
+**Created:** 2025-10-22
+**Status:** Организация в процессе
 
-## Структура
+---
+
+## 📂 Структура
 
 ```
 tests/
-├── conftest.py                 # Конфигурация pytest и фикстуры
-├── pytest.ini                  # Настройки pytest (в корне проекта)
-├── fixtures/
-│   ├── database.py            # Фикстуры БД (не используется, фикстуры в conftest.py)
-│   └── test_data.py           # Тестовые данные
-├── unit/                      # Unit тесты (48 тестов)
-│   ├── test_database_models.py   # Тесты models.py
-│   ├── test_interview.py         # Тесты interview.py
-│   ├── test_users.py             # Тесты users.py
-│   └── test_sessions.py          # Тесты sessions.py
-├── integration/               # Интеграционные тесты (29 тестов)
-│   ├── test_bot_interview_flow.py      # Полный флоу заполнения анкеты
-│   ├── test_anketa_save.py             # Тесты сохранения анкеты
-│   └── test_postgresql_migration.py    # Тесты миграции
-└── TEST_REPORT.md            # Отчет о тестировании
+├── unit/                    # Unit тесты (изолированные)
+├── integration/             # Интеграционные (несколько компонентов)
+├── autonomous/              # Автономные (без LLM, моки)
+├── smoke/                   # Smoke тесты (быстрая проверка)
+└── .claude/skills/test-engineer/  # Claude Skill для запуска
 ```
 
-## Быстрый старт
+---
 
-### Запуск всех тестов
+## 🎯 Быстрый старт
+
+### Запуск тестов:
+
 ```bash
+# Все тесты
 pytest tests/
+
+# Только unit
+pytest tests/unit/
+
+# Только интервьюер
+pytest tests/ -k "interviewer"
+
+# С подробным выводом
+pytest tests/ -v
 ```
 
-### Запуск только unit тестов
-```bash
-pytest tests/unit/ -v
+### Через Claude Skill:
+
+```
+"Run unit tests"
+"Test the interviewer"
+"Run smoke tests"
 ```
 
-### Запуск только интеграционных тестов
-```bash
-pytest tests/integration/ -v
+---
+
+## 📊 Категории тестов (87 файлов)
+
+### 🟢 Autonomous (без LLM) - 6 тестов
+
+**Цель:** Быстрая проверка без затрат на API
+
+- `test_agent_local_autonomous.py` - Локальные агенты
+- `test_bot_autonomous.py` - Telegram bot моки
+- `test_interviewer_v2_autonomous.py` - Интервьюер V2
+- `test_interview_fully_mocked.py` - Полностью замокированное интервью
+- `test_agent_router.py` - Роутинг агентов
+- `test_fallback_strategy.py` - Fallback стратегии
+
+---
+
+### 🔵 Unit Tests - 8 тестов
+
+**Цель:** Изолированные компоненты
+
+- `telegram-bot/tests/unit/test_interview_agent.py`
+- `telegram-bot/tests/unit/test_interview_handler.py`
+- `test_fix_isolated.py`
+- `database/test_pg18_connection.py`
+- `test_database_prompt_manager.py`
+- `test_get_questions.py`
+- `test_question_display.py`
+- `test_interview_hints.py`
+
+---
+
+### 🟡 Integration Tests - 23 теста
+
+**Цель:** Проверка взаимодействия компонентов
+
+#### Interviewer Tests (10):
+- `test_interactive_interviewer_v2.py` ⭐ - V2 Reference Points
+- `test_interactive_interviewer_automated.py`
+- `test_interactive_interviewer_simple.py`
+- `test_bot_interactive.py`
+- `test_interactive_handler.py`
+- `telegram-bot/tests/test_interview_auto.py`
+- `test_v2_interview_workflow.py`
+- `test_interactive_prod.py`
+- `test_prod_telegram_bot.py`
+- `test_grant_export_session_9.py`
+
+#### Agent Tests (7):
+- `test_agents.py`
+- `test_expert_agent.py`
+- `test_gigachat_auditor.py`
+- `test_writer_claude.py`
+- `test_writer_with_expert.py`
+- `test_crew.py`
+- `test_claude_code_178.py`
+
+#### Research Tests (6):
+- `test_researcher_perplexity.py`
+- `test_researcher_archery.py`
+- `test_researcher_logging.py`
+- `test_researcher_mock.py`
+- `test_researcher_with_db.py`
+- `test_websearch_synthesis.py`
+
+---
+
+### 🟣 Perplexity API Tests - 9 тестов
+
+**Цель:** Тестирование Perplexity integration
+
+- `test_perplexity.py`
+- `test_perplexity_direct.py`
+- `test_perplexity_simple.py`
+- `test_real_perplexity.py`
+- `test_minimal_perplexity.py`
+- `test_safe_perplexity.py`
+- `test_sync_perplexity.py`
+- `test_websearch_fix.py`
+- `test_websearch_russian.py`
+
+---
+
+### 🔴 Smoke Tests - 3 теста
+
+**Цель:** Быстрая проверка критичных функций
+
+- `test_interactive_interviewer_smoke.py` ⭐
+- `test_qdrant_search.py`
+- `test_qdrant_remote.py`
+
+---
+
+### 🟠 UI/Web Tests - 6 тестов
+
+**Цель:** Streamlit admin панель
+
+- `test_all_pages.py`
+- `test_page_headless.py`
+- `test_account_stats.py`
+- `test_balance_display.py`
+- `test_balance_edit.py`
+- `test_model_settings.py`
+
+---
+
+### ⚪ Other/Legacy - 12 тестов
+
+**Цель:** Старые/специфичные тесты
+
+- `test_auto_grant_creation.py`
+- `test_prompt_fix.py`
+- `test_real_questions.py`
+- `run_trainer_test.py`
+- Claude Code CLI тесты (3 файла)
+- И другие...
+
+---
+
+## 🎯 Приоритетные тесты для CI/CD
+
+### Must Run (всегда):
+1. `test_interviewer_v2_autonomous.py` - Быстро, без API
+2. `test_interactive_interviewer_smoke.py` - Критичные функции
+3. `test_database_prompt_manager.py` - База данных
+
+### Should Run (pre-deploy):
+4. `test_interactive_interviewer_v2.py` - Полное интервью
+5. `test_agents.py` - Все агенты
+6. `test_qdrant_search.py` - Векторный поиск
+
+### Nice to Have (weekly):
+7. All integration tests
+8. Perplexity tests
+9. UI tests
+
+---
+
+## 🚀 Использование test-engineer Skill
+
+**Skill location:** `tests/.claude/skills/test-engineer/`
+
+### Команды:
+
+```
+"Run autonomous tests"     → pytest tests/autonomous/
+"Test interviewer"         → pytest -k "interviewer"
+"Smoke test"               → pytest tests/smoke/
+"All tests verbose"        → pytest tests/ -v
 ```
 
-### Запуск с code coverage
-```bash
-pytest tests/ --cov=data/database --cov-report=html
-```
+**Skill экономит:** ~60% токенов vs прямые запросы
 
-### Запуск конкретного файла
-```bash
-pytest tests/unit/test_users.py -v
-```
+---
 
-### Запуск конкретного теста
-```bash
-pytest tests/unit/test_users.py::TestUserManager::test_register_user -v
-```
+## 📝 TODO: Migration Plan
 
-## Маркеры
+**Сейчас:** 87 тестов разбросаны по проекту
+**Цель:** Организовать в tests/ по категориям
 
-Тесты помечены маркерами для удобной фильтрации:
+### Phase 1 (приоритет):
+- [ ] Переместить autonomous тесты → tests/autonomous/
+- [ ] Переместить smoke тесты → tests/smoke/
+- [ ] Создать conftest.py с общими fixtures
 
-```bash
-# Только unit тесты
-pytest -m unit
+### Phase 2:
+- [ ] Переместить unit тесты → tests/unit/
+- [ ] Переместить integration → tests/integration/
 
-# Только интеграционные
-pytest -m integration
+### Phase 3:
+- [ ] Добавить CI/CD pipeline
+- [ ] Coverage reporting
+- [ ] Automated test runs
 
-# Только медленные тесты
-pytest -m slow
-```
+---
 
-## Требования
+## 🔗 Links
 
-### Окружение
-- PostgreSQL 18.0
-- Python 3.12+
-- pytest 7.4+
+- **Test Engineer Skill:** `.claude/skills/test-engineer/SKILL.md`
+- **Autonomous Testing Methodology:** `C:\SnowWhiteAI\GrantService_Project\Development\00_Technical_Docs\AUTONOMOUS_TESTING_METHODOLOGY.md`
+- **cradle test-engineer:** `C:\SnowWhiteAI\cradle\.claude\skills\test-engineer\`
 
-### Переменные окружения
-```bash
-PGHOST=localhost
-PGPORT=5432
-PGDATABASE=grantservice
-PGUSER=postgres
-PGPASSWORD=root
-```
+---
 
-## Фикстуры
-
-Основные фикстуры определены в `conftest.py`:
-
-- `db` - GrantServiceDatabase instance
-- `user_manager` - UserManager instance
-- `interview_manager` - InterviewManager instance
-- `session_manager` - SessionManager instance
-- `test_user_data` - Тестовые данные пользователя
-- `cleanup_test_user` - Очистка после теста
-
-## Тестовые данные
-
-Тестовый пользователь:
-- `telegram_id`: 999999999
-- `username`: test_user_pytest
-- `first_name`: Test
-- `last_name`: User
-
-## Результаты
-
-Последний запуск (2025-10-04):
-- **Всего тестов:** 78
-- **Прошли:** 67 (85.9%)
-- **Упали:** 10 (12.8%)
-- **Пропущены:** 1 (1.3%)
-- **Время:** 18.69 сек
-
-Подробный отчет: `TEST_REPORT.md`
-
-## Известные проблемы
-
-1. **grant_applications** - схема отличается от ожидаемой
-2. **user_answers** - нет unique constraint на (session_id, question_id)
-3. **Названия колонок** - `registration_date` вместо `created_at`
-
-## Разработка
-
-### Добавление нового теста
-
-```python
-import pytest
-
-@pytest.mark.unit
-def test_my_function(db):
-    """Описание теста"""
-    # Arrange
-    user_id = db.create_user(123456, "testuser")
-
-    # Act
-    result = db.get_user_by_telegram_id(123456)
-
-    # Assert
-    assert result is not None
-    assert result['username'] == "testuser"
-```
-
-### Добавление фикстуры
-
-Добавьте в `conftest.py`:
-
-```python
-@pytest.fixture(scope='function')
-def my_fixture(db):
-    """Описание фикстуры"""
-    # Setup
-    data = create_test_data()
-    yield data
-    # Teardown
-    cleanup_test_data(data)
-```
-
-## CI/CD
-
-Тесты автоматически запускаются при:
-- Push в любую ветку
-- Pull request
-- Перед деплоем
-
-## Контакты
-
-- Разработчик: Nikolay Stepanov
-- Email: otinoff@gmail.com
+**Created:** 2025-10-22
+**Total Tests:** 87 files
+**Organized:** 0% (migration pending)
+**Priority:** После рефакторинга интервьюера

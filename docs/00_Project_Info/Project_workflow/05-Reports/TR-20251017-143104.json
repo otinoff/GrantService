@@ -1,0 +1,33 @@
+{
+  "status": "failed",
+  "test_id": "TR-20251017-143104",
+  "agent": "writer_v2",
+  "test_type": "functionality",
+  "execution_time": 119.76,
+  "checks": {
+    "can_initialize_writer": true,
+    "has_expert_agent": true,
+    "can_generate_grant": true,
+    "result_is_valid": false,
+    "saved_to_db": false,
+    "execution_time_ok": true
+  },
+  "checks_passed": 4,
+  "checks_total": 6,
+  "errors": [
+    "Нет таблиц"
+  ],
+  "warnings": [
+    "Заявка не сохранена в БД"
+  ],
+  "timestamp": "2025-10-17T14:33:04.588174",
+  "use_real_llm": true,
+  "result_preview": {
+    "status": "success",
+    "application_number": null,
+    "quality_score": 7,
+    "citations_count": 6,
+    "tables_count": 0,
+    "has_application": true
+  }
+}

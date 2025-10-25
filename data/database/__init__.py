@@ -8,8 +8,42 @@ import os
 from .models import GrantServiceDatabase
 
 # Глобальный экземпляр БД для PostgreSQL
+# ИЗМЕНЕНО: Lazy initialization для тестирования
 # Параметры подключения берутся из переменных окружения
-db = GrantServiceDatabase()
+_db_instance = None
+
+def get_db():
+    """Получить или создать экземпляр БД (lazy initialization)"""
+    global _db_instance
+    if _db_instance is None:
+        _db_instance = GrantServiceDatabase()
+    return _db_instance
+
+def set_db(db_instance):
+    """Установить экземпляр БД (для тестов)"""
+    global _db_instance, _session_manager, _auth_manager
+    _db_instance = db_instance
+    # Сбросить managers чтобы пересоздались с новым DB
+    _session_manager = None
+    _auth_manager = None
+
+def reset_db():
+    """Сбросить экземпляр БД (для тестов)"""
+    global _db_instance, _session_manager, _auth_manager
+    _db_instance = None
+    _session_manager = None
+    _auth_manager = None
+
+# Для обратной совместимости - создаём db при первом обращении
+class _DBProxy:
+    """Прокси для ленивой инициализации БД"""
+    def __getattr__(self, name):
+        return getattr(get_db(), name)
+
+    def __call__(self, *args, **kwargs):
+        return get_db()(*args, **kwargs)
+
+db = _DBProxy()
 
 # Импортируем классы авторизации
 from .auth import AuthManager, UserRole, UserPermission
@@ -27,11 +61,33 @@ from .user_progress import (
     get_user_progress, get_user_answers, get_current_question_info,
     get_all_users_progress, get_questions_with_answers, export_user_form
 )
-# Создаем экземпляр SessionManager для доступа к новым функциям
-session_manager = SessionManager(db)
+# Создаем экземпляры SessionManager и AuthManager лениво
+_session_manager = None
+_auth_manager = None
 
-# Создаем экземпляр AuthManager для управления авторизацией
-auth_manager = AuthManager(db)
+def get_session_manager():
+    """Получить экземпляр SessionManager (lazy)"""
+    global _session_manager
+    if _session_manager is None:
+        _session_manager = SessionManager(get_db())
+    return _session_manager
+
+def get_auth_manager():
+    """Получить экземпляр AuthManager (lazy)"""
+    global _auth_manager
+    if _auth_manager is None:
+        _auth_manager = AuthManager(get_db())
+    return _auth_manager
+
+# Для обратной совместимости
+class _ManagerProxy:
+    def __init__(self, getter):
+        self._getter = getter
+    def __getattr__(self, name):
+        return getattr(self._getter(), name)
+
+session_manager = _ManagerProxy(get_session_manager)
+auth_manager = _ManagerProxy(get_auth_manager)
 
 # Экспортируем основные функции для совместимости
 __all__ = [

@@ -57,6 +57,156 @@ class GrantHandler:
         """Проверить активна ли генерация для пользователя"""
         return user_id in self.active_generations
 
+    async def _validate_anketa_data(self, anketa_data: dict, user_id: int) -> dict:
+        """
+        ITERATION 37: Two-Stage QA - GATE 1 (Anketa Validation)
+        Validates INPUT data quality before generation
+
+        Args:
+            anketa_data: Данные анкеты (dict/JSON)
+            user_id: Telegram ID пользователя
+
+        Returns:
+            dict: {
+                'approved': bool,
+                'score': float,
+                'recommendations': list,
+                'status': str  # 'approved'/'needs_revision'/'rejected'
+            }
+        """
+        try:
+            logger.info(f"[GATE-1] Validating anketa data quality...")
+
+            # Импортируем AnketaValidator
+            from agents.anketa_validator import AnketaValidator
+
+            # Получаем LLM preference пользователя
+            llm_provider = self.db.get_user_llm_preference(user_id)
+
+            # Создаем валидатор
+            validator = AnketaValidator(llm_provider=llm_provider, db=self.db)
+
+            # Запускаем валидацию
+            validation_result = await validator.validate(anketa_data)
+
+            # Преобразуем результат
+            score = validation_result['score']
+            can_proceed = validation_result['can_proceed']
+
+            # Определяем статус
+            if can_proceed and score >= 7.0:
+                status = 'approved'
+                approved = True
+            elif score >= 5.0:
+                status = 'needs_revision'
+                approved = False
+            else:
+                status = 'rejected'
+                approved = False
+
+            logger.info(f"[GATE-1] Validation result: {status}, score: {score:.1f}/10")
+
+            return {
+                'approved': approved,
+                'score': score,
+                'recommendations': validation_result['recommendations'],
+                'status': status,
+                'issues': validation_result.get('issues', [])
+            }
+
+        except Exception as e:
+            logger.error(f"[GATE-1] Anketa validation failed: {e}")
+            # Fallback: allow to proceed with warning
+            return {
+                'approved': True,
+                'score': 5.0,
+                'recommendations': [f"Validation error: {str(e)}"],
+                'status': 'error'
+            }
+
+    async def _audit_generated_grant(self, grant_text: str, anketa_data: dict, session_id: int, user_id: int) -> dict:
+        """
+        ITERATION 37: Two-Stage QA - GATE 2 (Grant Audit)
+        Audits OUTPUT (generated grant text) quality
+
+        Args:
+            grant_text: Generated grant application TEXT
+            anketa_data: Original anketa data (for context)
+            session_id: ID сессии
+            user_id: Telegram ID пользователя
+
+        Returns:
+            dict: {
+                'approved': bool,
+                'score': float,
+                'recommendations': list,
+                'status': str
+            }
+        """
+        try:
+            logger.info(f"[GATE-2] Auditing generated grant text...")
+
+            # Импортируем AuditorAgent
+            from agents.auditor_agent import AuditorAgent
+
+            # Получаем LLM preference пользователя
+            llm_provider = self.db.get_user_llm_preference(user_id)
+
+            # Создаем аудитора
+            auditor = AuditorAgent(self.db, llm_provider=llm_provider)
+
+            # Формируем input для AuditorAgent
+            # ВАЖНО: Передаём GENERATED TEXT, не JSON!
+            audit_input = {
+                'application_text': grant_text,  # ← TEXT not JSON!
+                'application': {'text': grant_text},  # For compatibility
+                'user_answers': anketa_data,
+                'selected_grant': {
+                    'fund_name': anketa_data.get('grant_fund', 'Фонд президентских грантов')
+                },
+                'session_id': session_id
+            }
+
+            # Запускаем аудит асинхронно
+            audit_wrapped = await auditor.audit_application_async(audit_input)
+
+            # BaseAgent.prepare_output() оборачивает результат в {'result': {...}}
+            audit_result = audit_wrapped.get('result', audit_wrapped)
+
+            # Преобразуем формат AuditorAgent в наш формат
+            overall_score = audit_result.get('overall_score', 0.0)
+            readiness_status = audit_result.get('readiness_status', 'not_ready')
+            can_submit = audit_result.get('can_submit', False)
+
+            # Маппинг readiness_status -> approval_status
+            if can_submit or overall_score >= 0.7:
+                approval_status = 'approved'
+            elif overall_score >= 0.5:
+                approval_status = 'needs_revision'
+            else:
+                approval_status = 'rejected'
+
+            logger.info(f"[GATE-2] Grant audit completed: {approval_status}, score: {overall_score:.1f}/10")
+
+            # Возвращаем результат
+            return {
+                'approved': approval_status == 'approved',
+                'score': overall_score * 10,  # Конвертируем из 0-1 в 0-10
+                'recommendations': audit_result.get('recommendations', []),
+                'status': approval_status,
+                'audit_details': audit_result  # Полный результат аудита
+            }
+
+        except Exception as e:
+            logger.error(f"[GATE-2] Grant audit failed: {e}")
+            # Fallback: разрешаем с предупреждением
+            return {
+                'approved': True,
+                'score': 5.0,
+                'recommendations': [f"Audit error: {str(e)}"],
+                'status': 'error'
+            }
+
     async def generate_grant(
         self,
         update: Update,
@@ -167,28 +317,89 @@ class GrantHandler:
 
             # Получить anketa data из БД
             anketa_session = self.db.get_session_by_anketa_id(anketa_id)
-            if not anketa_session or not anketa_session.get('conversation_data'):
+            if not anketa_session or not anketa_session.get('interview_data'):
                 await update.message.reply_text(
                     f"❌ Не удалось получить данные анкеты {anketa_id}"
                 )
-                logger.error(f"[GRANT] No conversation_data for anketa {anketa_id}")
+                logger.error(f"[GRANT] No interview_data for anketa {anketa_id}")
                 return
 
             # Парсим JSON anketa data
             import json
             try:
-                if isinstance(anketa_session['conversation_data'], str):
-                    anketa_data = json.loads(anketa_session['conversation_data'])
+                if isinstance(anketa_session['interview_data'], str):
+                    anketa_data = json.loads(anketa_session['interview_data'])
                 else:
-                    anketa_data = anketa_session['conversation_data']
+                    anketa_data = anketa_session['interview_data']
             except Exception as e:
                 await update.message.reply_text(
                     f"❌ Ошибка при парсинге данных анкеты: {e}"
                 )
-                logger.error(f"[GRANT] Failed to parse conversation_data: {e}")
+                logger.error(f"[GRANT] Failed to parse interview_data: {e}")
                 return
 
             logger.info(f"[GRANT] Anketa data loaded, keys: {list(anketa_data.keys())}")
+
+            # ===== ITERATION 37: TWO-STAGE QA PIPELINE =====
+
+            # Получаем session ID
+            session = self.db.get_session_by_anketa_id(anketa_id)
+            if not session:
+                await update.message.reply_text("❌ Сессия не найдена")
+                return
+            session_id = session['id']
+
+            # === GATE 1: Validate INPUT (anketa data) ===
+            await update.message.reply_text(
+                "🔍 GATE 1: Проверяю качество данных анкеты...\n"
+                "Это займет ~20 секунд"
+            )
+
+            validation_result = await self._validate_anketa_data(
+                anketa_data=anketa_data,
+                user_id=user_id
+            )
+
+            # Проверяем результат валидации
+            if not validation_result['approved']:
+                status = validation_result['status']
+                score = validation_result['score']
+                recommendations = validation_result.get('recommendations', [])
+
+                if status == 'needs_revision':
+                    message = f"⚠️ **Данные анкеты требуют доработки**\n\n"
+                    message += f"📊 Оценка входных данных: {score:.1f}/10\n\n"
+                    message += "**Рекомендации:**\n"
+
+                    for i, rec in enumerate(recommendations[:5], 1):
+                        message += f"{i}. {rec}\n"
+
+                    message += "\n💡 Пожалуйста, улучшите анкету и попробуйте снова"
+
+                elif status == 'rejected':
+                    message = f"❌ **Анкета не подходит для генерации**\n\n"
+                    message += f"📊 Оценка качества: {score:.1f}/10 (минимум 5.0)\n\n"
+                    message += "**Основные проблемы:**\n"
+
+                    for i, rec in enumerate(recommendations[:5], 1):
+                        message += f"{i}. {rec}\n"
+
+                    message += "\n💡 Рекомендуем заполнить анкету заново"
+
+                else:
+                    message = f"⏳ Анкета на рассмотрении (статус: {status})"
+
+                await update.message.reply_text(message)
+                logger.warning(f"[GATE-1] Blocked generation: {status}, score: {score:.1f}")
+                return
+
+            # GATE 1 пройден
+            logger.info(f"[GATE-1] ✅ Validation passed (score: {validation_result['score']:.1f}/10)")
+
+            await update.message.reply_text(
+                f"✅ GATE 1 пройден: {validation_result['score']:.1f}/10\n"
+                f"🚀 Начинаю генерацию грантовой заявки (~2-3 минуты)..."
+            )
 
             # Генерируем грант через write() method
             generation_start = time.time()
@@ -200,7 +411,37 @@ class GrantHandler:
 
             logger.info(f"[GRANT] Grant generated in {generation_duration:.1f}s, {len(grant_content)} characters")
 
-            # Сохраняем грант в БД
+            # === GATE 2: Audit OUTPUT (generated grant text) ===
+            await update.message.reply_text(
+                "🔍 GATE 2: Проверяю качество сгенерированной заявки...\n"
+                "Это займет ~30 секунд"
+            )
+
+            grant_audit = await self._audit_generated_grant(
+                grant_text=grant_content,
+                anketa_data=anketa_data,
+                session_id=session_id,
+                user_id=user_id
+            )
+
+            # Log результаты обоих gates (для RL data collection)
+            logger.info(
+                f"[TWO-STAGE-QA] Results for {anketa_id}:\n"
+                f"  GATE-1 (Validation): {validation_result['score']:.1f}/10 ({validation_result['status']})\n"
+                f"  GATE-2 (Audit): {grant_audit['score']:.1f}/10 ({grant_audit['status']})"
+            )
+
+            # Уведомляем пользователя о результатах GATE 2
+            gate2_emoji = "✅" if grant_audit['score'] >= 7.0 else "⚠️" if grant_audit['score'] >= 5.0 else "❌"
+            await update.message.reply_text(
+                f"{gate2_emoji} GATE 2 завершён: {grant_audit['score']:.1f}/10\n"
+                f"Статус: {grant_audit['status']}\n\n"
+                f"📊 Итого:\n"
+                f"• Входные данные: {validation_result['score']:.1f}/10\n"
+                f"• Качество заявки: {grant_audit['score']:.1f}/10"
+            )
+
+            # Сохраняем грант в БД (с результатами аудита)
             import uuid
             grant_id = f"grant-{anketa_id}-{uuid.uuid4().hex[:8]}"
 
@@ -244,6 +485,17 @@ class GrantHandler:
                          f"• Секций: {grant.get('sections_generated', 'N/A')}\n"
                          f"• Время генерации: {grant.get('duration_seconds', 'N/A'):.1f}s\n\n"
                          f"Используйте /get_grant {anketa_id} для получения заявки."
+                )
+
+                # ITERATION 37: Автоматически отправить файл с заявкой
+                await self._send_grant_file(
+                    chat_id=update.effective_chat.id,
+                    anketa_id=anketa_id,
+                    grant_id=grant_id,
+                    grant_content=grant_content,
+                    validation_score=validation_result.get('score', 0),
+                    audit_score=grant_audit.get('score', 0),
+                    context=context
                 )
 
                 # Уведомить администратора
@@ -406,6 +658,85 @@ class GrantHandler:
         self.db.mark_grant_sent_to_user(grant['grant_id'])
 
         logger.info(f"[GRANT] Sent grant {grant['grant_id']} to user {user_id}")
+
+    async def _send_grant_file(
+        self,
+        chat_id: int,
+        anketa_id: str,
+        grant_id: str,
+        grant_content: str,
+        validation_score: float,
+        audit_score: float,
+        context
+    ):
+        """
+        ITERATION 37: Отправить файл с грантовой заявкой
+
+        Args:
+            chat_id: Telegram chat ID
+            anketa_id: ID анкеты
+            grant_id: ID гранта
+            grant_content: Текст заявки
+            validation_score: Оценка GATE 1
+            audit_score: Оценка GATE 2
+            context: Telegram context
+        """
+        try:
+            from telegram import InputFile
+            from datetime import datetime
+            import io
+
+            # Создаём полный документ с метаданными
+            doc = []
+            doc.append("=" * 80)
+            doc.append("ГРАНТОВАЯ ЗАЯВКА")
+            doc.append("=" * 80)
+            doc.append("")
+            doc.append(f"Анкета ID:     {anketa_id}")
+            doc.append(f"Grant ID:      {grant_id}")
+            doc.append(f"Дата создания: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            doc.append("")
+            doc.append("=" * 80)
+            doc.append("ОЦЕНКИ КАЧЕСТВА (TWO-STAGE QA)")
+            doc.append("=" * 80)
+            doc.append("")
+            doc.append(f"✅ GATE 1 (Валидация входных данных): {validation_score:.1f}/10")
+            doc.append(f"✅ GATE 2 (Аудит сгенерированной заявки): {audit_score:.1f}/10")
+            doc.append("")
+            doc.append("=" * 80)
+            doc.append("СОДЕРЖАНИЕ ЗАЯВКИ")
+            doc.append("=" * 80)
+            doc.append("")
+            doc.append(grant_content)
+            doc.append("")
+            doc.append("=" * 80)
+            doc.append(f"Сгенерировано: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
+            doc.append(f"Система: GrantService - Two-Stage QA Pipeline")
+            doc.append("=" * 80)
+
+            # Объединяем в текст
+            full_document = "\n".join(doc)
+
+            # Создаём файл в памяти
+            file_content = io.BytesIO(full_document.encode('utf-8'))
+            file_content.name = f"grant_{anketa_id}.txt"
+
+            # Отправляем файл
+            if context and context.bot:
+                await context.bot.send_document(
+                    chat_id=chat_id,
+                    document=InputFile(file_content, filename=f"grant_{anketa_id}.txt"),
+                    caption=f"📄 Грантовая заявка\n"
+                            f"📋 {anketa_id}\n"
+                            f"✅ GATE 1: {validation_score:.1f}/10 | GATE 2: {audit_score:.1f}/10"
+                )
+                logger.info(f"[GRANT] Grant file sent for {grant_id}")
+            else:
+                logger.warning(f"[GRANT] No context.bot to send file")
+
+        except Exception as e:
+            logger.error(f"[GRANT] Error sending grant file: {e}")
+            # Не падаем, просто логируем
 
     async def list_grants(
         self,

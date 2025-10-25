@@ -1,0 +1,25 @@
+# Iteration 40: Created Anketa IDs
+# Date: 2025-10-25
+# Total: 12 anketas
+# Test User ID: 999999998
+
+#AN-20251025-test_interviewer-001
+#AN-20251025-test_interviewer-002
+#AN-20251025-test_interviewer-003
+#AN-20251025-test_interviewer-004
+#AN-20251025-test_interviewer-005
+#AN-20251025-test_interviewer-006
+#AN-20251025-test_interviewer-007
+#AN-20251025-test_interviewer-008
+#AN-20251025-test_interviewer-009
+#AN-20251025-test_interviewer-010
+#AN-20251025-test_interviewer-011
+#AN-20251025-test_interviewer-012
+
+# All anketas:
+# - Status: completed
+# - Interview data: 10+ fields
+# - Ready for Iteration 41 (Audit Chain)
+
+# Database Query:
+# SELECT anketa_id FROM sessions WHERE telegram_id = 999999998 ORDER BY created_at;

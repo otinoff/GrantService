@@ -43,13 +43,65 @@ python launcher.py --test
 - ✅ data.database imported successfully
 - ✅ Bot constants loaded
 
-## СТРУКТУРА
+## СТРУКТУРА ПРОЕКТА
+
 ```
 GrantService/
-├── launcher.py    # Главный файл запуска
-├── admin.bat      # Для Windows
-├── admin.sh       # Для Linux
-└── core/          # Настройки системы
+│
+├── 📁 agents/                   # AI Agents (Production Code)
+│   ├── interactive_interviewer_agent_v2.py
+│   ├── full_flow_manager.py
+│   ├── synthetic_user_simulator.py
+│   └── ...
+│
+├── 📁 data/                     # Database Layer
+│   ├── database/
+│   └── ...
+│
+├── 📁 telegram-bot/             # Telegram Bot
+│   ├── bot.py
+│   ├── handlers/
+│   └── ...
+│
+├── 📁 web-admin/                # Admin Panel (Streamlit)
+│   ├── pages/
+│   └── ...
+│
+├── 📁 shared/                   # Shared Utilities
+│   └── ...
+│
+├── 📁 tests/                    # All Tests
+│   ├── unit/
+│   ├── integration/
+│   └── ...
+│
+├── 📁 iterations/               # Development Iterations
+│   ├── Iteration_41_Realistic_Interview/
+│   ├── Iteration_42_Real_Dialog/
+│   └── Iteration_43_Full_Flow/
+│
+├── 📁 scripts/                  # Utility Scripts
+│   ├── test_iteration_41_realistic_interview.py
+│   ├── test_iteration_42_real_dialog.py
+│   ├── test_iteration_42_single_anketa.py
+│   └── test_iteration_43_full_flow.py
+│
+├── 📁 docs/                     # Documentation
+│   ├── 00_Project_Info/         # Project overview
+│   ├── 02_Research/             # Research notes
+│   ├── 03_Business/             # Business docs
+│   └── 04_Deployment/           # Deployment guides
+│
+├── 📁 archive/                  # Archived Files
+│   ├── old_tests/
+│   ├── old_utils/
+│   └── old_docs/
+│
+├── launcher.py                  # Main launcher
+├── admin.bat                    # Windows launcher
+├── admin.sh                     # Linux launcher
+├── README.md                    # This file
+└── REFACTORING_PLAN.md          # Refactoring documentation
 ```
 
 ## ПРОБЛЕМЫ?

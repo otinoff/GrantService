@@ -1,0 +1,36 @@
+{
+  "iteration": 43,
+  "test_type": "full_flow",
+  "test_user_id": 999999997,
+  "start_time": "2025-10-25T21:16:33.389648",
+  "end_time": "2025-10-25T21:16:43.278995",
+  "results": [
+    {
+      "interview_num": 1,
+      "quality_level": "medium",
+      "context": {
+        "region": "Москва",
+        "topic": "социальная поддержка",
+        "organization": "Ассоциация \"Молодежные инициативы\""
+      },
+      "error": "GigaChat rate limit превышен: {\"status\":429,\"message\":\"Too Many Requests\"}\n",
+      "status": "failed"
+    },
+    {
+      "interview_num": 2,
+      "quality_level": "high",
+      "context": {
+        "region": "Москва",
+        "topic": "культура",
+        "organization": "Клуб \"Культурное наследие\""
+      },
+      "error": "GigaChat rate limit превышен: {\"status\":429,\"message\":\"Too Many Requests\"}\n",
+      "status": "failed"
+    }
+  ],
+  "summary": {
+    "total_interviews": 2,
+    "successful": 0,
+    "failed": 2
+  }
+}

@@ -1,0 +1,223 @@
+2025-10-20 17:05:06,594 - models - WARNING - PostgreSQL environment variables not set, db instance not created
+2025-10-20 17:05:06,600 - data.database.models - WARNING - PostgreSQL environment variables not set, db instance not created
+2025-10-20 17:05:06,600 - data.database.models - INFO - PostgreSQL connection configured: localhost:5432/grantservice
+2025-10-20 17:05:06,651 - data.database.models - INFO - Connected to PostgreSQL: PostgreSQL 18.0 on x86_64-windows, compiled by msv...
+2025-10-20 17:05:08,256 - web_admin - INFO - 📝 Логирование инициализировано: C:\SnowWhiteAI\GrantService\web-admin\logs\web_admin.log
+2025-10-20 17:05:08,257 - database - INFO - 📝 Логирование инициализировано: C:\SnowWhiteAI\GrantService\web-admin\logs\database.log
+2025-10-20 17:05:08,258 - api - INFO - 📝 Логирование инициализировано: C:\SnowWhiteAI\GrantService\web-admin\logs\api.log
+================================================================================
+🧪 ТЕСТ: Интерактивный интервьюер с простыми промптами
+================================================================================
+
+📦 Шаг 1: Импорт модулей...
+Таблицы авторизации инициализированы
+17:05:08 - web_admin - [92mINFO[0m - 🚀 GrantService Web Admin - система логирования v2.0 запущена
+17:05:08 - web_admin - [92mINFO[0m - 📁 Логи сохраняются в: C:\SnowWhiteAI\GrantService\web-admin\logs
+2025-10-20 17:05:08,345 - prompt_manager - INFO - 📝 Логирование инициализировано: C:\SnowWhiteAI\GrantService\web-admin\logs\prompt_manager.log
+2025-10-20 17:05:08,350 - models - INFO - PostgreSQL connection configured: localhost:5432/grantservice
+2025-10-20 17:05:08,412 - models - INFO - Connected to PostgreSQL: PostgreSQL 18.0 on x86_64-windows, compiled by msv...
+2025-10-20 17:05:08,458 - llm.unified_llm_client - INFO - 🔧 Инициализирован CLAUDE_CODE клиент с моделью 'sonnet'
+2025-10-20 17:05:08,503 - llm.unified_llm_client - INFO - 🔧 Инициализирован CLAUDE_CODE клиент с моделью 'sonnet'
+⚠️ StageReportGenerator недоступен, PDF не будет отправляться
+⚠️ AdminNotifier недоступен, PDF не будет отправляться
+✅ Импорт успешен
+
+🗄️  Шаг 2: Подключение к БД...
+✅ БД подключена
+
+🤖 Шаг 3: Создание InteractiveInterviewerAgent...
+[OK] Загружено 0 промптов для агента interactive_interviewer
+[OK] Загружено 6 промптов для агента auditor
+17:05:08 - prompt_manager - [92mINFO[0m - DatabasePromptManager initialized
+2025-10-20 17:05:08,504 - auditor_agent - INFO - ✅ Auditor Agent: DatabasePromptManager подключен
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO - ✅ InteractiveInterviewer: DatabasePromptManager подключен
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO - ✅ InteractiveInterviewerAgent initialized (provider=claude_code)
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO - ================================================================================
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO - НАЧАЛО ИНТЕРАКТИВНОГО ИНТЕРВЬЮ С АУДИТОМ
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO - ================================================================================
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO - 
+[БЛОК 1/3] Базовая информация о проекте
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO -   Задаём 5 вопросов блока 1...
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO -     Q1: Как называется ваш проект? (100-150 символов)...
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO -     A1: Инклюзивная кофейня...
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO -     Q2: Какова основная цель вашего проекта?...
+2025-10-20 17:05:08,504 - interactive_interviewer_agent - INFO -     A2: Создать кофейню где работают люди с инвалидностью...
+2025-10-20 17:05:08,505 - interactive_interviewer_agent - INFO -     Q3: Какую проблему решает ваш проект? Опишите проблему...
+2025-10-20 17:05:08,505 - interactive_interviewer_agent - INFO -     A3: В нашем городе людям с инвалидностью очень сложно найти работу.
+Работодатели не хотят их нанимать из...
+2025-10-20 17:05:08,505 - interactive_interviewer_agent - INFO -     Q4: Кто является целевой аудиторией проекта?...
+2025-10-20 17:05:08,505 - interactive_interviewer_agent - INFO -     A4: Люди с инвалидностью 18-45 лет...
+2025-10-20 17:05:08,505 - interactive_interviewer_agent - INFO -     Q5: В каком регионе/городе будет реализован проект?...
+2025-10-20 17:05:08,505 - interactive_interviewer_agent - INFO -     A5: Москва...
+2025-10-20 17:05:08,505 - interactive_interviewer_agent - INFO -   [Interim Audit #1] Анализ ответов...
+✅ Агент создан (LLM: Claude Code / Sonnet 4.5)
+
+🎤 Шаг 4: Запуск интерактивного интервью...
+   Тема: Инклюзивная кофейня
+   Ответы: Разного качества (от слабых до хороших)
+   (Это займет ~2-3 минуты, идут вызовы LLM к wrapper 178.236.17.55:8000)...
+17:05:08 - prompt_manager - [92mINFO[0m - Reloading prompts cache...
+2025-10-20 17:05:08.505 WARNING streamlit.runtime.scriptrunner_utils.script_run_context: Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 17:05:08.730 
+  [33m[1mWarning:[0m to view this Streamlit app on a browser, run it with the following
+  command:
+
+    streamlit run test_interactive_interviewer_simple.py [ARGUMENTS]
+2025-10-20 17:05:08.730 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 17:05:08.730 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 17:05:08.730 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 17:05:08,731 - data.database.models - INFO - PostgreSQL connection configured: localhost:5432/grantservice
+2025-10-20 17:05:08,779 - data.database.models - INFO - Connected to PostgreSQL: PostgreSQL 18.0 on x86_64-windows, compiled by msv...
+2025-10-20 17:05:08.779 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 17:05:08.779 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+2025-10-20 17:05:08.779 Thread 'MainThread': missing ScriptRunContext! This warning can be ignored when running in bare mode.
+17:05:08 - prompt_manager - [92mINFO[0m - Loaded 74 prompts from agent_prompts table
+17:05:08 - prompt_manager - [92mINFO[0m - Cache reloaded: 7 agent types, 74 total prompts
+2025-10-20 17:05:08,824 - interactive_interviewer_agent - INFO -     Загружен промпт block_audit из БД
+2025-10-20 17:05:16,984 - llm.unified_llm_client - INFO - Claude API: 153 chars, model=sonnet
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     LLM response preview: ```json
+{
+    "block_score": 8,
+    "weak_points": ["нет источника статистики", "целевая аудитория могла быть шире"],
+    "need_clarifications": []
+}
+```...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     Block score: 8/10
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     Weak points: 2
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     Clarifications needed: 0
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -   [Clarifying] Уточнений не требуется
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO - 
+[БЛОК 2/3] Методология и бюджет
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -   Задаём 5 вопросов блока 2...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     Q1: Какие конкретные задачи вы планируете решить в рам...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     A1: 1. Открыть кофейню
+2. Нанять людей
+3. Обучить персонал
+4. Провести рекламу...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     Q2: Опишите методологию реализации проекта (как будете...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     A2: Мы арендуем помещение 80 кв.м в центре города.
+Адаптируем его для доступности (пандусы, широкие прох...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     Q3: Какие результаты вы планируете получить? (конкретн...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     A3: 1. Трудоустроено 8 человек с инвалидностью
+2. Обслужено 5000+ посетителей за год
+3. Средняя зарплата...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     Q4: Каков планируемый бюджет проекта? (в рублях)...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     A4: 500000...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     Q5: Расшифруйте основные статьи бюджета (на что пойдут...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     A5: Аренда помещения: 150000
+Оборудование: 200000
+Обучение: 50000
+Реклама: 100000...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -   [Interim Audit #2] Анализ ответов...
+2025-10-20 17:05:16,985 - interactive_interviewer_agent - INFO -     Загружен промпт block_audit из БД
+2025-10-20 17:05:30,683 - llm.unified_llm_client - INFO - Claude API: 1141 chars, model=sonnet
+2025-10-20 17:05:30,683 - interactive_interviewer_agent - INFO -     LLM response preview: ```json
+{
+    "block_score": 6,
+    "weak_points": [
+        "задачи слишком общие и поверхностные",
+        "методология не содержит сроков выполнения",
+        "бюджет не соответствует описанным рас...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Block score: 6/10
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Weak points: 5
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Clarifications needed: 4
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -   [Clarifying] Задаём 4 уточняющих вопросов...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Clarify #1: Опишите задачи более детально: в каком порядке будете их выполнять, какие конкретные шаги включает каждая задача, какие сроки?
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Clarify #2: Уточните бюджет: 150000 за аренду - это за какой период? Общий бюджет 500000, но это на весь проект или только грантовые средства? Есть ли свои вложения?
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Clarify #3: Добавьте сроки: когда начнёте аренду, сколько займёт адаптация помещения, когда стартует обучение, когда планируете открытие?
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Clarify #4: Кто будет обучать персонал? Какая программа обучения? Сколько времени займёт подготовка бариста?
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO - 
+[БЛОК 3/3] Команда, партнёры, устойчивость
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -   Задаём 5 вопросов блока 3...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Q1: Опишите вашу команду: кто будет реализовывать прое...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     A1: Я руководитель, есть бухгалтер и технолог...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Q2: Есть ли у вас партнёры для реализации проекта? Кто...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     A2: Всероссийское общество инвалидов - помощь в подборе персонала
+Департамент соцзащиты - консультации
+У...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Q3: Какие риски видите в реализации проекта и как буде...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     A3: Риск что не будет клиентов...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Q4: Как проект будет работать после окончания гранта? ...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     A4: После гранта кофейня будет работать на самоокупаемости.
+Выручка от продажи кофе покроет зарплаты и а...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Q5: На какой срок рассчитан проект? (в месяцах)...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     A5: 12 месяцев...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -   [Interim Audit #3] Анализ ответов...
+2025-10-20 17:05:30,684 - interactive_interviewer_agent - INFO -     Загружен промпт block_audit из БД
+2025-10-20 17:05:45,776 - llm.unified_llm_client - INFO - Claude API: 1348 chars, model=sonnet
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -     LLM response preview: ```json
+{
+    "block_score": 6,
+    "weak_points": [
+        "команда описана слишком кратко - нет опыта и квалификации",
+        "партнёрства без конкретики - нет имён, контактов, подписанных соглаше...
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -     Block score: 6/10
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -     Weak points: 4
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -     Clarifications needed: 4
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -   [Clarifying] Задаём 4 уточняющих вопросов...
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -     Clarify #1: Какой у вас конкретный опыт? У руководителя - в управлении проектами/бизнесом? У бухгалтера и технолога - в общепите?
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -     Clarify #2: Есть ли письменные соглашения с партнёрами? Укажите конкретные имена контактных лиц или названия отделений (например, ВОИ какого района?).
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -     Clarify #3: Опишите план действий на случай если клиентов будет мало. Какие ещё риски видите (срыв поставок, увольнение персонала, проблемы с арендодателем)?
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -     Clarify #4: Распишите финансовую модель подробнее: постоянные расходы в месяц (аренда, зарплаты 8 человек по 35к, коммуналка, продукты), планируемая выручка. Сходится ли математика?
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO - 
+[ФИНАЛЬНЫЙ АУДИТ] Комплексная оценка заявки
+2025-10-20 17:05:45,777 - interactive_interviewer_agent - INFO -   [Final Audit] Запуск комплексного аудита...
+2025-10-20 17:05:57,202 - llm.unified_llm_client - INFO - Claude API: 414 chars, model=sonnet
+2025-10-20 17:06:01,111 - asyncio - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x00000215A9612A50>
+2025-10-20 17:06:01,112 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x00000215CD5F95B0>, 31732.765)])']
+connector: <aiohttp.connector.TCPConnector object at 0x00000215A8F62210>
+2025-10-20 17:06:01,112 - llm.unified_llm_client - INFO - Claude API: 756 chars, model=sonnet
+2025-10-20 17:06:02,343 - asyncio - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x00000215CD49B560>
+2025-10-20 17:06:02,343 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x00000215CD5F9790>, 31734.0)])']
+connector: <aiohttp.connector.TCPConnector object at 0x00000215A9612D50>
+2025-10-20 17:06:02,343 - llm.unified_llm_client - INFO - Claude API: 1049 chars, model=sonnet
+2025-10-20 17:06:03,579 - asyncio - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x00000215CD401160>
+2025-10-20 17:06:03,579 - asyncio - ERROR - Unclosed connector
+connections: ['deque([(<aiohttp.client_proto.ResponseHandler object at 0x00000215CD5F96D0>, 31735.234)])']
+connector: <aiohttp.connector.TCPConnector object at 0x00000215A96135C0>
+2025-10-20 17:06:03,579 - llm.unified_llm_client - INFO - Claude API: 1134 chars, model=sonnet
+2025-10-20 17:06:15,106 - llm.unified_llm_client - INFO - Claude API: 896 chars, model=sonnet
+2025-10-20 17:06:15,106 - auditor_agent - WARNING - ⚠️ anketa_id не передан, Audit PDF не отправлен
+2025-10-20 17:06:15,106 - interactive_interviewer_agent - INFO -     Total score: 0/100
+2025-10-20 17:06:15,106 - interactive_interviewer_agent - INFO -     Recommendation: N/A
+2025-10-20 17:06:15,106 - interactive_interviewer_agent - INFO -   [Save] Сохранение анкеты в БД...
+2025-10-20 17:06:15,106 - interactive_interviewer_agent - INFO -     Anketa ID: AN-20251020-coffee_inclusive-335
+2025-10-20 17:06:15,106 - interactive_interviewer_agent - INFO -     Audit score: 0/100
+2025-10-20 17:06:15,157 - interactive_interviewer_agent - INFO -     ✅ Анкета сохранена в БД: AN-20251020-coffee_inclusive-335
+2025-10-20 17:06:15,157 - interactive_interviewer_agent - INFO - ================================================================================
+2025-10-20 17:06:15,157 - interactive_interviewer_agent - INFO - ✅ ИНТЕРВЬЮ ЗАВЕРШЕНО (audit score: 0/100)
+2025-10-20 17:06:15,157 - interactive_interviewer_agent - INFO - ================================================================================
+2025-10-20 17:06:15,159 - asyncio - ERROR - Unclosed client session
+client_session: <aiohttp.client.ClientSession object at 0x00000215CD1B7EC0>
+[LOG] [auditor] audit_started: {"agent_type": "auditor", "action": "audit_started", "timestamp": "2025-10-20T17:05:45.777884", "data": {"input_keys": ["application", "user_answers", "selected_grant"]}}
+[LOG] [auditor] audit_completed: {"agent_type": "auditor", "action": "audit_completed", "timestamp": "2025-10-20T17:06:15.106353", "data": {"overall_score": 0.359, "readiness_status": "Не готово", "processing_time": 29.328468322753906}}
+[LOG] [auditor] output_prepared: {"agent_type": "auditor", "action": "output_prepared", "timestamp": "2025-10-20T17:06:15.106353", "data": {"output_keys": ["status", "provider", "processing_time", "analysis", "overall_score", "completeness_score", "quality_score", "compliance_score", "recommendations", "readiness_status", "can_submit", "final_application", "timestamp"]}}
+✅ Интервью завершено
+
+📊 Шаг 5: Сохранение результатов...
+✅ Результат сохранен: test_interactive_result.json
+✅ Дамп диалога: test_interactive_dialog.txt
+
+================================================================================
+📋 КРАТКИЕ РЕЗУЛЬТАТЫ
+================================================================================
+Статус:        success
+Anketa ID:     AN-20251020-coffee_inclusive-335
+Audit Score:   0/100
+Время:         66.7 сек
+
+🔍 ПРОМЕЖУТОЧНЫЕ АУДИТЫ (3):
+  Блок 1: score=8/10, уточнений=0
+  Блок 2: score=6/10, уточнений=4
+  Блок 3: score=6/10, уточнений=4
+
+================================================================================
+✅ ТЕСТ ЗАВЕРШЕН!
+================================================================================
+
+🎉 ТЕСТ ПРОЙДЕН УСПЕШНО

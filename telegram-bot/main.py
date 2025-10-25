@@ -207,6 +207,9 @@ from handlers.interactive_interview_handler import InteractiveInterviewHandler
 # NEW: Grant Handler for ProductionWriter
 from handlers.grant_handler import GrantHandler
 
+# ITERATION 35: Anketa Management Handler
+from handlers.anketa_management_handler import AnketaManagementHandler
+
 
 class GrantServiceBotWithMenu:
     def __init__(self):
@@ -240,6 +243,9 @@ class GrantServiceBotWithMenu:
             db=db,
             admin_chat_id=int(admin_chat_id) if admin_chat_id else None
         )
+
+        # ITERATION 35: Anketa Management Handler
+        self.anketa_handler = AnketaManagementHandler(db=db)
 
         # Инициализация БД
         self.init_database()
@@ -2003,6 +2009,46 @@ PDF документ с полной анкетой прикреплен
         await self.grant_handler.list_grants(update, context)
 
     # ========================================================================
+    # ITERATION 35: ANKETA MANAGEMENT COMMANDS
+    # ========================================================================
+
+    async def handle_my_anketas(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показать список анкет пользователя"""
+        await self.anketa_handler.my_anketas(update, context)
+
+    async def handle_delete_anketa(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Удалить анкету с подтверждением"""
+        await self.anketa_handler.delete_anketa(update, context)
+
+    async def handle_audit_anketa(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Провести аудит анкеты"""
+        await self.anketa_handler.audit_anketa(update, context)
+
+    async def handle_create_test_anketa(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Создать тестовую анкету для проверки"""
+        await self.anketa_handler.create_test_anketa(update, context)
+
+    async def handle_anketa_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Обработчик callback кнопок для anketa management"""
+        await self.anketa_handler.callback_handler(update, context)
+
+    # ========================================================================
+    # ITERATION 38: SYNTHETIC CORPUS GENERATOR COMMANDS
+    # ========================================================================
+
+    async def handle_generate_synthetic_anketa(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Генерация синтетических анкет для корпуса"""
+        await self.anketa_handler.generate_synthetic_anketa(update, context)
+
+    async def handle_batch_audit_anketas(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Batch аудит анкет с использованием GigaChat Max"""
+        await self.anketa_handler.batch_audit_anketas(update, context)
+
+    async def handle_corpus_stats(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Показать статистику корпуса анкет"""
+        await self.anketa_handler.corpus_stats(update, context)
+
+    # ========================================================================
 
     def run(self):
         """Запуск бота"""
@@ -2040,7 +2086,24 @@ PDF документ с полной анкетой прикреплен
         application.add_handler(CommandHandler("get_grant", self.handle_get_grant))
         application.add_handler(CommandHandler("list_grants", self.handle_list_grants))
 
+        # ITERATION 35: Anketa Management Commands
+        application.add_handler(CommandHandler("my_anketas", self.handle_my_anketas))
+        application.add_handler(CommandHandler("delete_anketa", self.handle_delete_anketa))
+        application.add_handler(CommandHandler("audit_anketa", self.handle_audit_anketa))
+        application.add_handler(CommandHandler("create_test_anketa", self.handle_create_test_anketa))
+
+        # ITERATION 38: Synthetic Corpus Generator Commands
+        application.add_handler(CommandHandler("generate_synthetic_anketa", self.handle_generate_synthetic_anketa))
+        application.add_handler(CommandHandler("batch_audit_anketas", self.handle_batch_audit_anketas))
+        application.add_handler(CommandHandler("corpus_stats", self.handle_corpus_stats))
+
         # Обработчики коллбэков и сообщений
+        # Anketa management callbacks (проверяем первыми)
+        application.add_handler(CallbackQueryHandler(
+            self.handle_anketa_callback,
+            pattern="^anketa_"
+        ))
+        # Остальные callbacks
         application.add_handler(CallbackQueryHandler(self.handle_menu_callback))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
         

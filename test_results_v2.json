@@ -1,0 +1,30 @@
+{
+  "timestamp": "2025-10-22",
+  "agent": "InteractiveInterviewerAgentV2",
+  "total": 4,
+  "passed": 2,
+  "failed": 2,
+  "pass_rate": 50.0,
+  "results": [
+    {
+      "test": "test_rps_marked_as_completed",
+      "status": "PASS",
+      "message": ""
+    },
+    {
+      "test": "test_skip_already_covered_marks_complete",
+      "status": "PASS",
+      "message": ""
+    },
+    {
+      "test": "test_no_infinite_loop",
+      "status": "FAIL",
+      "message": "InteractiveInterviewerAgentV2.conduct_interview() missing 1 required positional argument: 'user_data'"
+    },
+    {
+      "test": "test_interview_finishes_with_minimum_questions",
+      "status": "FAIL",
+      "message": "InteractiveInterviewerAgentV2.conduct_interview() missing 1 required positional argument: 'user_data'"
+    }
+  ]
+}
