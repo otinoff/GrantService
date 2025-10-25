@@ -807,6 +807,40 @@ class GrantServiceDatabase:
             logger.error(f"Ошибка получения сессии по anketa_id: {e}")
             return None
 
+    def update_session_dialog_history(self, session_id: int, dialog_history: List[Dict[str, Any]]) -> bool:
+        """
+        Update dialog_history field for a session (Iteration 42)
+
+        Args:
+            session_id: ID сессии
+            dialog_history: List of dialog messages [{"role": "interviewer"|"user", "text": "...", "timestamp": "..."}]
+
+        Returns:
+            True if успешно, False otherwise
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    UPDATE sessions
+                    SET dialog_history = %s
+                    WHERE id = %s
+                """, (
+                    json.dumps(dialog_history),
+                    session_id
+                ))
+
+                conn.commit()
+                cursor.close()
+
+                logger.info(f"Dialog history updated for session {session_id}: {len(dialog_history)} messages")
+                return True
+
+        except Exception as e:
+            logger.error(f"Error updating dialog_history for session {session_id}: {e}")
+            return False
+
     def generate_audit_id(self, anketa_id: str) -> str:
         """
         Generate audit ID in unified format: anketa_id + AU suffix + counter
