@@ -176,31 +176,165 @@
 - Стабильность: Exit code 0, 0 errors
 
 **Файлы:**
-- `docs/01_Projects/2025-10-20_Bootcamp_GrantService/reports/Iteration_31_FINAL_REPORT.md`
-- `lib/production_writer.py` (466 lines)
+- `iterations/Iteration_31_Production_Writer/Iteration_31_FINAL_REPORT.md`
+- `iterations/Iteration_31_Production_Writer/production_writer.py` (466 lines)
 
 ---
 
-## Iteration 32-39: Продолжение разработки
+## Iteration 32: ProductionWriter Integration
 
-**Период:** 2025-10-24
+**Дата:** 2025-10-24
 
-**Основные итерации:**
-- **Iteration 32:** ProductionWriter Integration в Telegram Bot
-- **Iteration 33:** Fix SQL Bugs
-- **Iteration 34:** Fix ProductionWriter Call
-- **Iteration 35:** Anketa Management + Auditor Integration
-- **Iteration 36:** Methodology Cleanup
-- **Iteration 37:** Grant Quality Improvement
-- **Iteration 38:** Synthetic Corpus Generator
-- **Iteration 39:** RL Optimization
+**Что было:** ProductionWriter в standalone версии, нужна интеграция в Telegram Bot
+
+**Что сделали:**
+- Интегрировали ProductionWriter в Telegram Bot
+- Создали grant_handler.py с database methods
+- Применили migration 014 (grants table)
+- Зарегистрировали команды /generate_grant
+
+**Результат:** ⚠️ PARTIAL - интеграция выполнена, но найдены SQL bugs
 
 **Файлы:**
-- `docs/04_Deployment/02_Feature_Development/Interviewer_Iterations/Iteration_32-39/`
+- `iterations/Iteration_32_ProductionWriter_Integration/01_Plan.md`
 
 ---
 
-## Iteration 40: InteractiveInterviewer Testing
+## Iteration 33: Fix SQL Bugs
+
+**Дата:** 2025-10-24
+
+**Что было:** SQL ошибки из Iteration 32 блокируют генерацию грантов
+
+**Что сделали:**
+- Исправлен GigaChat model selection (Lite → Max)
+- Фиксированы все SQL bugs в grant_handler
+- Токены теперь списываются с Max пакета
+- Deploy #7 успешно
+
+**Результат:** ✅ COMPLETE - все bugs исправлены, ready for production
+
+**Файлы:**
+- `iterations/Iteration_33_Fix_SQL_Bugs/02_Implementation_Complete.md`
+- `iterations/Iteration_33_Fix_SQL_Bugs/03_Local_Testing/test_iteration_33_local.py`
+
+---
+
+## Iteration 34: Fix ProductionWriter Call
+
+**Дата:** 2025-10-24
+
+**Что было:** ProductionWriter вызывается неправильно после рефакторинга
+
+**Что сделали:**
+- Исправлен метод вызова ProductionWriter
+- Обновлена интеграция в grant_handler
+
+**Результат:** ✅ COMPLETE - ProductionWriter интеграция работает
+
+**Файлы:**
+- `iterations/Iteration_34_Fix_ProductionWriter_Call/02_Implementation_Complete.md`
+
+---
+
+## Iteration 35: Anketa Management & Quality Control
+
+**Дата:** 2025-10-25
+
+**Что было:** Нет управления анкетами и качественного контроля
+
+**Что сделали:**
+- Создали AnketaManagementHandler (4 команды)
+- `/my_anketas`, `/delete_anketa`, `/audit_anketa`
+- Интеграция AuditorAgent с grant_handler
+- Audit check перед generation
+- Блокировка rejected anketas
+
+**Результат:** ✅ PRODUCTION READY
+
+**Файлы:**
+- `iterations/Iteration_35_Anketa_Management/01_FINAL_REPORT.md`
+
+---
+
+## Iteration 36: Methodology Cleanup
+
+**Дата:** 2025-10-25
+
+**Что было:** Документация разбросана по разным файлам
+
+**Что сделали:**
+- Почистили документацию проекта
+- Обновили методологию разработки
+- Организовали файлы по структуре
+
+**Результат:** ✅ COMPLETE
+
+**Файлы:**
+- `iterations/Iteration_36_Methodology_Cleanup/SUCCESS.md`
+
+---
+
+## Iteration 37: Grant Quality Improvement (Two-Stage QA)
+
+**Дата:** 2025-10-25
+
+**Что было:** Extremely low audit scores (0.0-0.47/10)
+
+**Что сделали:**
+- Создали AnketaValidator (~500 lines) для валидации JSON
+- Two-Stage QA Pipeline (GATE 1: input, GATE 2: output)
+- Required fields validation (15 fields) + coherence check
+- File export для audit reports и grants
+- Standalone test: **9.0/10** score achieved
+
+**Результат:** ✅ COMPLETE - Two-Stage QA Pipeline ready
+
+**Файлы:**
+- `iterations/Iteration_37_Grant_Quality_Improvement/07_SUCCESS.md`
+- `agents/anketa_validator.py` (~500 lines)
+
+---
+
+## Iteration 38: Synthetic Corpus Generator
+
+**Дата:** 2025-10-25
+
+**Что было:** Нужна batch генерация тестовых анкет для Sber500 demo
+
+**Что сделали:**
+- Создали AnketaSyntheticGenerator (~350 lines)
+- Quality levels: low/medium/high
+- Batch generation (1-100 anketas)
+- 3 новых команды: `/generate_synthetic_anketa`, `/batch_audit_anketas`, `/corpus_stats`
+- Automated test suite (~600 lines, 6 tests)
+
+**Результат:** ⏳ TESTING IN PROGRESS
+
+**Файлы:**
+- `iterations/Iteration_38_Synthetic_Corpus_Generator/06_SUMMARY.md`
+- `agents/anketa_synthetic_generator.py` (+363 lines)
+
+---
+
+## Iteration 39: RL Optimization
+
+**Дата:** 2025-10-25
+
+**Что было:** Нужна оптимизация через Reinforcement Learning
+
+**Что сделали:**
+- Создали план для RL optimization
+- Определили метрики и rewards
+
+**Результат:** 📋 PLANNED
+
+**Файлы:**
+- `iterations/Iteration_39_RL_Optimization/00_ITERATION_PLAN.md`
+
+---
+
+## Iteration 40: Interactive Interviewer Testing
 
 **Дата:** 2025-10-20
 
