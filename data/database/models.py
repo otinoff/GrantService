@@ -1241,6 +1241,287 @@ class GrantServiceDatabase:
             logger.error(f"Ошибка обновления статуса гранта: {e}")
             return False
 
+    # ========== ITERATION 35: ANKETA MANAGEMENT METHODS ==========
+
+    def get_user_anketas(self, telegram_id: int, limit: int = 10) -> List[Dict]:
+        """
+        Получить список анкет пользователя
+
+        Args:
+            telegram_id: Telegram ID пользователя
+            limit: Максимальное количество анкет (по умолчанию 10)
+
+        Returns:
+            List[Dict]: Список анкет с полями:
+                - anketa_id: ID анкеты
+                - status: Статус (completed, etc.)
+                - started_at: Время начала
+                - completed_at: Время завершения
+                - interview_data: Данные анкеты (jsonb)
+                - audit_score: Средняя оценка аудита (если есть)
+                - audit_status: Статус аудита (approved/needs_revision/rejected)
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT
+                        s.anketa_id,
+                        s.status,
+                        s.started_at,
+                        s.completed_at,
+                        s.interview_data,
+                        ar.average_score as audit_score,
+                        ar.approval_status as audit_status
+                    FROM sessions s
+                    LEFT JOIN auditor_results ar ON s.id = ar.session_id
+                    WHERE s.telegram_id = %s
+                        AND s.anketa_id IS NOT NULL
+                        AND s.status = 'completed'
+                    ORDER BY s.completed_at DESC
+                    LIMIT %s
+                """, (telegram_id, limit))
+
+                rows = cursor.fetchall()
+                cursor.close()
+
+                return self._dict_rows(cursor, rows)
+
+        except Exception as e:
+            logger.error(f"Ошибка получения анкет пользователя {telegram_id}: {e}")
+            return []
+
+    def delete_anketa(self, anketa_id: str, telegram_id: int) -> bool:
+        """
+        Удалить анкету с проверкой владельца
+
+        ВАЖНО: Удаление каскадное - удаляются связанные записи:
+        - auditor_results (CASCADE)
+        - grants (CASCADE)
+        - grant_reviews (CASCADE через grants)
+
+        Args:
+            anketa_id: ID анкеты для удаления
+            telegram_id: Telegram ID пользователя (для проверки владельца)
+
+        Returns:
+            bool: True если удалено успешно, False если ошибка или анкета не принадлежит пользователю
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # 1. Проверяем что анкета принадлежит пользователю
+                cursor.execute("""
+                    SELECT id, telegram_id FROM sessions
+                    WHERE anketa_id = %s
+                """, (anketa_id,))
+
+                row = cursor.fetchone()
+                if not row:
+                    logger.warning(f"Анкета {anketa_id} не найдена")
+                    return False
+
+                session_id, owner_telegram_id = row
+
+                if owner_telegram_id != telegram_id:
+                    logger.warning(f"Попытка удалить чужую анкету {anketa_id}: owner={owner_telegram_id}, requester={telegram_id}")
+                    return False
+
+                # 2. Удаляем сессию (каскадное удаление настроено в БД)
+                cursor.execute("""
+                    DELETE FROM sessions
+                    WHERE id = %s
+                """, (session_id,))
+
+                conn.commit()
+                cursor.close()
+
+                logger.info(f"Анкета {anketa_id} успешно удалена (session_id={session_id})")
+                return True
+
+        except Exception as e:
+            logger.error(f"Ошибка удаления анкеты {anketa_id}: {e}")
+            return False
+
+    def update_anketa_audit(
+        self,
+        anketa_id: str,
+        audit_score: float,
+        audit_status: str,
+        audit_recommendations: Optional[List[str]] = None
+    ) -> bool:
+        """
+        ITERATION 38: Обновить результат аудита анкеты
+
+        Args:
+            anketa_id: ID анкеты
+            audit_score: Оценка (0-10)
+            audit_status: Статус (approved/needs_revision/rejected)
+            audit_recommendations: Рекомендации (список строк)
+
+        Returns:
+            bool: True если обновлено успешно, False если ошибка
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # 1. Получить session_id по anketa_id
+                cursor.execute("""
+                    SELECT id FROM sessions
+                    WHERE anketa_id = %s
+                """, (anketa_id,))
+
+                row = cursor.fetchone()
+                if not row:
+                    logger.warning(f"Анкета {anketa_id} не найдена")
+                    return False
+
+                session_id = row[0]
+
+                # 2. Проверить есть ли уже запись аудита
+                cursor.execute("""
+                    SELECT id FROM auditor_results
+                    WHERE session_id = %s
+                """, (session_id,))
+
+                existing = cursor.fetchone()
+
+                # 3. Подготовить данные
+                recommendations_json = json.dumps(audit_recommendations or [], ensure_ascii=False)
+
+                if existing:
+                    # Обновить существующую запись
+                    cursor.execute("""
+                        UPDATE auditor_results
+                        SET average_score = %s,
+                            approval_status = %s,
+                            recommendations = %s::jsonb,
+                            completeness_score = %s,
+                            quality_score = %s
+                        WHERE session_id = %s
+                    """, (
+                        audit_score,
+                        audit_status,
+                        recommendations_json,
+                        int(audit_score),  # completeness_score
+                        int(audit_score),  # quality_score
+                        session_id
+                    ))
+                else:
+                    # Создать новую запись
+                    cursor.execute("""
+                        INSERT INTO auditor_results (
+                            session_id,
+                            average_score,
+                            approval_status,
+                            recommendations,
+                            completeness_score,
+                            clarity_score,
+                            feasibility_score,
+                            innovation_score,
+                            quality_score
+                        ) VALUES (%s, %s, %s, %s::jsonb, %s, 0, 0, 0, %s)
+                    """, (
+                        session_id,
+                        audit_score,
+                        audit_status,
+                        recommendations_json,
+                        int(audit_score),  # completeness_score
+                        int(audit_score)   # quality_score
+                    ))
+
+                conn.commit()
+                cursor.close()
+
+                logger.info(f"Аудит анкеты {anketa_id} обновлён: score={audit_score:.1f}, status={audit_status}")
+                return True
+
+        except Exception as e:
+            logger.error(f"Ошибка обновления аудита анкеты {anketa_id}: {e}")
+            return False
+
+    def get_audit_by_session_id(self, session_id: int) -> Optional[Dict]:
+        """
+        Получить результат аудита по session_id
+
+        Args:
+            session_id: ID сессии
+
+        Returns:
+            Optional[Dict]: Результат аудита или None если не найден
+                - completeness_score: Оценка полноты (1-10)
+                - clarity_score: Оценка ясности (1-10)
+                - feasibility_score: Оценка выполнимости (1-10)
+                - innovation_score: Оценка инновационности (1-10)
+                - quality_score: Оценка качества (1-10)
+                - average_score: Средняя оценка
+                - approval_status: Статус (pending/approved/needs_revision/rejected)
+                - recommendations: Рекомендации (jsonb)
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                cursor.execute("""
+                    SELECT * FROM auditor_results
+                    WHERE session_id = %s
+                    ORDER BY created_at DESC
+                    LIMIT 1
+                """, (session_id,))
+
+                row = cursor.fetchone()
+                cursor.close()
+
+                return self._dict_row(cursor, row) if row else None
+
+        except Exception as e:
+            logger.error(f"Ошибка получения аудита для session_id {session_id}: {e}")
+            return None
+
+    def get_audit_by_anketa_id(self, anketa_id: str) -> Optional[Dict]:
+        """
+        Получить результат аудита по anketa_id
+
+        Args:
+            anketa_id: ID анкеты
+
+        Returns:
+            Optional[Dict]: Результат аудита или None если не найден
+                - completeness_score: Оценка полноты (1-10)
+                - clarity_score: Оценка ясности (1-10)
+                - feasibility_score: Оценка выполнимости (1-10)
+                - innovation_score: Оценка инновационности (1-10)
+                - quality_score: Оценка качества (1-10)
+                - average_score: Средняя оценка
+                - approval_status: Статус (pending/approved/needs_revision/rejected)
+                - recommendations: Рекомендации (jsonb)
+        """
+        try:
+            with self.connect() as conn:
+                cursor = conn.cursor()
+
+                # JOIN sessions с auditor_results через session_id
+                cursor.execute("""
+                    SELECT ar.*
+                    FROM auditor_results ar
+                    JOIN sessions s ON ar.session_id = s.id
+                    WHERE s.anketa_id = %s
+                    ORDER BY ar.created_at DESC
+                    LIMIT 1
+                """, (anketa_id,))
+
+                row = cursor.fetchone()
+                cursor.close()
+
+                return self._dict_row(cursor, row) if row else None
+
+        except Exception as e:
+            logger.error(f"Ошибка получения аудита для anketa_id {anketa_id}: {e}")
+            return None
+
 
 # Для обратной совместимости - создаем глобальный экземпляр
 # НО только если переменные окружения настроены
