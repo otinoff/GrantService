@@ -1,0 +1,21 @@
+{
+  "start_time": "2025-10-23T21:45:57.445453",
+  "end_time": "2025-10-23T21:53:00.374902",
+  "anketa_id": "#AN-20251012-Natalia_bruzzzz-001",
+  "model": "GigaChat-2-Max",
+  "stages": {
+    "researcher": {
+      "status": "success",
+      "duration_seconds": 363.72,
+      "queries": 27,
+      "provider": "GigaChat-2-Max",
+      "tokens_used": "~27 requests x tokens"
+    },
+    "writer": {
+      "status": "success",
+      "duration_seconds": 59.09,
+      "estimated_tokens": 18500,
+      "model": "GigaChat-2-Max"
+    }
+  }
+}

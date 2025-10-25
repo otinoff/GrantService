@@ -1,0 +1,23 @@
+{
+  "completeness_score": 0.0,
+  "quality_score": 0.0,
+  "compliance_score": 0.0,
+  "overall_score": 0.0,
+  "can_submit": false,
+  "strengths": [],
+  "weaknesses": [
+    "Ошибка парсинга результата аудита"
+  ],
+  "recommendations": [
+    "Повторить анализ"
+  ],
+  "missing_elements": [],
+  "summary": "Не удалось обработать результат аудита",
+  "error": "No JSON found in response",
+  "metadata": {
+    "timestamp": "2025-10-24T00:44:44.789569",
+    "llm_provider": "gigachat",
+    "grant_length": 8473,
+    "rate_limit_delay": 6
+  }
+}

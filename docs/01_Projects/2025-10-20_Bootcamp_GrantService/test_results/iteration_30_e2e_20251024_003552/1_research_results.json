@@ -1,0 +1,26 @@
+{
+  "block1_problem": {
+    "summary": "Исследование проблемы: Уроки физкультуры не могут в полной мере привлечь детей к спорту , их дети не любят,  мало эффективн...",
+    "key_facts": [],
+    "total_sources": 0,
+    "queries_executed": 10
+  },
+  "block2_geography": {
+    "summary": "Анализ географии: г,Кемерово, школы и профессиональные учебные заведения г.Кемерово",
+    "key_facts": [],
+    "total_sources": 0,
+    "queries_executed": 10
+  },
+  "block3_goals": {
+    "summary": "Исследование целей проекта",
+    "key_facts": [],
+    "total_sources": 0,
+    "queries_executed": 7
+  },
+  "metadata": {
+    "total_queries": 27,
+    "websearch_provider": "perplexity",
+    "timestamp": "2025-10-24T00:35:54.179698",
+    "project_name": "Стрельба из лука - спортивно-патриотическое воспитание детей и молодежи"
+  }
+}

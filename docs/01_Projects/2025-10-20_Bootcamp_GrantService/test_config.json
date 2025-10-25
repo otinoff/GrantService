@@ -1,0 +1,52 @@
+{
+  "database": {
+    "postgres": {
+      "host": "localhost",
+      "port": 5432,
+      "database": "grantservice",
+      "user": "postgres",
+      "password": "root"
+    }
+  },
+  "vector_database": {
+    "provider": "qdrant",
+    "qdrant": {
+      "host": "5.35.88.251",
+      "port": 6333,
+      "collections": {
+        "knowledge_sections": "knowledge_sections",
+        "tech_docs": "grantservice_tech_docs"
+      },
+      "note": "СЕРВЕРНАЯ Qdrant! НЕТ локальной копии! Используем ТОЛЬКО сервер!"
+    }
+  },
+  "llm": {
+    "gigachat": {
+      "model": "GigaChat-2-Max",
+      "rate_limit": {
+        "requests_per_minute": 10,
+        "delay_between_requests": 6,
+        "retry_attempts": 3,
+        "backoff_multiplier": 2,
+        "note": "Delays to avoid 529 rate limit errors"
+      }
+    },
+    "perplexity": {
+      "model": "llama-3.1-sonar-large-128k-online",
+      "provider": "perplexity",
+      "note": "For Researcher web search"
+    },
+    "claude": {
+      "model": "claude-sonnet-4",
+      "provider": "claude_code",
+      "note": "Fallback for research"
+    }
+  },
+  "testing": {
+    "mode": "standalone",
+    "requires_telegram": false,
+    "use_json_input": true,
+    "mock_data_allowed": false,
+    "note": "Tests run independently of Telegram Bot"
+  }
+}

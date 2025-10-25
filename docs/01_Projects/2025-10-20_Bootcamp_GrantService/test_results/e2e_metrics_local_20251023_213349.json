@@ -1,0 +1,16 @@
+{
+  "start_time": "2025-10-23T21:33:48.705811",
+  "end_time": "2025-10-23T21:33:49.227918",
+  "anketa_id": "#AN-20251012-Natalia_bruzzzz-001",
+  "model": "GigaChat-Max",
+  "stages": {
+    "researcher": {
+      "status": "error",
+      "error": "ResearcherAgentV2.__init__() missing 1 required positional argument: 'db'"
+    },
+    "writer": {
+      "status": "error",
+      "error": "WriterAgentV2.__init__() missing 1 required positional argument: 'db'"
+    }
+  }
+}
