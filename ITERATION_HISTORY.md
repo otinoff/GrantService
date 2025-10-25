@@ -34,7 +34,7 @@
 
 ---
 
-## Iteration 1-39: Foundation & Early Development
+## Iteration 1-26: Foundation & Early Development
 
 **Период:** 2024-2025 (ранние этапы)
 
@@ -44,12 +44,159 @@
 - Qdrant vector database integration
 - PostgreSQL schema design
 - Базовая логика интервью
+- Production venv setup (Iteration 26.1)
+- Production smoke tests (Iteration 26.2)
+- Hardcoded questions optimization (Iteration 26)
 
 **Ключевые компоненты:**
 - `telegram-bot/` - Telegram bot implementation
 - `web-admin/` - Streamlit admin panel
 - `data/database/` - PostgreSQL adapter
 - `agents/` - Early AI agents
+
+---
+
+## Iteration 27: Writer V2 + Auditor Testing
+
+**Дата:** 2025-10-23
+
+**Что было:** Нужно протестировать Writer V2 Agent с GigaChat-2-Max
+
+**Что сделали:**
+- Протестировали Writer V2 изолированно (БЕЗ Researcher data)
+- Создали заявку GA-20251023-42EC3885 (17,667 символов)
+- Запустили Auditor Agent для оценки качества
+- LLM логирование работает без stdout дублирования
+- Нашли Root Cause: Writer без Researcher = низкая оценка (62.96%)
+
+**Результат:** ✅ Writer работает, Auditor работает, но нужен Researcher для качества
+
+**Файлы:**
+- `docs/04_Deployment/02_Feature_Development/Iteration_27_FINAL_SUCCESS_REPORT.md`
+- `docs/04_Deployment/02_Feature_Development/Iteration_27_ROOT_CAUSE_FOUND.md`
+
+---
+
+## Iteration 28: E2E Test (Writer + Auditor)
+
+**Дата:** 2025-10-24
+
+**Что было:** Writer работает, нужен E2E тест с mock research
+
+**Что сделали:**
+- Запустили Writer V2 + Auditor с mock research results
+- Создали заявку GA-20251023-52B86815 (7,436 символов)
+- Экспортировали grant.md + audit.json
+
+**Результат:** ⚠️ ЧАСТИЧНО - Writer использовал старые research из БД (про Росстат, не про лук), Auditor получил rate limit (score 0%)
+
+**Проблемы:**
+- Writer игнорирует mock research, загружает из БД
+- GigaChat rate limit при запуске подряд
+- Нужен РЕАЛЬНЫЙ Researcher
+
+**Файлы:**
+- `docs/04_Deployment/02_Feature_Development/Iteration_28_FINAL_REPORT.md`
+
+---
+
+## Iteration 29: Попытка Full E2E с Perplexity
+
+**Дата:** 2025-10-24
+
+**Что было:** Нужен ПОЛНЫЙ E2E тест с Perplexity Researcher
+
+**Что сделали:**
+- Создали план полного E2E теста
+- Попытались запустить Researcher Agent
+
+**Результат:** ❌ BLOCKED - Researcher Agent жёстко связан с Telegram Bot БД архитектурой
+
+**Root Cause:**
+- Researcher требует anketa_id, session_id, telegram_id из Telegram Bot
+- Невозможно запустить standalone тест без полной имитации Bot workflow
+- Архитектура tight coupling: Grant Pipeline ← Telegram Bot
+
+**Вывод:** Нужен architecture refactoring
+
+**Файлы:**
+- `docs/04_Deployment/02_Feature_Development/Iteration_29_FINAL_REPORT.md`
+
+---
+
+## Iteration 30: Architecture Refactoring (Standalone Pipeline)
+
+**Дата:** 2025-10-24
+
+**Что было:** Grant Pipeline жёстко связан с Telegram Bot, невозможно тестировать
+
+**Что сделали:**
+- Создали standalone wrappers для всех 3 агентов (Researcher, Writer, Auditor)
+- Реализовали GrantPipeline orchestrator
+- Запустили ПОЛНЫЙ E2E тест: JSON anketa → 3 агента → 3 output files
+- Execution time: 431.8 сек (7.2 минуты)
+
+**Результат:** ✅ COMPLETE - E2E работает, но Writer генерирует только 8,473 символов (цель 30K+)
+
+**Достижения:**
+- 100% автономность от Telegram Bot
+- Все 3 агента работают standalone
+- Rate limit protection реализована
+- Zero coupling с database
+
+**Проблемы:**
+- Researcher слишком медленный (6.7 мин = 93% времени)
+- Writer output короткий (8K вместо 30K)
+- Auditor блокируется GigaChat content filters
+
+**Файлы:**
+- `docs/01_Projects/2025-10-20_Bootcamp_GrantService/reports/Iteration_30_FINAL_REPORT.md`
+- `lib/standalone_researcher.py`, `lib/standalone_writer.py`, `lib/standalone_auditor.py`
+
+---
+
+## Iteration 31: Production Writer (Anketa → 44K Grant)
+
+**Дата:** 2025-10-24
+
+**Что было:** Iteration 30 слишком медленная (7.2 мин) и короткая (8K символов)
+
+**Что сделали:**
+- Создали ProductionWriter с section-by-section generation (10 секций)
+- Интегрировали Qdrant для FPG requirements (Expert Agent)
+- Упростили архитектуру: убрали Researcher и Auditor
+- Реализовали rate limit protection (6s delay между секциями)
+
+**Результат:** ✅ PRODUCTION READY!
+
+**Метрики:**
+- Длина заявки: **44,553 символов** (на 48% больше целевых 30K!)
+- Время: **130 сек (2.2 мин)** - в **3.3x быстрее** Iteration 30
+- FPG compliance: 10 Qdrant queries, 100% соответствие требованиям
+- Стабильность: Exit code 0, 0 errors
+
+**Файлы:**
+- `docs/01_Projects/2025-10-20_Bootcamp_GrantService/reports/Iteration_31_FINAL_REPORT.md`
+- `lib/production_writer.py` (466 lines)
+
+---
+
+## Iteration 32-39: Продолжение разработки
+
+**Период:** 2025-10-24
+
+**Основные итерации:**
+- **Iteration 32:** ProductionWriter Integration в Telegram Bot
+- **Iteration 33:** Fix SQL Bugs
+- **Iteration 34:** Fix ProductionWriter Call
+- **Iteration 35:** Anketa Management + Auditor Integration
+- **Iteration 36:** Methodology Cleanup
+- **Iteration 37:** Grant Quality Improvement
+- **Iteration 38:** Synthetic Corpus Generator
+- **Iteration 39:** RL Optimization
+
+**Файлы:**
+- `docs/04_Deployment/02_Feature_Development/Interviewer_Iterations/Iteration_32-39/`
 
 ---
 
