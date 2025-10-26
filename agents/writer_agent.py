@@ -131,7 +131,10 @@ class WriterAgent(BaseAgent):
                             
                             # Подготавливаем данные для сохранения в БД
                             save_data = result.copy()
-                            
+
+                            # ИСПРАВЛЕНИЕ: Заменяем 'success' на 'draft' для БД constraint
+                            save_data['status'] = 'draft'  # БД принимает только: draft, submitted, approved, rejected
+
                             # Используем реальное название из пользовательских данных
                             project_name = user_answers.get('project_name', 'Проект без названия')
                             if not project_name or project_name == 'Тестовый проект ГрантСервис':
@@ -214,7 +217,10 @@ class WriterAgent(BaseAgent):
                         
                         # Подготавливаем данные для сохранения в БД
                         save_data = result.copy()
-                        
+
+                        # ИСПРАВЛЕНИЕ: Заменяем 'success' на 'draft' для БД constraint
+                        save_data['status'] = 'draft'  # БД принимает только: draft, submitted, approved, rejected
+
                         # Используем реальное название из пользовательских данных
                         project_name = user_answers.get('project_name', 'Проект без названия')
                         if not project_name or project_name == 'Тестовый проект ГрантСервис':
