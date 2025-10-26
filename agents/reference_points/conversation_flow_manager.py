@@ -258,9 +258,9 @@ class ConversationFlowManager:
         # 3. ИЛИ задано слишком много вопросов (>25)
 
         # SAFETY: Не финализируем если задано мало вопросов!
-        # FIX: Изменено с 0 на 10 - минимум 10 вопросов перед завершением
-        if self.context.questions_asked < 10:
-            logger.info(f"Cannot finalize: only {self.context.questions_asked} questions asked (min 10)")
+        # FIX: Изменено с 10 на 8 - минимум 8 вопросов перед завершением (Iteration 52 bugfix)
+        if self.context.questions_asked < 8:
+            logger.info(f"Cannot finalize: only {self.context.questions_asked} questions asked (min 8)")
             return False
 
         if self.context.current_state == ConversationState.FINALIZING:
@@ -306,7 +306,7 @@ class ConversationFlowManager:
                     logger.error("FATAL: ReferencePointManager is empty! load_fpg_reference_points() not called?")
 
                 # FALLBACK: Не финализируем если задано мало вопросов
-                MIN_QUESTIONS = 10
+                MIN_QUESTIONS = 8  # Lowered from 10 (Iteration 52 bugfix)
                 if self.context.questions_asked < MIN_QUESTIONS:
                     logger.warning(f"INIT state: Cannot finalize with {self.context.questions_asked} < {MIN_QUESTIONS} questions")
                     # Попробовать создать fallback RP
@@ -329,7 +329,7 @@ class ConversationFlowManager:
                 logger.warning(f"EXPLORING state: No next RP! Progress: {progress.completed_rps}/{progress.total_rps}")
 
                 # FALLBACK STRATEGY: Если все RP покрыты, но вопросов < MIN_QUESTIONS
-                MIN_QUESTIONS = 10
+                MIN_QUESTIONS = 8  # Lowered from 10 (Iteration 52 bugfix)
                 if self.context.questions_asked < MIN_QUESTIONS:
                     logger.info(f"Using fallback: {self.context.questions_asked} < {MIN_QUESTIONS} questions")
 
