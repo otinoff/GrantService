@@ -307,8 +307,8 @@ def test_write_grant_1_medium_quality(writer, interview_1_data_with_audit, db):
     # ===== VALIDATE RESULT =====
     assert result['status'] == 'success', f"Writer failed: {result.get('error')}"
 
-    # Extract inner result
-    grant_result = result['result']
+    # Extract inner result (BaseAgent wraps in {'result': {...}})
+    grant_result = result.get('result', result)  # Fallback if not wrapped
 
     grant_text = grant_result.get('application_text', '')
     grant_sections = grant_result.get('sections', {})
@@ -402,7 +402,8 @@ def test_write_grant_2_high_quality(writer, interview_2_data_with_audit, db):
     # ===== VALIDATE RESULT =====
     assert result['status'] == 'success', f"Writer failed: {result.get('error')}"
 
-    grant_result = result['result']
+    # Extract inner result (BaseAgent wraps in {'result': {...}})
+    grant_result = result.get('result', result)
     grant_text = grant_result.get('application_text', '')
     grant_sections = grant_result.get('sections', {})
 
