@@ -17,7 +17,7 @@ import os
 from pathlib import Path
 
 # Setup paths
-_project_root = Path(__file__).parent
+_project_root = Path(__file__).parent.parent  # Go up from scripts/ to project root
 sys.path.insert(0, str(_project_root))
 sys.path.insert(0, str(_project_root / "shared"))
 sys.path.insert(0, str(_project_root / "agents"))

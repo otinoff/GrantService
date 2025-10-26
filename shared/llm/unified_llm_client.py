@@ -138,10 +138,11 @@ class UnifiedLLMClient:
             "Content-Type": "application/x-www-form-urlencoded",
             "Accept": "application/json"
         }
+        # ВАЖНО: для aiohttp нужна строка, не dict (иначе будет multipart/form-data)
         data = "scope=GIGACHAT_API_PERS"
-        
+
         try:
-            async with self.session.post(url, headers=headers, data=data) as response:
+            async with self.session.post(url, headers=headers, data=data, ssl=False) as response:
                 if response.status == 200:
                     token_data = await response.json()
                     self.access_token = token_data["access_token"]

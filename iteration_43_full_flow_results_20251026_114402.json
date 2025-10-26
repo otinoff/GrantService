@@ -1,0 +1,50 @@
+{
+  "iteration": 43,
+  "test_type": "full_flow",
+  "test_user_id": 999999997,
+  "start_time": "2025-10-26T11:40:44.115693",
+  "end_time": "2025-10-26T11:44:02.098253",
+  "results": [
+    {
+      "interview_num": 1,
+      "quality_level": "medium",
+      "context": {
+        "region": "Новосибирск",
+        "topic": "наука",
+        "organization": "Центр \"Образовательные проекты\""
+      },
+      "anketa_id": null,
+      "session_id": null,
+      "audit_score": 8.461538461538462,
+      "hardcoded_questions_asked": 2,
+      "adaptive_questions_asked": 10,
+      "total_questions_asked": 12,
+      "dialog_history_length": 26,
+      "processing_time": 65.59116,
+      "status": "success"
+    },
+    {
+      "interview_num": 2,
+      "quality_level": "high",
+      "context": {
+        "region": "Екатеринбург",
+        "topic": "наука",
+        "organization": "Ассоциация \"Молодежные инициативы\""
+      },
+      "anketa_id": null,
+      "session_id": null,
+      "audit_score": 8.461538461538462,
+      "hardcoded_questions_asked": 2,
+      "adaptive_questions_asked": 10,
+      "total_questions_asked": 12,
+      "dialog_history_length": 26,
+      "processing_time": 102.388574,
+      "status": "success"
+    }
+  ],
+  "summary": {
+    "total_interviews": 2,
+    "successful": 2,
+    "failed": 0
+  }
+}

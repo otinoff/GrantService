@@ -1,0 +1,36 @@
+{
+  "iteration": 43,
+  "test_type": "full_flow",
+  "test_user_id": 999999997,
+  "start_time": "2025-10-26T11:35:50.392409",
+  "end_time": "2025-10-26T11:35:52.168421",
+  "results": [
+    {
+      "interview_num": 1,
+      "quality_level": "medium",
+      "context": {
+        "region": "Москва",
+        "topic": "экология",
+        "organization": "Центр \"Образовательные проекты\""
+      },
+      "error": "Ошибка авторизации GigaChat: Ошибка получения токена: 401 - {\"code\":6,\"message\":\"credentials doesn't match db data\"}",
+      "status": "failed"
+    },
+    {
+      "interview_num": 2,
+      "quality_level": "high",
+      "context": {
+        "region": "Екатеринбург",
+        "topic": "молодёжь",
+        "organization": "Фонд \"Социальная поддержка\""
+      },
+      "error": "Ошибка авторизации GigaChat: Ошибка получения токена: 401 - {\"code\":6,\"message\":\"credentials doesn't match db data\"}",
+      "status": "failed"
+    }
+  ],
+  "summary": {
+    "total_interviews": 2,
+    "successful": 0,
+    "failed": 2
+  }
+}
