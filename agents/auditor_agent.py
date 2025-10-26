@@ -223,22 +223,44 @@ class AuditorAgent(BaseAgent):
         # Анализ бюджета (быстрый, без LLM)
         analysis['budget'] = self._analyze_budget(application, user_answers)
         
-        # LLM-анализы (асинхронно)
+        # LLM-анализы (ПОСЛЕДОВАТЕЛЬНО для GigaChat rate limit: 1 concurrent stream, 6s между вызовами)
         if UNIFIED_CLIENT_AVAILABLE:
-            tasks.extend([
-                self._analyze_with_llm_completeness(application),
-                self._analyze_with_llm_quality(application, research_data),
-                self._analyze_with_llm_compliance(application, selected_grant),
-                self._analyze_with_llm_innovation(application)
-            ])
-            
-            # Запускаем LLM задачи параллельно
-            llm_results = await asyncio.gather(*tasks, return_exceptions=True)
-            
-            analysis['llm_completeness'] = llm_results[0] if len(llm_results) > 0 and not isinstance(llm_results[0], Exception) else {'score': 0.7, 'comments': 'LLM анализ недоступен'}
-            analysis['llm_quality'] = llm_results[1] if len(llm_results) > 1 and not isinstance(llm_results[1], Exception) else {'score': 0.7, 'comments': 'LLM анализ недоступен'}
-            analysis['llm_compliance'] = llm_results[2] if len(llm_results) > 2 and not isinstance(llm_results[2], Exception) else {'score': 0.7, 'comments': 'LLM анализ недоступен'}
-            analysis['llm_innovation'] = llm_results[3] if len(llm_results) > 3 and not isinstance(llm_results[3], Exception) else {'score': 0.7, 'comments': 'LLM анализ недоступен'}
+            # FIXED: Запускаем последовательно вместо параллельно (asyncio.gather)
+            # Причина: GigaChat поддерживает только 1 concurrent stream
+
+            # 1. Анализ полноты
+            try:
+                analysis['llm_completeness'] = await self._analyze_with_llm_completeness(application)
+            except Exception as e:
+                logger.error(f"Ошибка LLM анализа полноты: {e}")
+                analysis['llm_completeness'] = {'score': 0.7, 'comments': f'LLM анализ недоступен: {e}'}
+
+            await asyncio.sleep(6)  # Пауза 6 секунд между вызовами
+
+            # 2. Анализ качества
+            try:
+                analysis['llm_quality'] = await self._analyze_with_llm_quality(application, research_data)
+            except Exception as e:
+                logger.error(f"Ошибка LLM анализа качества: {e}")
+                analysis['llm_quality'] = {'score': 0.7, 'comments': f'LLM анализ недоступен: {e}'}
+
+            await asyncio.sleep(6)
+
+            # 3. Анализ соответствия
+            try:
+                analysis['llm_compliance'] = await self._analyze_with_llm_compliance(application, selected_grant)
+            except Exception as e:
+                logger.error(f"Ошибка LLM анализа соответствия: {e}")
+                analysis['llm_compliance'] = {'score': 0.7, 'comments': f'LLM анализ недоступен: {e}'}
+
+            await asyncio.sleep(6)
+
+            # 4. Анализ инновационности
+            try:
+                analysis['llm_innovation'] = await self._analyze_with_llm_innovation(application)
+            except Exception as e:
+                logger.error(f"Ошибка LLM анализа инновационности: {e}")
+                analysis['llm_innovation'] = {'score': 0.7, 'comments': f'LLM анализ недоступен: {e}'}
         else:
             # Fallback на старую логику без LLM
             analysis['realism'] = self._analyze_realism(application, user_answers)

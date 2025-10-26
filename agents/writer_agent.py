@@ -14,7 +14,10 @@ import time
 sys.path.append('/var/GrantService/shared')
 sys.path.append('/var/GrantService/telegram-bot/services')
 
-from base_agent import BaseAgent
+try:
+    from agents.base_agent import BaseAgent
+except ImportError:
+    from base_agent import BaseAgent
 
 try:
     from llm.unified_llm_client import UnifiedLLMClient
