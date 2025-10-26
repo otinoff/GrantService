@@ -37,16 +37,18 @@ class InteractiveInterviewHandler:
     - Отображением прогресса
     """
 
-    def __init__(self, db, admin_chat_id: Optional[int] = None):
+    def __init__(self, db, admin_chat_id: Optional[int] = None, pipeline_handler=None):
         """
         Инициализация handler
 
         Args:
             db: Database instance
             admin_chat_id: ID админского чата для уведомлений
+            pipeline_handler: InteractivePipelineHandler для интеграции с Iteration 52
         """
         self.db = db
         self.admin_chat_id = admin_chat_id
+        self.pipeline_handler = pipeline_handler
 
         # Хранилище активных интервью
         # {user_id: {agent, update, context, conversation_state, answer_queue}}
@@ -223,8 +225,58 @@ class InteractiveInterviewHandler:
                     logger.info(f"[COMPLETE] Interview completed for user {user_id}")
                     logger.info(f"[SCORE] Audit score: {result['audit_score']}/100")
 
-                    # Отправить результаты
-                    await self._send_results(update, result)
+                    # Сохранить анкету в БД
+                    try:
+                        # Получить user_data из интервью
+                        interview_data = self.active_interviews.get(user_id, {})
+                        user_data_from_interview = interview_data.get('user_data', {})
+
+                        # Сохранить через БД
+                        import json
+                        anketa_data = result.get('anketa', {})
+
+                        # Создать session в БД
+                        from data.database import create_interview_session
+                        session_data = create_interview_session(
+                            telegram_id=user_id,
+                            username=user_data_from_interview.get('username', ''),
+                            interview_data=json.dumps(anketa_data, ensure_ascii=False),
+                            grant_fund=user_data_from_interview.get('grant_fund', 'Фонд президентских грантов')
+                        )
+
+                        anketa_id = session_data.get('anketa_id')
+                        logger.info(f"[DB] Anketa saved with ID: {anketa_id}")
+
+                        # Отправить результаты
+                        await self._send_results(update, result)
+
+                        # ITERATION 52: Вызвать Interactive Pipeline
+                        if self.pipeline_handler and anketa_id:
+                            logger.info(f"[PIPELINE] Starting interactive pipeline for anketa {anketa_id}")
+
+                            # Подготовить session_data для pipeline
+                            session_for_pipeline = {
+                                'audit_score': result.get('audit_score', 0),
+                                'audit_recommendations': result.get('audit_details', {}).get('recommendations', [])
+                            }
+
+                            # Вызвать on_anketa_complete
+                            await self.pipeline_handler.on_anketa_complete(
+                                update,
+                                context,
+                                anketa_id,
+                                session_for_pipeline
+                            )
+                        else:
+                            logger.warning("[PIPELINE] Pipeline handler not available or anketa_id missing")
+
+                    except Exception as e:
+                        logger.error(f"[ERROR] Failed to save anketa or start pipeline: {e}")
+                        import traceback
+                        traceback.print_exc()
+
+                        # Отправить результаты хотя бы
+                        await self._send_results(update, result)
 
                     # Удалить из активных
                     if user_id in self.active_interviews:

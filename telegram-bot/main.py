@@ -234,11 +234,15 @@ class GrantServiceBotWithMenu:
         # AI Agents - по одному экземпляру на пользователя
         self.ai_interviewers = {}  # {user_id: InteractiveInterviewerAgent}
 
-        # NEW: Interactive Interview V2 Handler
+        # ITERATION 52: Interactive Pipeline Handler (must be before interview_handler!)
+        self.pipeline_handler = InteractivePipelineHandler(db=db)
+
+        # NEW: Interactive Interview V2 Handler (with Iteration 52 pipeline integration)
         admin_chat_id = os.getenv('ADMIN_CHAT_ID')
         self.interview_handler = InteractiveInterviewHandler(
             db=db,
-            admin_chat_id=int(admin_chat_id) if admin_chat_id else None
+            admin_chat_id=int(admin_chat_id) if admin_chat_id else None,
+            pipeline_handler=self.pipeline_handler  # ITERATION 52: Pass pipeline handler
         )
 
         # NEW: Grant Handler for ProductionWriter
@@ -249,9 +253,6 @@ class GrantServiceBotWithMenu:
 
         # ITERATION 35: Anketa Management Handler
         self.anketa_handler = AnketaManagementHandler(db=db)
-
-        # ITERATION 52: Interactive Pipeline Handler
-        self.pipeline_handler = InteractivePipelineHandler(db=db)
 
         # Инициализация БД
         self.init_database()
