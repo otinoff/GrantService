@@ -41,10 +41,10 @@ logger = logging.getLogger(__name__)
 
 class WriterAgent(BaseAgent):
     """Агент-писатель для создания заявок на гранты"""
-    
+
     def __init__(self, db, llm_provider: str = "claude_code"):
         super().__init__("writer", db, llm_provider)
-        
+
         if UNIFIED_CLIENT_AVAILABLE:
             self.llm_client = UnifiedLLMClient()
             self.config = AGENT_CONFIGS.get("writer", AGENT_CONFIGS.get("writer", {}))
@@ -54,6 +54,23 @@ class WriterAgent(BaseAgent):
             self.llm_client = None
             self.llm_router = None
             print("⚠️ Writer агент работает без LLM сервисов")
+
+        # NEW: Initialize RAG retriever (Iteration 51 - Phase 4)
+        self.rag_retriever = None
+        try:
+            from qdrant_client import QdrantClient
+            from shared.llm.gigachat_embeddings_client import GigaChatEmbeddingsClient
+            from shared.llm.rag_retriever import QdrantRAGRetriever
+
+            # Try to connect to Qdrant (fallback to in-memory)
+            qdrant_client = QdrantClient(":memory:")  # Or "localhost:6333" for persistent
+            embeddings_client = GigaChatEmbeddingsClient()
+
+            self.rag_retriever = QdrantRAGRetriever(qdrant_client, embeddings_client)
+            logger.info("[OK] WriterAgent: RAG retriever initialized successfully")
+        except Exception as e:
+            logger.warning(f"[WARNING] WriterAgent: RAG retriever disabled - {e}")
+            self.rag_retriever = None
     
     def _get_goal(self) -> str:
         return "Создать качественную заявку на грант на основе данных пользователя и найденной информации"
@@ -328,12 +345,53 @@ class WriterAgent(BaseAgent):
         word_multiplier = 1.5 if quality_level == 'HIGH' else 1.0
 
         try:
-            # 3. PROBLEM (Описание проблемы)
+            # NEW: RAG RETRIEVAL (Iteration 51 - Phase 4)
+            # Upfront retrieval: Get similar successful grants for context
+            rag_context = ""
+            if self.rag_retriever:
+                try:
+                    logger.info("[RAG] Retrieving similar grants for context...")
+                    similar_grants = self.rag_retriever.retrieve_similar_grants(
+                        query_text=description,
+                        top_k=3
+                    )
+
+                    if similar_grants:
+                        from shared.llm.rag_retriever import format_grant_for_prompt
+                        rag_context = "\n\nПРИМЕРЫ УСПЕШНЫХ ПРОЕКТОВ:\n\n"
+                        for grant in similar_grants[:2]:  # Use top-2 to save tokens
+                            rag_context += format_grant_for_prompt(grant) + "\n"
+                        logger.info(f"[RAG] Retrieved {len(similar_grants)} similar grants for context")
+                except Exception as e:
+                    logger.warning(f"[RAG] Failed to retrieve grants - continuing without RAG: {e}")
+
+            # 3. PROBLEM (Описание проблемы) - ENHANCED WITH RAG
             logger.info("3️⃣.1 WriterAgent: Генерируем описание проблемы...")
+
+            # Get problem-specific examples
+            problem_examples_text = ""
+            if self.rag_retriever:
+                try:
+                    from shared.llm.rag_retriever import format_section_examples_for_prompt
+                    problem_examples = self.rag_retriever.retrieve_section_examples(
+                        section_name="problem",
+                        query_text=f"{project_name}: {description}",
+                        top_k=2
+                    )
+                    if problem_examples:
+                        problem_examples_text = format_section_examples_for_prompt("problem", problem_examples)
+                        logger.info(f"[RAG] Retrieved {len(problem_examples)} problem examples")
+                except Exception as e:
+                    logger.warning(f"[RAG] Failed to retrieve problem examples: {e}")
+
             problem_prompt = f"""Ты - эксперт по грантовым заявкам.
 
 ПРОЕКТ: {project_name}
 ОПИСАНИЕ: {description}
+
+{rag_context if rag_context else ""}
+
+{problem_examples_text if problem_examples_text else ""}
 
 Напиши детальное описание ПРОБЛЕМЫ для грантовой заявки ({int(500*word_multiplier)}-{int(1000*word_multiplier)} слов).
 
@@ -342,6 +400,8 @@ class WriterAgent(BaseAgent):
 - Кого и как она затрагивает? (целевая аудитория, масштаб)
 - Какие негативные последствия если её не решить?
 - Почему существующие решения не работают?
+
+{"Используй примеры выше для вдохновения, но создай ОРИГИНАЛЬНОЕ описание проблемы. НЕ копируй текст напрямую." if (rag_context or problem_examples_text) else ""}
 
 Стиль: формальный, убедительный, с фактами и цифрами."""
 
