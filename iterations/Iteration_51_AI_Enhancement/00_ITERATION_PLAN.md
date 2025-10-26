@@ -1,7 +1,8 @@
 # Iteration 51: AI Enhancement - Embeddings + RL
 
 **Дата начала:** 2025-10-26
-**Статус:** 🚀 IN PROGRESS
+**Дата завершения Phase 1:** 2025-10-26
+**Статус:** ✅ PHASE 1 COMPLETE
 **Цель:** Потратить 3 млн токенов GigaChat Embeddings на создание 3 оптимизированных коллекций + добавить RL для InterviewerAgent
 
 ---
@@ -23,7 +24,7 @@
 
 | Коллекция | Источник | Tokens | % бюджета | Status |
 |-----------|----------|--------|-----------|--------|
-| **fpg_real_winners** | Web scraping (Perplexity/Parallel AI) | 1,200,000 | 24% | 🔥 NEW |
+| **fpg_real_winners** | Web scraping (Perplexity/Parallel AI) | 1,200,000 | 24% | ✅ DONE (1.6K used) |
 | **fpg_requirements_gigachat** | БД + Web (критерии + методологии + бюджеты) | 1,000,000 | 20% | 🔥 NEW |
 | **user_grants_all** | PostgreSQL grant_applications (174 гранта) | 800,000 | 16% | 🔥 NEW |
 | **Резерв на fine-tuning** | - | 2,000,000 | 40% | 💎 RESERVED |
