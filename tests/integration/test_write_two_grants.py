@@ -310,8 +310,15 @@ def test_write_grant_1_medium_quality(writer, interview_1_data_with_audit, db):
     # Extract inner result (BaseAgent wraps in {'result': {...}})
     grant_result = result.get('result', result)  # Fallback if not wrapped
 
-    grant_text = grant_result.get('application_text', '')
-    grant_sections = grant_result.get('sections', {})
+    # Writer returns 'application' dict, not 'application_text'
+    application = grant_result.get('application', {})
+    grant_sections = grant_result.get('structure', {})
+
+    # Build full text from sections
+    grant_text = ""
+    if isinstance(application, dict):
+        for section_name, section_content in application.items():
+            grant_text += f"\n\n{'='*80}\n{section_name}\n{'='*80}\n\n{section_content}"
 
     # ===== ASSERTIONS =====
 
@@ -404,8 +411,15 @@ def test_write_grant_2_high_quality(writer, interview_2_data_with_audit, db):
 
     # Extract inner result (BaseAgent wraps in {'result': {...}})
     grant_result = result.get('result', result)
-    grant_text = grant_result.get('application_text', '')
-    grant_sections = grant_result.get('sections', {})
+    # Writer returns 'application' dict, not 'application_text'
+    application = grant_result.get('application', {})
+    grant_sections = grant_result.get('structure', {})
+
+    # Build full text from sections
+    grant_text = ""
+    if isinstance(application, dict):
+        for section_name, section_content in application.items():
+            grant_text += f"\n\n{'='*80}\n{section_name}\n{'='*80}\n\n{section_content}"
 
     # ===== ASSERTIONS =====
     assert len(grant_text) > 1000, f"Grant too short: {len(grant_text)} chars"
