@@ -310,36 +310,206 @@ class WriterAgent(BaseAgent):
             logger.error(f"❌ WriterAgent: Ошибка генерации описания: {e}")
             content['summary'] = description
         
-        # Упрощенная генерация остальных полей для быстрого тестирования
-        logger.info("3️⃣ WriterAgent: Генерируем остальные разделы заявки...")
-        
-        # Используем простые промпты для тестирования
+        # LLM генерация ВСЕХ остальных разделов
+        logger.info("3️⃣ WriterAgent: Генерируем остальные разделы заявки через LLM...")
+
+        # Получаем базовую информацию для промптов
+        project_name = user_answers.get('project_name', 'проект')
+        description = user_answers.get('description', content.get('summary', ''))
+
+        # Определяем детализацию на основе quality_level (если есть в user_answers)
+        quality_level = user_answers.get('quality_level', 'MEDIUM')
+        word_multiplier = 1.5 if quality_level == 'HIGH' else 1.0
+
         try:
-            # Проблема
-            content['problem'] = user_answers.get('problem', 'Проблема требует решения')
-            
-            # Решение  
-            content['solution'] = user_answers.get('solution', 'Инновационное решение')
-            
-            # План
-            content['implementation'] = f"План реализации на {user_answers.get('timeline', '12 месяцев')}"
-            
-            # Бюджет
-            content['budget'] = f"Бюджет: {user_answers.get('budget', '1,000,000 рублей')}"
-            
-            # Остальные поля
-            content['timeline'] = user_answers.get('timeline', '12 месяцев')
-            content['team'] = user_answers.get('team', 'Профессиональная команда')
-            content['impact'] = user_answers.get('impact', 'Значительный социальный эффект')
-            content['sustainability'] = 'Проект будет устойчив после завершения финансирования'
-            
-            logger.info("✅ WriterAgent: Все разделы заявки сгенерированы")
+            # 3. PROBLEM (Описание проблемы)
+            logger.info("3️⃣.1 WriterAgent: Генерируем описание проблемы...")
+            problem_prompt = f"""Ты - эксперт по грантовым заявкам.
+
+ПРОЕКТ: {project_name}
+ОПИСАНИЕ: {description}
+
+Напиши детальное описание ПРОБЛЕМЫ для грантовой заявки ({int(500*word_multiplier)}-{int(1000*word_multiplier)} слов).
+
+Объясни:
+- В чём суть проблемы и её актуальность?
+- Кого и как она затрагивает? (целевая аудитория, масштаб)
+- Какие негативные последствия если её не решить?
+- Почему существующие решения не работают?
+
+Стиль: формальный, убедительный, с фактами и цифрами."""
+
+            content['problem'] = await client.generate_text(problem_prompt, int(2000*word_multiplier))
+            logger.info(f"✅ WriterAgent: Problem получен ({len(content['problem'])} символов)")
+            await asyncio.sleep(6)  # GigaChat rate limit
+
+            # 4. SOLUTION (Предлагаемое решение)
+            logger.info("3️⃣.2 WriterAgent: Генерируем описание решения...")
+            solution_prompt = f"""Ты - эксперт по грантовым заявкам.
+
+ПРОЕКТ: {project_name}
+ОПИСАНИЕ: {description}
+ПРОБЛЕМА: {content['problem'][:500]}...
+
+Напиши детальное описание РЕШЕНИЯ для грантовой заявки ({int(800*word_multiplier)}-{int(1500*word_multiplier)} слов).
+
+Опиши:
+- В чём заключается предлагаемое решение?
+- Какая методология/технология будет использоваться?
+- Почему это решение инновационное и эффективное?
+- Какие ключевые компоненты и механизмы?
+- Как решение устраняет выявленную проблему?
+
+Стиль: формальный, с конкретными деталями и технологиями."""
+
+            content['solution'] = await client.generate_text(solution_prompt, int(3000*word_multiplier))
+            logger.info(f"✅ WriterAgent: Solution получен ({len(content['solution'])} символов)")
+            await asyncio.sleep(6)
+
+            # 5. IMPLEMENTATION (План реализации)
+            logger.info("3️⃣.3 WriterAgent: Генерируем план реализации...")
+            implementation_prompt = f"""Ты - эксперт по грантовым заявкам.
+
+ПРОЕКТ: {project_name}
+РЕШЕНИЕ: {content['solution'][:500]}...
+
+Напиши детальный ПЛАН РЕАЛИЗАЦИИ для грантовой заявки ({int(1000*word_multiplier)}-{int(2000*word_multiplier)} слов).
+
+Опиши:
+- Основные этапы реализации проекта (с временными рамками)
+- Ключевые мероприятия на каждом этапе
+- Необходимые ресурсы и инфраструктура
+- Методы и инструменты реализации
+- Промежуточные результаты и контрольные точки
+- Риски и способы их минимизации
+
+Стиль: структурированный, с этапами и сроками."""
+
+            content['implementation'] = await client.generate_text(implementation_prompt, int(4000*word_multiplier))
+            logger.info(f"✅ WriterAgent: Implementation получен ({len(content['implementation'])} символов)")
+            await asyncio.sleep(6)
+
+            # 6. BUDGET (Бюджет проекта)
+            logger.info("3️⃣.4 WriterAgent: Генерируем бюджет...")
+            budget_amount = user_answers.get('budget', '1,000,000 рублей')
+            budget_prompt = f"""Ты - эксперт по грантовым заявкам.
+
+ПРОЕКТ: {project_name}
+ОБЩИЙ БЮДЖЕТ: {budget_amount}
+ПЛАН РЕАЛИЗАЦИИ: {content['implementation'][:500]}...
+
+Напиши детальную ДЕТАЛИЗАЦИЮ БЮДЖЕТА для грантовой заявки ({int(500*word_multiplier)}-{int(800*word_multiplier)} слов).
+
+Распредели бюджет по статьям:
+- Персонал (зарплаты, гонорары)
+- Оборудование и материалы
+- Аренда помещений и коммунальные услуги
+- Маркетинг и продвижение
+- Административные расходы
+- Непредвиденные расходы (резерв)
+
+Для каждой статьи укажи примерную сумму и обоснование."""
+
+            content['budget'] = await client.generate_text(budget_prompt, int(1600*word_multiplier))
+            logger.info(f"✅ WriterAgent: Budget получен ({len(content['budget'])} символов)")
+            await asyncio.sleep(6)
+
+            # 7. TIMELINE (Временные рамки)
+            logger.info("3️⃣.5 WriterAgent: Генерируем временные рамки...")
+            timeline_duration = user_answers.get('timeline', '12 месяцев')
+            timeline_prompt = f"""Ты - эксперт по грантовым заявкам.
+
+ПРОЕКТ: {project_name}
+ДЛИТЕЛЬНОСТЬ: {timeline_duration}
+ЭТАПЫ РЕАЛИЗАЦИИ: {content['implementation'][:500]}...
+
+Напиши детальный ГРАФИК РАБОТ для грантовой заявки ({int(300*word_multiplier)}-{int(500*word_multiplier)} слов).
+
+Структурируй по месяцам/кварталам:
+- Подготовительный период
+- Основные фазы реализации
+- Контрольные точки и отчётность
+- Завершение и оценка результатов
+
+Укажи конкретные сроки для ключевых мероприятий."""
+
+            content['timeline'] = await client.generate_text(timeline_prompt, int(1000*word_multiplier))
+            logger.info(f"✅ WriterAgent: Timeline получен ({len(content['timeline'])} символов)")
+            await asyncio.sleep(6)
+
+            # 8. TEAM (Команда проекта)
+            logger.info("3️⃣.6 WriterAgent: Генерируем описание команды...")
+            team_prompt = f"""Ты - эксперт по грантовым заявкам.
+
+ПРОЕКТ: {project_name}
+ЗАДАЧИ: {content['implementation'][:500]}...
+
+Напиши детальное описание КОМАНДЫ ПРОЕКТА для грантовой заявки ({int(400*word_multiplier)}-{int(600*word_multiplier)} слов).
+
+Опиши:
+- Руководитель проекта (компетенции, опыт)
+- Ключевые специалисты и их роли
+- Квалификация и экспертиза членов команды
+- Распределение обязанностей
+- Опыт реализации аналогичных проектов
+
+Создай убедительный профиль команды с конкретными ролями."""
+
+            content['team'] = await client.generate_text(team_prompt, int(1200*word_multiplier))
+            logger.info(f"✅ WriterAgent: Team получен ({len(content['team'])} символов)")
+            await asyncio.sleep(6)
+
+            # 9. IMPACT (Ожидаемый эффект)
+            logger.info("3️⃣.7 WriterAgent: Генерируем ожидаемый эффект...")
+            impact_prompt = f"""Ты - эксперт по грантовым заявкам.
+
+ПРОЕКТ: {project_name}
+РЕШЕНИЕ: {content['solution'][:500]}...
+
+Напиши детальное описание ОЖИДАЕМОГО ЭФФЕКТА для грантовой заявки ({int(600*word_multiplier)}-{int(1000*word_multiplier)} слов).
+
+Опиши:
+- Социальный эффект (для целевой аудитории и общества)
+- Экономический эффект (количественные показатели)
+- Измеримые результаты (KPI, метрики)
+- Долгосрочное влияние на сферу/регион
+- Мультипликативный эффект
+
+Используй конкретные цифры и показатели."""
+
+            content['impact'] = await client.generate_text(impact_prompt, int(2000*word_multiplier))
+            logger.info(f"✅ WriterAgent: Impact получен ({len(content['impact'])} символов)")
+            await asyncio.sleep(6)
+
+            # 10. SUSTAINABILITY (Устойчивость проекта)
+            logger.info("3️⃣.8 WriterAgent: Генерируем устойчивость проекта...")
+            sustainability_prompt = f"""Ты - эксперт по грантовым заявкам.
+
+ПРОЕКТ: {project_name}
+ЭФФЕКТ: {content['impact'][:500]}...
+
+Напиши детальное описание УСТОЙЧИВОСТИ ПРОЕКТА для грантовой заявки ({int(400*word_multiplier)}-{int(600*word_multiplier)} слов).
+
+Опиши:
+- Как проект будет работать после завершения финансирования?
+- Источники дохода для самоокупаемости
+- Партнёрства и поддержка
+- Развитие и масштабирование
+- План выхода на самоокупаемость
+
+Покажи долгосрочную жизнеспособность проекта."""
+
+            content['sustainability'] = await client.generate_text(sustainability_prompt, int(1200*word_multiplier))
+            logger.info(f"✅ WriterAgent: Sustainability получен ({len(content['sustainability'])} символов)")
+
+            logger.info("✅ WriterAgent: Все 10 разделов заявки успешно сгенерированы через LLM")
+
         except Exception as e:
             logger.error(f"❌ WriterAgent: Ошибка генерации разделов: {e}")
-            # Заполняем базовыми значениями
+            # Заполняем базовыми значениями только для незаполненных секций
             for key in structure.keys():
                 if key not in content:
-                    content[key] = f"[{structure[key]}]"
+                    content[key] = f"[Ошибка генерации раздела: {structure[key]}]"
         
         return content
     
