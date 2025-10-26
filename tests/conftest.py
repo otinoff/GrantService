@@ -21,11 +21,26 @@ os.environ['PGDATABASE'] = os.getenv('PGDATABASE', 'grantservice')
 os.environ['PGUSER'] = os.getenv('PGUSER', 'postgres')
 os.environ['PGPASSWORD'] = os.getenv('PGPASSWORD', 'root')
 
+# ===== WINDOWS ENCODING FIX =====
+# Fix for UnicodeEncodeError on Windows console (cp1251)
+# This ensures UTF-8 is used for stdout/stderr
+import sys
+if sys.platform == 'win32':
+    import io
+    # Wrap stdout and stderr with UTF-8 encoding
+    sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding='utf-8', errors='replace')
+    sys.stderr = io.TextIOWrapper(sys.stderr.buffer, encoding='utf-8', errors='replace')
+    # Set environment variable for subprocess
+    os.environ['PYTHONIOENCODING'] = 'utf-8'
+
 # Настройка логирования для тестов
 import logging
 logging.basicConfig(
     level=logging.INFO,
-    format='[%(levelname)s] %(name)s: %(message)s'
+    format='[%(levelname)s] %(name)s: %(message)s',
+    # Force UTF-8 encoding for file handlers
+    encoding='utf-8',
+    force=True  # Override existing handlers
 )
 
 @pytest.fixture(scope='session')
@@ -46,8 +61,22 @@ def db_config():
 
 def pytest_configure(config):
     """Настройка pytest перед запуском тестов"""
+    # Existing markers
     config.addinivalue_line(
         "markers", "unit: mark test as a unit test"
+    )
+    # New markers (from TESTING-METHODOLOGY-GRANTSERVICE.md)
+    config.addinivalue_line(
+        "markers", "slow: marks tests as slow (minutes)"
+    )
+    config.addinivalue_line(
+        "markers", "integration: needs database/services"
+    )
+    config.addinivalue_line(
+        "markers", "e2e: full system test"
+    )
+    config.addinivalue_line(
+        "markers", "gigachat: needs real GigaChat API"
     )
     config.addinivalue_line(
         "markers", "integration: mark test as an integration test"
