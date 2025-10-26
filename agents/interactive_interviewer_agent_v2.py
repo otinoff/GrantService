@@ -286,9 +286,10 @@ class InteractiveInterviewerAgentV2(BaseAgent):
 
             # Проверить финализацию
             if action['type'] == 'finalize':
-                if callback_ask_question:
-                    await callback_ask_question(action['message'])
-                logger.info(action['message'])
+                # ITERATION 52 FIX: НЕ отправляем finalize message через callback!
+                # callback_ask_question ЖДЁТ ответа, но это не вопрос - это завершение.
+                # Просто логируем и завершаем цикл.
+                logger.info(f"[FINALIZE] {action['message']}")
                 break
 
             # Получить reference point
