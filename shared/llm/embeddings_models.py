@@ -191,8 +191,11 @@ class FPGRequirement(BaseModel):
 
 
 # ============================================================================
-# Collection 3: user_grants_all (800K tokens)
+# Collection 3: user_grants_all (SKIPPED - using only real FPG winners)
 # ============================================================================
+
+# Phase 3 was skipped to avoid polluting embeddings with test/synthetic grants
+# Using only Phase 1 (fpg_real_winners) + Phase 2 (fpg_requirements_gigachat)
 
 class UserGrantSection(BaseModel):
     """
