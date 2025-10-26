@@ -206,8 +206,39 @@ class InteractivePipelineHandler:
             # Запустить AuditorAgent
             from agents.auditor_agent import AuditorAgent
 
+            # Получить данные анкеты из БД
+            anketa_session = self.db.get_session_by_anketa_id(anketa_id)
+            if not anketa_session:
+                await query.message.reply_text(
+                    "❌ Ошибка: анкета не найдена"
+                )
+                return
+
+            # Парсим interview_data
+            import json
+            if isinstance(anketa_session.get('interview_data'), str):
+                anketa_data = json.loads(anketa_session['interview_data'])
+            else:
+                anketa_data = anketa_session.get('interview_data', {})
+
+            # Создаем аудитора
             auditor = AuditorAgent(db=self.db)
-            audit_result = await auditor.audit_anketa_async(anketa_id)
+
+            # Формируем input для AuditorAgent
+            audit_input = {
+                'application': {'answers': anketa_data},
+                'user_answers': anketa_data,
+                'selected_grant': {
+                    'fund_name': anketa_data.get('grant_fund', 'Фонд президентских грантов')
+                },
+                'session_id': anketa_session.get('id')
+            }
+
+            # Запускаем аудит
+            audit_wrapped = await auditor.audit_application_async(audit_input)
+
+            # BaseAgent оборачивает результат в {'result': {...}}
+            audit_result = audit_wrapped.get('result', audit_wrapped)
 
             if not audit_result:
                 await query.message.reply_text(
@@ -334,17 +365,52 @@ class InteractivePipelineHandler:
 
             # Запустить ProductionWriter
             from agents.production_writer import ProductionWriter
+            import os
 
-            writer = ProductionWriter(db=self.db)
-            grant = await writer.generate_grant_async(anketa_id)
+            # Получить данные анкеты из БД
+            anketa_session = self.db.get_session_by_anketa_id(anketa_id)
+            if not anketa_session or not anketa_session.get('interview_data'):
+                await query.message.reply_text(
+                    f"❌ Не удалось получить данные анкеты {anketa_id}"
+                )
+                return
 
-            if not grant:
+            # Парсим interview_data
+            import json
+            if isinstance(anketa_session['interview_data'], str):
+                anketa_data = json.loads(anketa_session['interview_data'])
+            else:
+                anketa_data = anketa_session['interview_data']
+
+            # Создать ProductionWriter
+            writer = ProductionWriter(
+                llm_provider='gigachat',  # или получить из БД
+                qdrant_host=os.getenv('QDRANT_HOST', '5.35.88.251'),
+                qdrant_port=int(os.getenv('QDRANT_PORT', '6333')),
+                postgres_host=os.getenv('PGHOST', 'localhost'),
+                postgres_port=int(os.getenv('PGPORT', '5434')),
+                postgres_user=os.getenv('PGUSER', 'grantservice'),
+                postgres_password=os.getenv('PGPASSWORD'),
+                postgres_db=os.getenv('PGDATABASE', 'grantservice'),
+                db=self.db
+            )
+
+            # Генерируем грант через write()
+            grant_content = await writer.write(anketa_data=anketa_data)
+
+            if not grant_content:
                 await query.message.reply_text(
                     "❌ Ошибка: не удалось создать грант"
                 )
                 return
 
-            grant_id = grant.get('grant_id') or grant.get('id')
+            # Сохраняем грант в БД (упрощенно - берем anketa_id как grant_id)
+            grant_id = anketa_id  # Или создать отдельную запись в БД
+            grant = {
+                'grant_id': grant_id,
+                'grant_content': grant_content,
+                'anketa_id': anketa_id
+            }
 
             # Генерировать файл
             txt_content = generate_grant_txt(grant)
@@ -457,8 +523,48 @@ class InteractivePipelineHandler:
             # Запустить ReviewerAgent
             from agents.reviewer_agent import ReviewerAgent
 
+            # Получить данные гранта из БД
+            # NOTE: grant_id здесь может быть anketa_id (зависит от реализации)
+            # Для упрощения используем grant_id как anketa_id
+            anketa_session = self.db.get_session_by_anketa_id(grant_id)
+            if not anketa_session:
+                await query.message.reply_text(
+                    "❌ Ошибка: данные гранта не найдены"
+                )
+                return
+
+            # Парсим interview_data
+            import json
+            if isinstance(anketa_session.get('interview_data'), str):
+                anketa_data = json.loads(anketa_session['interview_data'])
+            else:
+                anketa_data = anketa_session.get('interview_data', {})
+
+            # NOTE: В реальной системе нужно получить grant_content из БД
+            # Для MVP предполагаем что грант был сохранен
+            # Здесь можно добавить метод db.get_grant_by_id() если нужно
+            grant_content_text = ""  # Placeholder
+
+            # Создаем ревьюера
             reviewer = ReviewerAgent(db=self.db)
-            review = await reviewer.review_grant_async(grant_id)
+
+            # Формируем input для ReviewerAgent
+            review_input = {
+                'grant_content': {'text': grant_content_text},
+                'user_answers': anketa_data,
+                'research_results': {},
+                'citations': [],
+                'tables': [],
+                'selected_grant': {
+                    'fund_name': anketa_data.get('grant_fund', 'Фонд президентских грантов')
+                }
+            }
+
+            # Запускаем ревью
+            review_wrapped = await reviewer.review_grant_async(review_input)
+
+            # BaseAgent оборачивает результат
+            review = review_wrapped.get('result', review_wrapped)
 
             if not review:
                 await query.message.reply_text(

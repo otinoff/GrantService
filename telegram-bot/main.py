@@ -210,6 +210,9 @@ from handlers.grant_handler import GrantHandler
 # ITERATION 35: Anketa Management Handler
 from handlers.anketa_management_handler import AnketaManagementHandler
 
+# ITERATION 52: Interactive Pipeline Handler
+from handlers.interactive_pipeline_handler import InteractivePipelineHandler
+
 
 class GrantServiceBotWithMenu:
     def __init__(self):
@@ -246,6 +249,9 @@ class GrantServiceBotWithMenu:
 
         # ITERATION 35: Anketa Management Handler
         self.anketa_handler = AnketaManagementHandler(db=db)
+
+        # ITERATION 52: Interactive Pipeline Handler
+        self.pipeline_handler = InteractivePipelineHandler(db=db)
 
         # Инициализация БД
         self.init_database()
@@ -1332,7 +1338,8 @@ https://grantservice.onff.ru/payment
                     session['audit_recommendations'] = audit_result.get('recommendations', [])
                     logger.info(f"✅ AI Audit завершён: {session['audit_score']}/100")
 
-                await self.show_completion_screen(update, context, anketa_id)
+                # ITERATION 52: Use Interactive Pipeline instead of show_completion_screen
+                await self.pipeline_handler.on_anketa_complete(update, context, anketa_id, session)
             else:
                 # Если не удалось сохранить, показываем экран проверки
                 await self.show_review_screen(update, context)
@@ -2103,6 +2110,21 @@ PDF документ с полной анкетой прикреплен
             self.handle_anketa_callback,
             pattern="^anketa_"
         ))
+
+        # ITERATION 52: Interactive Pipeline callbacks
+        application.add_handler(CallbackQueryHandler(
+            self.pipeline_handler.handle_start_audit,
+            pattern=r"^start_audit:anketa:\w+$"
+        ))
+        application.add_handler(CallbackQueryHandler(
+            self.pipeline_handler.handle_start_grant,
+            pattern=r"^start_grant:anketa:\w+$"
+        ))
+        application.add_handler(CallbackQueryHandler(
+            self.pipeline_handler.handle_start_review,
+            pattern=r"^start_review:grant:\w+$"
+        ))
+
         # Остальные callbacks
         application.add_handler(CallbackQueryHandler(self.handle_menu_callback))
         application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, self.handle_message))
