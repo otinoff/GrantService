@@ -268,8 +268,10 @@ class InteractiveInterviewHandler:
 
                         logger.info(f"[DB] Anketa saved successfully with ID: {anketa_id}")
 
-                        # Отправить результаты
-                        await self._send_results(update, result)
+                        # ITERATION 52 FIX (Phase 15): НЕ вызываем _send_results() здесь!
+                        # update может быть None в background task.
+                        # Pipeline handler сам отправит файл anketa.txt с данными.
+                        # await self._send_results(update, result)  # ← Removed
 
                         # ITERATION 52: Вызвать Interactive Pipeline
                         if self.pipeline_handler and anketa_id:
@@ -296,8 +298,10 @@ class InteractiveInterviewHandler:
                         import traceback
                         traceback.print_exc()
 
-                        # Отправить результаты хотя бы
-                        await self._send_results(update, result)
+                        # ITERATION 52 FIX (Phase 15): НЕ пытаемся отправить результаты
+                        # update может быть None в background task
+                        # Просто логируем ошибку
+                        # await self._send_results(update, result)  # ← Removed
 
                     # Удалить из активных
                     if user_id in self.active_interviews:
