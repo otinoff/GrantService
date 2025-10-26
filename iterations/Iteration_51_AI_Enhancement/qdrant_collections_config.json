@@ -1,0 +1,143 @@
+{
+  "collections": [
+    {
+      "name": "fpg_real_winners",
+      "description": "Real FPG grant winners from web (Perplexity/Parallel AI)",
+      "vector_config": {
+        "size": 1024,
+        "distance": "Cosine"
+      },
+      "storage": {
+        "on_disk": true,
+        "quantization": null
+      },
+      "estimated_vectors": 400,
+      "estimated_tokens": 1200000,
+      "metadata_schema": {
+        "grant_id": "keyword",
+        "section": "keyword",
+        "fund_name": "keyword",
+        "year": "integer",
+        "region": "keyword",
+        "category": "keyword",
+        "amount": "integer",
+        "rating_score": "float"
+      },
+      "index_params": {
+        "m": 16,
+        "ef_construct": 100
+      }
+    },
+    {
+      "name": "fpg_requirements_gigachat",
+      "description": "Consolidated: criteria (40%) + methodologies (30%) + budgets (30%)",
+      "vector_config": {
+        "size": 1024,
+        "distance": "Cosine"
+      },
+      "storage": {
+        "on_disk": true,
+        "quantization": null
+      },
+      "estimated_vectors": 200,
+      "estimated_tokens": 1000000,
+      "metadata_schema": {
+        "requirement_type": "keyword",
+        "fund_name": "keyword",
+        "category": "keyword",
+        "weight": "float"
+      },
+      "index_params": {
+        "m": 16,
+        "ef_construct": 100
+      }
+    },
+    {
+      "name": "user_grants_all",
+      "description": "174 user grants from PostgreSQL grant_applications (10 sections each)",
+      "vector_config": {
+        "size": 1024,
+        "distance": "Cosine"
+      },
+      "storage": {
+        "on_disk": true,
+        "quantization": null
+      },
+      "estimated_vectors": 1740,
+      "estimated_tokens": 800000,
+      "metadata_schema": {
+        "grant_id": "integer",
+        "user_id": "integer",
+        "section_name": "keyword",
+        "status": "keyword",
+        "quality_score": "float",
+        "created_at": "datetime",
+        "fund_target": "keyword"
+      },
+      "index_params": {
+        "m": 16,
+        "ef_construct": 100
+      }
+    }
+  ],
+  "global_config": {
+    "qdrant_host": "5.35.88.251",
+    "qdrant_port": 6333,
+    "embedding_model": "GigaChat Embeddings API",
+    "embedding_dim": 1024,
+    "batch_size": 100,
+    "total_token_budget": 5000000,
+    "active_token_budget": 3000000,
+    "reserve_budget": 2000000
+  },
+  "migration_plan": {
+    "existing_collections": [
+      {
+        "name": "knowledge_sections",
+        "status": "KEEP AS IS",
+        "reason": "Production, Sentence Transformers (384-dim), used by ReviewerAgent",
+        "vectors": 46
+      },
+      {
+        "name": "grantservice_tech_docs",
+        "status": "KEEP AS IS",
+        "reason": "Technical documentation",
+        "vectors": 7
+      }
+    ],
+    "new_collections": [
+      "fpg_real_winners",
+      "fpg_requirements_gigachat",
+      "user_grants_all"
+    ]
+  },
+  "token_allocation": {
+    "fpg_real_winners": {
+      "tokens": 1200000,
+      "percentage": 24,
+      "source": "Web scraping (Perplexity/Parallel AI)"
+    },
+    "fpg_requirements_gigachat": {
+      "tokens": 1000000,
+      "percentage": 20,
+      "source": "PostgreSQL knowledge_sections + Web"
+    },
+    "user_grants_all": {
+      "tokens": 800000,
+      "percentage": 16,
+      "source": "PostgreSQL grant_applications (174 grants)"
+    },
+    "reserve": {
+      "tokens": 2000000,
+      "percentage": 40,
+      "purpose": "Fine-tuning / future experiments"
+    }
+  },
+  "success_criteria": {
+    "collections_created": 3,
+    "total_vectors": 2340,
+    "tokens_used": 3000000,
+    "quality_improvement": "+1 point minimum in ReviewerAgent score",
+    "production_ready": true
+  }
+}

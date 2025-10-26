@@ -1,8 +1,8 @@
 # Iteration 51: AI Enhancement - Embeddings + RL
 
 **Дата начала:** 2025-10-26
-**Статус:** 🚀 PLANNING
-**Цель:** Потратить 5 млн токенов GigaChat Embeddings на создание 5 коллекций + добавить RL для InterviewerAgent
+**Статус:** 🚀 IN PROGRESS
+**Цель:** Потратить 3 млн токенов GigaChat Embeddings на создание 3 оптимизированных коллекций + добавить RL для InterviewerAgent
 
 ---
 
@@ -11,116 +11,184 @@
 **Бизнес-цель:** Показать на оценке Sber500 серьёзный AI-прогресс за 2 дня
 
 **Технические цели:**
-1. Создать 5 новых Qdrant коллекций с GigaChat Embeddings
-2. Потратить ~5 млн токенов embeddings (баланс до 04.10.2026)
-3. Добавить базовый RL для InterviewerAgent
-4. Измерить улучшение качества (до/после)
+1. Создать 3 ОПТИМИЗИРОВАННЫХ Qdrant коллекции с GigaChat Embeddings (1024-dim)
+2. Потратить 3 млн токенов embeddings + 2 млн резерв на fine-tuning
+3. Использовать РЕАЛЬНЫЕ данные из веба (Perplexity, Parallel AI)
+4. Добавить базовый RL для InterviewerAgent
+5. Измерить улучшение качества (до/после)
 
 ---
 
 ## 📊 Бюджет токенов (5 млн total)
 
-| Коллекция | Документов | Tokens/doc | Total tokens | % бюджета |
-|-----------|------------|------------|--------------|-----------|
-| successful_grants | 50 | 10,000 | 500,000 | 10% |
-| grant_criteria | 100 | 5,000 | 500,000 | 10% |
-| research_methodologies | 200 | 3,000 | 600,000 | 12% |
-| budget_templates | 150 | 4,000 | 600,000 | 12% |
-| user_projects | 500 | 5,000 | 2,500,000 | 50% |
-| **Резерв (тестирование)** | - | - | 300,000 | 6% |
-| **TOTAL** | 1,000 | - | **5,000,000** | **100%** |
+| Коллекция | Источник | Tokens | % бюджета | Status |
+|-----------|----------|--------|-----------|--------|
+| **fpg_real_winners** | Web scraping (Perplexity/Parallel AI) | 1,200,000 | 24% | 🔥 NEW |
+| **fpg_requirements_gigachat** | БД + Web (критерии + методологии + бюджеты) | 1,000,000 | 20% | 🔥 NEW |
+| **user_grants_all** | PostgreSQL grant_applications (174 гранта) | 800,000 | 16% | 🔥 NEW |
+| **Резерв на fine-tuning** | - | 2,000,000 | 40% | 💎 RESERVED |
+| **TOTAL** | - | **5,000,000** | **100%** | ✅ |
+
+**Ключевое изменение:** user_grants_approved (наши тестовые 29 грантов) НЕ используем для обучения! Вместо них - РЕАЛЬНЫЕ победители из веба через web search.
 
 ---
 
-## 📁 Структура коллекций
+## 📁 Структура коллекций (3 оптимизированных)
 
-### 1. `successful_grants` (500K tokens)
-**Источник:** Открытые данные победителей ФПГ 2020-2024
+### 1. `fpg_real_winners` (1.2M tokens) 🔥 NEW
+
+**Источник:** РЕАЛЬНЫЕ победители ФПГ 2020-2024 из веба
+
+**Метод сбора данных:**
+1. **Perplexity AI промты:**
+   ```
+   "Найди список победителей Фонда президентских грантов 2024 года в категории 'Социальное обслуживание'.
+   Для каждого проекта укажи: название, организация, регион, сумма гранта, описание проблемы, предлагаемое решение."
+   ```
+
+2. **Parallel AI промты:**
+   ```
+   "Проанализируй победившие грантовые заявки ФПГ в категории 'Образование' за 2023 год.
+   Извлеки ключевые характеристики: целевая аудитория, социальная значимость, измеримые результаты."
+   ```
+
+3. **Ручной анализ:** 50-100 реальных заявок победителей
 
 **Что храним:**
-- title (название проекта)
-- problem (описание проблемы)
-- solution (решение)
-- implementation (план реализации)
-- budget (бюджет)
-- fund_name (ФПГ/РНФ/РФФИ)
-- year (год победы)
-- region (регион)
-- amount (сумма гранта)
+- `title` - название проекта
+- `organization` - организация-победитель
+- `problem` - описание проблемы (300-500 слов)
+- `solution` - решение (500-1000 слов)
+- `target_audience` - целевая аудитория
+- `social_impact` - социальная значимость
+- `kpi` - измеримые результаты
+- `budget` - бюджет и статьи расходов
+- `fund_name` - ФПГ/РНФ/РФФИ
+- `year` - год победы
+- `region` - регион
+- `amount` - сумма гранта
+- `category` - категория конкурса
+- `rating_score` - экспертная оценка (если доступна)
 
 **Embedding strategy:**
-- Каждый раздел отдельно (title, problem, solution, etc.)
-- Метаданные в payload для фильтрации
+- Каждый раздел отдельно: problem, solution, kpi, budget
+- Метаданные в payload: fund, year, region, category, amount
+- GigaChat Embeddings API (1024-dim)
 
 **Использование:**
-- WriterAgent: поиск похожих успешных проектов
-- Контекст для LLM: "Вот как писали победители"
+- **WriterAgent:** Поиск похожих успешных проектов для вдохновения
+- **RL Training:** Положительные примеры (approved = +10 reward)
+- **ReviewerAgent:** Сравнение с winning patterns
+
+**Token budget:** ~1,200,000 tokens (100 грантов × ~12,000 tokens/грант)
 
 ---
 
-### 2. `grant_criteria` (500K tokens)
-**Источник:** Требования фондов (ФПГ, РНФ, РФФИ, региональные)
+### 2. `fpg_requirements_gigachat` (1M tokens) 🔥 NEW
+
+**Источник:** КОНСОЛИДАЦИЯ 3 типов данных:
+1. Критерии оценки фондов (grant_criteria)
+2. Методологии исследования (research_methodologies)
+3. Бюджетные шаблоны (budget_templates)
+
+**Метод сбора:**
+1. **Из PostgreSQL:** 17 существующих knowledge_sections
+2. **Web scraping:** Официальные сайты ФПГ, РНФ, РФФИ
+3. **Perplexity/Parallel AI:** "Критерии оценки грантовых заявок ФПГ 2024"
 
 **Что храним:**
-- fund_name (название фонда)
-- criterion_name (название критерия)
-- criterion_description (описание)
-- weight (вес в оценке, 0-100%)
-- requirements (конкретные требования)
-- examples (примеры соответствия)
+
+**A. Критерии оценки (40%):**
+- `fund_name` - ФПГ/РНФ/РФФИ
+- `criterion_name` - название критерия
+- `criterion_description` - описание
+- `weight` - вес в оценке (0-100%)
+- `requirements` - конкретные требования
+- `examples` - примеры соответствия
+
+**B. Методологии (30%):**
+- `methodology_name` - SMART, Agile, Design Thinking
+- `description` - описание
+- `application_area` - область применения
+- `kpi_examples` - примеры KPI
+- `smart_goals_examples` - примеры SMART-целей
+
+**C. Бюджетные шаблоны (30%):**
+- `fund_name` - фонд
+- `project_type` - тип проекта
+- `budget_categories` - категории расходов
+- `justification` - обоснование
+- `total_amount` - общая сумма
+- `duration_months` - длительность
+
+**Embedding strategy:**
+- Каждый тип данных (критерии, методологии, бюджеты) с отдельными metadata tags
+- GigaChat Embeddings API (1024-dim)
+- Hierarchical chunking: раздел → подраздел → параграф
 
 **Использование:**
-- ReviewerAgent: адаптивная оценка под конкретный фонд
-- AuditorAgent: проверка соответствия требованиям
+- **ReviewerAgent:** Адаптивная оценка под конкретный фонд
+- **AuditorAgent:** Проверка соответствия требованиям
+- **WriterAgent:** Раздел "Бюджет" + методология
+
+**Token budget:** ~1,000,000 tokens (200 документов × ~5,000 tokens/doc)
 
 ---
 
-### 3. `research_methodologies` (600K tokens)
-**Источник:** Научная литература, методички, best practices
+### 3. `user_grants_all` (800K tokens) 🔥 NEW
 
-**Что храним:**
-- methodology_name (SMART, Agile, Design Thinking, etc.)
-- description (описание методологии)
-- application_area (область применения)
-- kpi_examples (примеры KPI)
-- smart_goals_examples (примеры SMART-целей)
-- metrics (метрики оценки)
+**Источник:** Готовые заявки из PostgreSQL grant_applications (174 гранта)
 
-**Использование:**
-- WriterAgent: раздел "Методология исследования"
-- InterviewerAgent: подсказки по метрикам
-
----
-
-### 4. `budget_templates` (600K tokens)
-**Источник:** Шаблоны смет из победивших заявок
-
-**Что храним:**
-- fund_name (фонд)
-- project_type (тип проекта)
-- budget_categories (категории расходов)
-- justification (обоснование)
-- total_amount (общая сумма)
-- duration_months (длительность)
-
-**Использование:**
-- WriterAgent: раздел "Бюджет"
-- Проверка реалистичности запрашиваемой суммы
-
----
-
-### 5. `user_projects` (2.5M tokens) - **приоритет!**
-**Источник:** Готовые заявки из нашей БД
+**Метод извлечения:**
+```sql
+-- Все гранты (draft + approved)
+SELECT id, title, content_json, status, quality_score, created_at, updated_at
+FROM grant_applications
+WHERE content_json IS NOT NULL
+ORDER BY created_at DESC;
+```
 
 **Что векторизуем:**
-- Все grant_applications (таблица)
-- Структура: 10 разделов каждой заявки
-- Метаданные: status, quality_score, created_at
+- **174 гранта total:**
+  - 145 draft (черновики)
+  - 29 approved (одобренные)
+- **10 разделов каждой заявки:**
+  - problem (проблема)
+  - solution (решение)
+  - target_audience (целевая аудитория)
+  - goals (цели)
+  - methodology (методология)
+  - timeline (план реализации)
+  - budget (бюджет)
+  - team (команда)
+  - risks (риски)
+  - impact (ожидаемые результаты)
+
+**Метаданные (payload):**
+- `status` - draft/approved/submitted
+- `quality_score` - оценка ReviewerAgent (0-10)
+- `created_at` - дата создания
+- `user_id` - ID пользователя
+- `fund_target` - целевой фонд
+
+**Embedding strategy:**
+- Каждый раздел отдельно (10 vectors per grant × 174 grants = 1,740 vectors)
+- GigaChat Embeddings API (1024-dim)
+- Metadata-based filtering для similarity search
 
 **Использование:**
-- Поиск похожих проектов пользователей
-- Рекомендации: "Похожие проекты получили гранты"
-- RL reward: успешные заявки = положительный feedback
+- **WriterAgent:** Поиск похожих проектов пользователей
+- **Рекомендации:** "Похожие проекты в нашей базе"
+- **RL Training:**
+  - approved grants (29) = положительные примеры (+5 reward)
+  - draft grants (145) = примеры для обучения (neutral)
+- **Персонализация:** Учет истории пользователя
+
+**Token budget:** ~800,000 tokens (174 grants × 10 sections × ~460 tokens/section)
+
+**Отличие от fpg_real_winners:**
+- `fpg_real_winners` = РЕАЛЬНЫЕ победители из веба (эталон качества)
+- `user_grants_all` = НАШИ пользователи (история системы, персонализация)
 
 ---
 
@@ -375,85 +443,123 @@ def test_use_production_gigachat():
 
 ## 🗓️ Timeline (2 дня) - Following PROJECT-EVOLUTION-METHODOLOGY
 
-### День 1 (26 октября, сегодня)
+### День 1 (26 октября, сегодня) - Data Collection
 
-**Commit #1: Iteration plan + schemas (утро, 2 часа)**
+**Commit #1: Iteration plan + schemas (СЕЙЧАС, 1 час)**
 ```bash
-git commit -m "feat(iteration-51): Plan + collection schemas"
+git commit -m "feat(iteration-51): Plan + 3 collection schemas (3M tokens + 2M reserve)"
 ```
-- ✅ Create iteration plan (этот файл)
+- ✅ Update iteration plan (3 коллекции вместо 5)
+- Create Pydantic models для 3 коллекций
 - Create Qdrant collection schemas (JSON)
-- Create data models (Pydantic)
 - **Test:** Schema validation
 - **CI:** Lint + type check
+- **Lines:** ~150 lines
 
-**Commit #2: Data collection + Unit tests (день, 3 часа)**
+**Commit #2: Web search промты + parsers (день, 3 часа)**
 ```bash
-git commit -m "feat(iteration-51): Data parsers + unit tests"
+git commit -m "feat(iteration-51): Perplexity/Parallel AI prompts + FPG parsers"
 ```
-- Scrape successful_grants (ФПГ parser)
-- Create grant_criteria dataset
-- Unit tests для парсеров (70% coverage)
-- **Test:** `test_fpg_parser.py`, `test_criteria_loader.py`
+- **Perplexity AI промты** для fpg_real_winners:
+  - "Победители ФПГ 2024: Социальное обслуживание"
+  - "Победители ФПГ 2023: Образование"
+  - "Победители ФПГ 2024: Культура"
+- **Parallel AI промты** для анализа заявок
+- Create FPG web parser (BeautifulSoup)
+- Unit tests: `test_web_parsers.py`
+- **Test:** Mock HTML fixtures
 - **CI:** All unit tests pass
+- **Lines:** ~180 lines
 
-**Commit #3: Embeddings loader + Integration test (вечер, 3 часа)**
+**Commit #3: GigaChat embeddings loader (вечер, 2 часа)**
 ```bash
-git commit -m "feat(iteration-51): GigaChat embeddings loader"
+git commit -m "feat(iteration-51): GigaChat Embeddings API client + loader"
 ```
-- Create `scripts/gigachat_embeddings_loader.py`
-- Load successful_grants (500K tokens)
-- Integration test: `test_gigachat_embedding.py`
-- **Test:** Verify collection created, vectors count
-- **CI:** Integration tests pass
+- Create `shared/llm/gigachat_embeddings.py`
+- GigaChat Embeddings API client (1024-dim)
+- Batch processing (100 texts per batch)
+- Integration test: `test_gigachat_embeddings_client.py`
+- **Test:** Create 10 test embeddings
+- **Metrics:** Test token usage (~5K tokens)
+- **Lines:** ~120 lines
 
-**Commit #4: Load 3 more collections (вечер, 2 часа)**
+**Commit #4: Load fpg_real_winners (вечер, 3 часа)**
 ```bash
-git commit -m "feat(iteration-51): Load grant_criteria + research + budget"
+git commit -m "feat(iteration-51): Load 100 real FPG winners (1.2M tokens)"
 ```
-- Load grant_criteria (500K)
-- Load research_methodologies (600K)
-- Load budget_templates (600K)
-- **Test:** All collections green
-- **Metrics:** 2.2M / 5M tokens used (44%)
+- Process Perplexity/Parallel AI результаты
+- Parse 100 real grant applications
+- Create Qdrant collection `fpg_real_winners`
+- Load embeddings (1.2M tokens)
+- **Test:** `test_fpg_real_winners_collection.py`
+- **Metrics:** 1.2M / 3M tokens used (40%)
+- **Lines:** ~150 lines
 
-### День 2 (27 октября)
+### День 2 (27 октября) - Vectorization + Integration
 
-**Commit #5: Vectorize user_projects (утро, 3 часа)**
+**Commit #5: Load fpg_requirements_gigachat (утро, 2 часа)**
 ```bash
-git commit -m "feat(iteration-51): Vectorize all user grant applications"
+git commit -m "feat(iteration-51): Consolidate criteria + methodologies + budgets (1M tokens)"
 ```
-- Query all grant_applications from PostgreSQL
-- Create embeddings (2.5M tokens)
-- **Test:** `test_user_projects_vectorization.py`
-- **Metrics:** 4.7M / 5M tokens used (94%)
+- Consolidate 3 типа данных:
+  - A. Критерии оценки (40%)
+  - B. Методологии (30%)
+  - C. Бюджетные шаблоны (30%)
+- Create Qdrant collection `fpg_requirements_gigachat`
+- Load embeddings (1M tokens)
+- **Test:** `test_fpg_requirements_collection.py`
+- **Metrics:** 2.2M / 3M tokens used (73%)
+- **Lines:** ~120 lines
 
-**Commit #6: WriterAgent integration (день, 2 часа)**
+**Commit #6: Load user_grants_all (день, 2 часа)**
 ```bash
-git commit -m "feat(iteration-51): Integrate successful_grants in WriterAgent"
+git commit -m "feat(iteration-51): Vectorize 174 user grants (800K tokens)"
 ```
-- Add semantic search to WriterAgent
-- Query successful_grants before generation
+- Query PostgreSQL grant_applications (174 total)
+- Vectorize 10 sections × 174 grants = 1,740 vectors
+- Create Qdrant collection `user_grants_all`
+- Load embeddings (800K tokens)
+- **Test:** `test_user_grants_collection.py`
+- **Metrics:** 3M / 3M tokens used (100%) + 2M reserve
+- **Lines:** ~100 lines
+
+**Commit #7: WriterAgent integration (день, 3 часа)**
+```bash
+git commit -m "feat(iteration-51): Integrate fpg_real_winners + fpg_requirements in WriterAgent"
+```
+- Add semantic search в WriterAgent:
+  - Query `fpg_real_winners` для похожих успешных проектов
+  - Query `fpg_requirements_gigachat` для критериев/методологий
+  - Query `user_grants_all` для персонализации
+- Integration test: `test_writer_with_embeddings.py`
 - **Test:** Compare quality (Iteration 50 baseline)
-- **Metrics:** Readiness score improvement
+- **Expected:** +1 point minimum в ReviewerAgent score
+- **Lines:** ~150 lines
 
-**Commit #7: RL for InterviewerAgent (день, 3 часа)**
+**Commit #8: RL for InterviewerAgent (вечер, 3 часа)**
 ```bash
-git commit -m "feat(iteration-51): Q-learning for InterviewerAgent"
+git commit -m "feat(iteration-51): Q-learning for InterviewerAgent (optional)"
 ```
 - Create `agents/rl_interviewer_agent.py`
-- Q-table storage in PostgreSQL
-- **Test:** `test_rl_convergence.py` (100 simulations)
-- **Metrics:** Questions reduction (50 → 40)
+- Q-table storage в PostgreSQL (table: rl_q_values)
+- Epsilon-greedy policy (ε=0.1)
+- **Test:** `test_rl_q_learning.py` (unit test)
+- **Metrics:** Q-table size, convergence
+- **Lines:** ~120 lines
+- **Note:** ⚠️ OPTIONAL - if time allows
 
-**Commit #8: Documentation + SUMMARY (вечер, 2 часа)**
+**Commit #9: Documentation + SUMMARY (вечер, 2 часа)**
 ```bash
-git commit -m "docs(iteration-51): Summary + metrics for Sber500"
+git commit -m "docs(iteration-51): Summary + Sber500 presentation metrics"
 ```
 - Create ITERATION_51_SUMMARY.md
-- Export metrics dashboard
-- Final token usage report
-- **Deliverable:** Ready for presentation
+- Export metrics:
+  - Token usage: 3M / 5M (60%)
+  - Collections created: 3
+  - Vectors total: ~2,840 (100 + 200 + 1,740)
+  - Quality improvement: baseline vs embeddings
+- Final deliverable for Sber500
+- **Lines:** ~200 lines (markdown)
 
 ---
 
