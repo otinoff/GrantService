@@ -37,7 +37,7 @@ class ExpertAgent:
         postgres_user: str = "postgres",
         postgres_password: str = "root",
         postgres_db: str = "grantservice",
-        qdrant_host: str = "localhost",
+        qdrant_host: str = "5.35.88.251",  # Production Qdrant на хостинге
         qdrant_port: int = 6333,
         embedding_model: str = "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2"
     ):
