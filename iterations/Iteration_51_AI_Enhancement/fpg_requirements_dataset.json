@@ -1,0 +1,332 @@
+[
+  {
+    "requirement_type": "criterion",
+    "content": "Реалистичность бюджета проекта: Оценка реалистичности и обоснованности бюджета проекта. Applicants are required to provide detailed comments and justifications for every single line item in the budget. These justifications must go beyond simply naming the expense; they must clearly explain the necessity of the expense for achieving the project's specific objectives and activities. The narrative must articulate how the quantity and cost of each item were determined, ensuring that every expense is defensible and directly contributes to the project's success.",
+    "fund_name": "ФПГ",
+    "category": "Evaluation Criteria",
+    "criterion_data": {
+      "fund_name": "ФПГ",
+      "criterion_name": "Реалистичность бюджета проекта",
+      "criterion_description": "Оценка реалистичности и обоснованности бюджета проекта",
+      "weight": 30.0,
+      "requirements": "Applicants are required to provide detailed comments and justifications for every single line item in the budget. These justifications must go beyond simply naming the expense; they must clearly explain the necessity of the expense for achieving the project's specific objectives and activities. The narrative must articulate how the quantity and cost of each item were determined, ensuring that every expense is defensible and directly contributes to the project's success.",
+      "examples": "To substantiate proposed costs and demonstrate that they are in line with market rates, applicants must provide concrete evidence. For personnel costs, the methodology explicitly suggests using job search platforms like hh.ru or trud.com to find comparable salary data for similar roles within the project's specific region. For the acquisition of equipment, materials, or services, applicants are expected to provide direct hyperlinks to vendor websites, product pages, or attach formal commercial offers and price lists. This practice of price benchmarking is crucial for proving the realism and fairness of the budget."
+    },
+    "methodology_data": null,
+    "budget_data": null
+  },
+  {
+    "requirement_type": "criterion",
+    "content": "Социальная значимость: Оценка влияния проекта на общество и решение социальных проблем. Articulating social significance and measuring impact is a cornerstone of a successful grant application for the Presidential Grants Fund. Applicants must begin by providing a detailed description of the target audience, going beyond simple demographics to include psychographics, geographic scope, and the specific challenges or needs this group faces. The validation of these needs is critical and should be evidenced through methods such as local surveys, analysis of official administrative data,",
+    "fund_name": "ФПГ",
+    "category": "Evaluation Criteria",
+    "criterion_data": {
+      "fund_name": "ФПГ",
+      "criterion_name": "Социальная значимость",
+      "criterion_description": "Оценка влияния проекта на общество и решение социальных проблем",
+      "weight": 25.0,
+      "requirements": "Articulating social significance and measuring impact is a cornerstone of a successful grant application for the Presidential Grants Fund. Applicants must begin by providing a detailed description of the target audience, going beyond simple demographics to include psychographics, geographic scope, and the specific challenges or needs this group faces. The validation of these needs is critical and should be evidenced through methods such as local surveys, analysis of official administrative data,",
+      "examples": "Best practices for specifying a project's target audience involve moving beyond broad categories to provide a detailed profile. This includes quantitative demographic data (age, gender, income level, etc.), geographic scope (specific cities, regions, or districts), and psychographic characteristics (values, attitudes, needs, challenges). A strong application would clearly define the size of the potential target group and the number of beneficiaries the project realistically expects to reach. \n\nT"
+    },
+    "methodology_data": null,
+    "budget_data": null
+  },
+  {
+    "requirement_type": "criterion",
+    "content": "Логическая связь бюджета и плана: Соответствие бюджета календарному плану и целям проекта. A critical requirement for a successful budget justification is the establishment of a clear, logical, and verifiable connection between every budget expense and the project's calendar plan or work plan. Each cost must correspond to a specific activity, milestone, or task outlined in the project's timeline. Evaluators scrutinize the budget to ensure there are no 'phantom' expenses that are not reflected in the project's planned activities. A failure to demonstrate this direct link will negatively impact the evaluation score and may lead to the rejection of the funding request.",
+    "fund_name": "ФПГ",
+    "category": "Evaluation Criteria",
+    "criterion_data": {
+      "fund_name": "ФПГ",
+      "criterion_name": "Логическая связь бюджета и плана",
+      "criterion_description": "Соответствие бюджета календарному плану и целям проекта",
+      "weight": 20.0,
+      "requirements": "A critical requirement for a successful budget justification is the establishment of a clear, logical, and verifiable connection between every budget expense and the project's calendar plan or work plan. Each cost must correspond to a specific activity, milestone, or task outlined in the project's timeline. Evaluators scrutinize the budget to ensure there are no 'phantom' expenses that are not reflected in the project's planned activities. A failure to demonstrate this direct link will negatively impact the evaluation score and may lead to the rejection of the funding request.",
+      "examples": "A realistic and detailed project timeline, often referred to as a 'calendar plan,' is a critical component of a successful application. The methodological guidance indicates that this plan is not just a formality but the central organizing element to which the budget and activities must be linked. Best practice involves creating a Gantt chart or a detailed table that breaks down the entire project duration (e.g., 12 months) into phases and lists specific activities and milestones for each month "
+    },
+    "methodology_data": null,
+    "budget_data": null
+  },
+  {
+    "requirement_type": "criterion",
+    "content": "Уровень софинансирования: Доля собственного вклада организации в проект. Co-financing, referred to as 'own contribution' (Собственный вклад), is a highly recommended component of a grant application, although not strictly mandatory. Its inclusion significantly boosts evaluation scores. The ideal contribution is stated to be at least 25% of the total project budget, with contributions over 50% being viewed even more favorably. For instance, in the FPG's second competition of 2024, the 883 winning projects had an average co-financing level of 92%, underscoring its importance. Co-financing can be monetary or in-kind. In-kind contributions include quantifiable resources like the provision of premises free of charge or the value of volunteer work. These contributions must be justified with details on their estimated market value. An interesting aspect noted is that there is no formal reporting requirement for the co-financing portion, which may provide some flexibility for applicants.",
+    "fund_name": "ФПГ",
+    "category": "Evaluation Criteria",
+    "criterion_data": {
+      "fund_name": "ФПГ",
+      "criterion_name": "Уровень софинансирования",
+      "criterion_description": "Доля собственного вклада организации в проект",
+      "weight": 15.0,
+      "requirements": "Co-financing, referred to as 'own contribution' (Собственный вклад), is a highly recommended component of a grant application, although not strictly mandatory. Its inclusion significantly boosts evaluation scores. The ideal contribution is stated to be at least 25% of the total project budget, with contributions over 50% being viewed even more favorably. For instance, in the FPG's second competition of 2024, the 883 winning projects had an average co-financing level of 92%, underscoring its importance. Co-financing can be monetary or in-kind. In-kind contributions include quantifiable resources like the provision of premises free of charge or the value of volunteer work. These contributions must be justified with details on their estimated market value. An interesting aspect noted is that there is no formal reporting requirement for the co-financing portion, which may provide some flexibility for applicants.",
+      "examples": "Идеальный уровень: 25%+, оптимальный: 50%+. Средний по ФПГ 2024: 92%"
+    },
+    "methodology_data": null,
+    "budget_data": null
+  },
+  {
+    "requirement_type": "criterion",
+    "content": "План устойчивости: Стратегия продолжения проекта после окончания гранта. Applicants must demonstrate a clear plan for the project's continuation and impact beyond the grant period. Strategies for this include institutionalization and partnerships. An example cited in the methodology illustrates a multi-faceted approach: a museum-creative space project planned for its post-grant operation to be supported by the existing resources of an affiliated institution (a School of Classical Ballet). It also planned to leverage crowdfunding for acquiring specialized equipment and secured the continued free use of its premises through a partnership with a state educational institution. This combination of embedding the project within an existing structure, fostering partnerships, and engaging the community demonstrates a robust sustainability model.",
+    "fund_name": "ФПГ",
+    "category": "Evaluation Criteria",
+    "criterion_data": {
+      "fund_name": "ФПГ",
+      "criterion_name": "План устойчивости",
+      "criterion_description": "Стратегия продолжения проекта после окончания гранта",
+      "weight": 10.0,
+      "requirements": "Applicants must demonstrate a clear plan for the project's continuation and impact beyond the grant period. Strategies for this include institutionalization and partnerships. An example cited in the methodology illustrates a multi-faceted approach: a museum-creative space project planned for its post-grant operation to be supported by the existing resources of an affiliated institution (a School of Classical Ballet). It also planned to leverage crowdfunding for acquiring specialized equipment and secured the continued free use of its premises through a partnership with a state educational institution. This combination of embedding the project within an existing structure, fostering partnerships, and engaging the community demonstrates a robust sustainability model.",
+      "examples": "A key element of financial sustainability is the plan for generating income after the grant funding ends. Applicants are encouraged to explicitly describe any potential for commercial income. Examples include generating revenue through ticket sales for events, offering services on a paid basis (fee-for-service model), or renting out spaces or equipment acquired through the grant. The example of the museum-creative space project included a plan to generate income by renting out its equipped facilities for educational events, showcasing a clear path towards financial self-sufficiency."
+    },
+    "methodology_data": null,
+    "budget_data": null
+  },
+  {
+    "requirement_type": "methodology",
+    "content": "SMART Goals: Specific, Measurable, Achievable, Relevant, Time-bound цели проекта. Провести 50 мероприятий для 1000 участников до 31.12.2025 Охват: 500 молодых людей из группы риска за 6 месяцев Достижение 20% улучшения показателей психического здоровья участников",
+    "fund_name": "ФПГ",
+    "category": "Research Methodologies",
+    "criterion_data": null,
+    "methodology_data": {
+      "methodology_name": "SMART Goals",
+      "description": "Specific, Measurable, Achievable, Relevant, Time-bound цели проекта",
+      "application_area": "Постановка целей и задач проекта",
+      "kpi_examples": [
+        "Провести 50 мероприятий для 1000 участников до 31.12.2025",
+        "Охват: 500 молодых людей из группы риска за 6 месяцев",
+        "Достижение 20% улучшения показателей психического здоровья участников"
+      ],
+      "smart_goals_examples": [
+        "Обучить 100 волонтёров навыкам работы с бездомными к концу первого квартала",
+        "Открыть 3 новых центра помощи в регионах к июню 2025",
+        "Достичь уровня удовлетворённости участников 85%+ по итогам проекта"
+      ]
+    },
+    "budget_data": null
+  },
+  {
+    "requirement_type": "methodology",
+    "content": "Logic Model (Theory of Change): Логическая модель причинно-следственных связей: ресурсы → активности → результаты → влияние. Inputs: 3 млн руб гранта + 2 млн софинансирование Activities: 20 воркшопов, 5 тренингов, 10 публичных событий Outputs: 1000 обученных участников, 50 публикаций Outcomes: Снижение безработицы на 15%, рост вовлечённости в НКО на 25%",
+    "fund_name": "ФПГ",
+    "category": "Research Methodologies",
+    "criterion_data": null,
+    "methodology_data": {
+      "methodology_name": "Logic Model (Theory of Change)",
+      "description": "Логическая модель причинно-следственных связей: ресурсы → активности → результаты → влияние",
+      "application_area": "Проектирование логики проекта и обоснование бюджета",
+      "kpi_examples": [
+        "Inputs: 3 млн руб гранта + 2 млн софинансирование",
+        "Activities: 20 воркшопов, 5 тренингов, 10 публичных событий",
+        "Outputs: 1000 обученных участников, 50 публикаций",
+        "Outcomes: Снижение безработицы на 15%, рост вовлечённости в НКО на 25%"
+      ],
+      "smart_goals_examples": [
+        "While the term 'Theory of Change' was not explicitly found in the methodological documents, the strong emphasis on the 'logical connection' between the budget, calendar plan, and project objectives ef"
+      ]
+    },
+    "budget_data": null
+  },
+  {
+    "requirement_type": "methodology",
+    "content": "Risk Management (Управление рисками): Систематический подход к идентификации, оценке и митигации рисков проекта. Риск: низкая явка участников (вероятность: средняя, влияние: высокое) Митигация: дополнительные каналы рекрутинга, материальные стимулы Риск: задержка поставки оборудования (вероятность: низкая, влияние: среднее)",
+    "fund_name": "ФПГ",
+    "category": "Research Methodologies",
+    "criterion_data": null,
+    "methodology_data": {
+      "methodology_name": "Risk Management (Управление рисками)",
+      "description": "Систематический подход к идентификации, оценке и митигации рисков проекта",
+      "application_area": "Планирование рисков и разработка стратегий их снижения",
+      "kpi_examples": [
+        "Риск: низкая явка участников (вероятность: средняя, влияние: высокое)",
+        "Митигация: дополнительные каналы рекрутинга, материальные стимулы",
+        "Риск: задержка поставки оборудования (вероятность: низкая, влияние: среднее)"
+      ],
+      "smart_goals_examples": [
+        "Successful applications to the Presidential Grants Fund are expected to include a comprehensive risk management plan, typically structured as a risk register. This register should identify potential r"
+      ]
+    },
+    "budget_data": null
+  },
+  {
+    "requirement_type": "methodology",
+    "content": "Monitoring & Evaluation (M&E): Система непрерывного отслеживания прогресса и итоговой оценки результатов проекта. Мониторинг: ежемесячные отчёты по охвату участников Оценка: опросы до/после участия, анализ изменений показателей Данные: регистрационные формы, post-event surveys, фокус-группы",
+    "fund_name": "ФПГ",
+    "category": "Research Methodologies",
+    "criterion_data": null,
+    "methodology_data": {
+      "methodology_name": "Monitoring & Evaluation (M&E)",
+      "description": "Система непрерывного отслеживания прогресса и итоговой оценки результатов проекта",
+      "application_area": "Мониторинг прогресса и оценка эффективности проекта",
+      "kpi_examples": [
+        "Мониторинг: ежемесячные отчёты по охвату участников",
+        "Оценка: опросы до/после участия, анализ изменений показателей",
+        "Данные: регистрационные формы, post-event surveys, фокус-группы"
+      ],
+      "smart_goals_examples": [
+        "A formal Monitoring & Evaluation (M&E) plan is a standard component of a grant application. The monitoring section of this plan outlines the continuous process of tracking project progress. It should ",
+        "The evaluation plan outlines how the project's overall success and impact will be assessed upon completion. This plan should be designed to feed into the Fund's formal post-project evaluation process,"
+      ]
+    },
+    "budget_data": null
+  },
+  {
+    "requirement_type": "budget",
+    "content": "Budget Category: Labor Costs (Оплата труда): This category covers remuneration for project personnel. It includes salaries for full-time staff, payments to individuals under civil law contracts (GPH), and fees for self-employed individuals. It a.... This category covers remuneration for project personnel. It includes salaries for full-time staff, payments to individuals under civil law contracts (GPH), and fees for self-employed individuals. It also encompasses all mandatory insurance contributions. Justification for this category is extensive, requiring details on each employee's responsibilities, their time commitment to the project (specified in hours or as a percentage of full-time employment), and their proposed salary, inclusive of personal income tax (NDFL). Applicants are expected to provide brief summaries of the personnel's qualifications and achievements to demonstrate their capacity to fulfill their roles. Price benchmarking is strongly encouraged, with applicants advised to provide links to job portals like hh.ru or trud.com for comparable positions in the project's region to validate the proposed salary levels.",
+    "fund_name": "ФПГ",
+    "category": "Budget Templates",
+    "criterion_data": null,
+    "methodology_data": null,
+    "budget_data": {
+      "fund_name": "ФПГ",
+      "project_type": "Универсальный шаблон",
+      "budget_categories": [
+        "Labor Costs (Оплата труда): This category covers remuneration for project personnel. It includes salaries for full-time staff, payments to individuals under civil law contracts (GPH), and fees for self-employed individuals. It a..."
+      ],
+      "justification": "This category covers remuneration for project personnel. It includes salaries for full-time staff, payments to individuals under civil law contracts (GPH), and fees for self-employed individuals. It also encompasses all mandatory insurance contributions. Justification for this category is extensive, requiring details on each employee's responsibilities, their time commitment to the project (specified in hours or as a percentage of full-time employment), and their proposed salary, inclusive of personal income tax (NDFL). Applicants are expected to provide brief summaries of the personnel's qualifications and achievements to demonstrate their capacity to fulfill their roles. Price benchmarking is strongly encouraged, with applicants advised to provide links to job portals like hh.ru or trud.com for comparable positions in the project's region to validate the proposed salary levels.",
+      "total_amount": 3000000,
+      "duration_months": 12
+    }
+  },
+  {
+    "requirement_type": "budget",
+    "content": "Budget Category: Business Trip Expenses (Командировочные расходы): This category includes all standard costs associated with travel that is essential for the execution of project activities. This can cover transportation, accommodation, and per diems for project staf.... This category includes all standard costs associated with travel that is essential for the execution of project activities. This can cover transportation, accommodation, and per diems for project staff and potentially for invited experts or participants, as long as the travel is directly linked to the project's work plan and objectives.",
+    "fund_name": "ФПГ",
+    "category": "Budget Templates",
+    "criterion_data": null,
+    "methodology_data": null,
+    "budget_data": {
+      "fund_name": "ФПГ",
+      "project_type": "Универсальный шаблон",
+      "budget_categories": [
+        "Business Trip Expenses (Командировочные расходы): This category includes all standard costs associated with travel that is essential for the execution of project activities. This can cover transportation, accommodation, and per diems for project staf..."
+      ],
+      "justification": "This category includes all standard costs associated with travel that is essential for the execution of project activities. This can cover transportation, accommodation, and per diems for project staff and potentially for invited experts or participants, as long as the travel is directly linked to the project's work plan and objectives.",
+      "total_amount": 3000000,
+      "duration_months": 12
+    }
+  },
+  {
+    "requirement_type": "budget",
+    "content": "Budget Category: Office Expenses (Офисные расходы): This category is for general administrative and operational costs required to maintain the project's office environment. Examples include stationery, utilities, communication costs (internet, phone), .... This category is for general administrative and operational costs required to maintain the project's office environment. Examples include stationery, utilities, communication costs (internet, phone), and other consumables necessary for the day-to-day running of the project.",
+    "fund_name": "ФПГ",
+    "category": "Budget Templates",
+    "criterion_data": null,
+    "methodology_data": null,
+    "budget_data": {
+      "fund_name": "ФПГ",
+      "project_type": "Универсальный шаблон",
+      "budget_categories": [
+        "Office Expenses (Офисные расходы): This category is for general administrative and operational costs required to maintain the project's office environment. Examples include stationery, utilities, communication costs (internet, phone), ..."
+      ],
+      "justification": "This category is for general administrative and operational costs required to maintain the project's office environment. Examples include stationery, utilities, communication costs (internet, phone), and other consumables necessary for the day-to-day running of the project.",
+      "total_amount": 3000000,
+      "duration_months": 12
+    }
+  },
+  {
+    "requirement_type": "budget",
+    "content": "Budget Category: Acquisition/Rental of Specialized Equipment, Inventory (Приобретение, аренда специализированного оборудования, инвентаря): This category covers the costs of purchasing or renting specialized equipment, software, or other inventory essential for project activities. The justification must clearly articulate why each item is.... This category covers the costs of purchasing or renting specialized equipment, software, or other inventory essential for project activities. The justification must clearly articulate why each item is necessary for achieving the project's goals, describe its technical characteristics, and substantiate its cost. Crucially, applicants must provide evidence for the proposed costs, such as direct links to vendor websites, screenshots of product pages, or formal commercial offers.",
+    "fund_name": "ФПГ",
+    "category": "Budget Templates",
+    "criterion_data": null,
+    "methodology_data": null,
+    "budget_data": {
+      "fund_name": "ФПГ",
+      "project_type": "Универсальный шаблон",
+      "budget_categories": [
+        "Acquisition/Rental of Specialized Equipment, Inventory (Приобретение, аренда специализированного оборудования, инвентаря): This category covers the costs of purchasing or renting specialized equipment, software, or other inventory essential for project activities. The justification must clearly articulate why each item is..."
+      ],
+      "justification": "This category covers the costs of purchasing or renting specialized equipment, software, or other inventory essential for project activities. The justification must clearly articulate why each item is necessary for achieving the project's goals, describe its technical characteristics, and substantiate its cost. Crucially, applicants must provide evidence for the proposed costs, such as direct links to vendor websites, screenshots of product pages, or formal commercial offers.",
+      "total_amount": 3000000,
+      "duration_months": 12
+    }
+  },
+  {
+    "requirement_type": "budget",
+    "content": "Budget Category: Website Development and Support, Information Systems (Разработка и поддержка сайтов, информационных систем): This category includes all costs related to the creation, development, and ongoing maintenance of the project's digital infrastructure. This can range from building a new project website to supporting.... This category includes all costs related to the creation, development, and ongoing maintenance of the project's digital infrastructure. This can range from building a new project website to supporting existing information systems, developing mobile applications, or paying for hosting services.",
+    "fund_name": "ФПГ",
+    "category": "Budget Templates",
+    "criterion_data": null,
+    "methodology_data": null,
+    "budget_data": {
+      "fund_name": "ФПГ",
+      "project_type": "Универсальный шаблон",
+      "budget_categories": [
+        "Website Development and Support, Information Systems (Разработка и поддержка сайтов, информационных систем): This category includes all costs related to the creation, development, and ongoing maintenance of the project's digital infrastructure. This can range from building a new project website to supporting..."
+      ],
+      "justification": "This category includes all costs related to the creation, development, and ongoing maintenance of the project's digital infrastructure. This can range from building a new project website to supporting existing information systems, developing mobile applications, or paying for hosting services.",
+      "total_amount": 3000000,
+      "duration_months": 12
+    }
+  },
+  {
+    "requirement_type": "budget",
+    "content": "Budget Category: Legal, Informational, Consulting Services (Юридические, информационные, консультационные услуги): This category is for expenses related to procuring external professional services. This can include legal advice, accounting services, expert consultations, informational support services, and other s.... This category is for expenses related to procuring external professional services. This can include legal advice, accounting services, expert consultations, informational support services, and other specialized expertise required for the project's successful implementation.",
+    "fund_name": "ФПГ",
+    "category": "Budget Templates",
+    "criterion_data": null,
+    "methodology_data": null,
+    "budget_data": {
+      "fund_name": "ФПГ",
+      "project_type": "Универсальный шаблон",
+      "budget_categories": [
+        "Legal, Informational, Consulting Services (Юридические, информационные, консультационные услуги): This category is for expenses related to procuring external professional services. This can include legal advice, accounting services, expert consultations, informational support services, and other s..."
+      ],
+      "justification": "This category is for expenses related to procuring external professional services. This can include legal advice, accounting services, expert consultations, informational support services, and other specialized expertise required for the project's successful implementation.",
+      "total_amount": 3000000,
+      "duration_months": 12
+    }
+  },
+  {
+    "requirement_type": "budget",
+    "content": "Budget Category: Event Organization (Проведение мероприятий): This category covers all direct costs associated with the planning, organization, and execution of project-related events. Examples include venue rental, catering, speaker fees, and materials for work.... This category covers all direct costs associated with the planning, organization, and execution of project-related events. Examples include venue rental, catering, speaker fees, and materials for workshops, conferences, seminars, or public outreach events.",
+    "fund_name": "ФПГ",
+    "category": "Budget Templates",
+    "criterion_data": null,
+    "methodology_data": null,
+    "budget_data": {
+      "fund_name": "ФПГ",
+      "project_type": "Универсальный шаблон",
+      "budget_categories": [
+        "Event Organization (Проведение мероприятий): This category covers all direct costs associated with the planning, organization, and execution of project-related events. Examples include venue rental, catering, speaker fees, and materials for work..."
+      ],
+      "justification": "This category covers all direct costs associated with the planning, organization, and execution of project-related events. Examples include venue rental, catering, speaker fees, and materials for workshops, conferences, seminars, or public outreach events.",
+      "total_amount": 3000000,
+      "duration_months": 12
+    }
+  },
+  {
+    "requirement_type": "budget",
+    "content": "Budget Category: Publishing, Printing (Издательские, полиграфические): This category includes expenses for the design, layout, printing, and distribution of published materials. This can cover project reports, brochures, informational booklets, training manuals, and othe.... This category includes expenses for the design, layout, printing, and distribution of published materials. This can cover project reports, brochures, informational booklets, training manuals, and other printed products essential for disseminating project information or results.",
+    "fund_name": "ФПГ",
+    "category": "Budget Templates",
+    "criterion_data": null,
+    "methodology_data": null,
+    "budget_data": {
+      "fund_name": "ФПГ",
+      "project_type": "Универсальный шаблон",
+      "budget_categories": [
+        "Publishing, Printing (Издательские, полиграфические): This category includes expenses for the design, layout, printing, and distribution of published materials. This can cover project reports, brochures, informational booklets, training manuals, and othe..."
+      ],
+      "justification": "This category includes expenses for the design, layout, printing, and distribution of published materials. This can cover project reports, brochures, informational booklets, training manuals, and other printed products essential for disseminating project information or results.",
+      "total_amount": 3000000,
+      "duration_months": 12
+    }
+  },
+  {
+    "requirement_type": "budget",
+    "content": "Budget Category: Other Direct Expenses (Прочие прямые расходы): This is a flexible category for necessary project-related costs that do not fit into the other standard classifications. A significant example is volunteer support; while not a cash expense, its value.... This is a flexible category for necessary project-related costs that do not fit into the other standard classifications. A significant example is volunteer support; while not a cash expense, its value must be justified by detailing the necessity of volunteers, their number, specific roles, time commitment, and the estimated monetary value of their labor. Another key item that can be included here as a form of co-financing is the free provision of premises. This requires detailing the location, characteristics, and estimated market rental value, often supported by a formal letter of support from the provider.",
+    "fund_name": "ФПГ",
+    "category": "Budget Templates",
+    "criterion_data": null,
+    "methodology_data": null,
+    "budget_data": {
+      "fund_name": "ФПГ",
+      "project_type": "Универсальный шаблон",
+      "budget_categories": [
+        "Other Direct Expenses (Прочие прямые расходы): This is a flexible category for necessary project-related costs that do not fit into the other standard classifications. A significant example is volunteer support; while not a cash expense, its value..."
+      ],
+      "justification": "This is a flexible category for necessary project-related costs that do not fit into the other standard classifications. A significant example is volunteer support; while not a cash expense, its value must be justified by detailing the necessity of volunteers, their number, specific roles, time commitment, and the estimated monetary value of their labor. Another key item that can be included here as a form of co-financing is the free provision of premises. This requires detailing the location, characteristics, and estimated market rental value, often supported by a formal letter of support from the provider.",
+      "total_amount": 3000000,
+      "duration_months": 12
+    }
+  }
+]
