@@ -231,21 +231,42 @@ class InteractiveInterviewHandler:
                         interview_data = self.active_interviews.get(user_id, {})
                         user_data_from_interview = interview_data.get('user_data', {})
 
-                        # Сохранить через БД
+                        # ITERATION 52 FIX (Phase 14): Сохранить через БД правильно
                         import json
+                        from datetime import datetime
                         anketa_data = result.get('anketa', {})
 
-                        # Создать session в БД
-                        from data.database import create_interview_session
-                        session_data = create_interview_session(
-                            telegram_id=user_id,
-                            username=user_data_from_interview.get('username', ''),
-                            interview_data=json.dumps(anketa_data, ensure_ascii=False),
-                            grant_fund=user_data_from_interview.get('grant_fund', 'Фонд президентских грантов')
-                        )
+                        # Использовать правильные функции БД
+                        from data.database import get_or_create_session, update_session_data
 
-                        anketa_id = session_data.get('anketa_id')
-                        logger.info(f"[DB] Anketa saved with ID: {anketa_id}")
+                        # Получить или создать сессию
+                        session_data = get_or_create_session(user_id)
+                        if not session_data:
+                            logger.error(f"[DB] Failed to create session for user {user_id}")
+                            raise Exception("Failed to create database session")
+
+                        session_id = session_data.get('id')
+                        logger.info(f"[DB] Using session ID: {session_id}")
+
+                        # Сгенерировать anketa_id
+                        anketa_id = f"anketa_{session_id}_{int(datetime.now().timestamp())}"
+
+                        # Сохранить данные анкеты в БД
+                        update_data = {
+                            'interview_data': json.dumps(anketa_data, ensure_ascii=False),
+                            'anketa_id': anketa_id,
+                            'audit_result': json.dumps(result.get('audit_details', {}), ensure_ascii=False),
+                            'completion_status': 'completed',
+                            'status': 'completed',
+                            'completed_at': datetime.now()
+                        }
+
+                        success = update_session_data(session_id, update_data)
+                        if not success:
+                            logger.error(f"[DB] Failed to update session {session_id}")
+                            raise Exception("Failed to save anketa to database")
+
+                        logger.info(f"[DB] Anketa saved successfully with ID: {anketa_id}")
 
                         # Отправить результаты
                         await self._send_results(update, result)
