@@ -183,85 +183,125 @@ def interview_2_data_with_audit(db) -> Dict[str, Any]:
 
 def _parse_anketa_to_answers(anketa_text: str) -> Dict[str, str]:
     """
-    Parse anketa Q&A text into user_answers dict
+    Parse anketa from Iteration 45 format into user_answers dict
 
-    Example input:
-        1. Название проекта: "Научный фестиваль"
-        2. Цель проекта: "Популяризация науки"
+    Format:
+        ### ВОПРОС 1 [HARDCODED]
 
-    Output:
-        {
-            'project_name': 'Научный фестиваль',
-            'project_goal': 'Популяризация науки',
-            ...
-        }
+        **INTERVIEWER:**
+        Вопрос текст
+
+        **USER (ОТВЕТ):**
+        Ответ текст
     """
     answers = {}
     lines = anketa_text.strip().split('\n')
 
     current_question = None
     current_answer = []
+    in_answer_section = False
 
-    for line in lines:
-        line = line.strip()
-        if not line:
+    for i, line in enumerate(lines):
+        line_stripped = line.strip()
+
+        # Skip empty lines
+        if not line_stripped:
             continue
 
-        # Check if this is a question (starts with number or keyword)
-        if line[0].isdigit() and '.' in line[:3]:
-            # Save previous Q&A
-            if current_question:
-                answers[current_question] = '\n'.join(current_answer).strip()
+        # Detect question section
+        if line_stripped.startswith('### ВОПРОС'):
+            # Save previous answer
+            if current_question and current_answer:
+                answer_text = '\n'.join(current_answer).strip()
+                if answer_text:
+                    answers[current_question] = answer_text
 
-            # Start new question
-            parts = line.split(':', 1)
-            if len(parts) == 2:
-                question_text = parts[0].split('.', 1)[1].strip()
-                answer_text = parts[1].strip()
+            current_question = None
+            current_answer = []
+            in_answer_section = False
+            continue
 
-                # Map to standard keys
-                key = _map_question_to_key(question_text)
-                current_question = key
-                current_answer = [answer_text] if answer_text else []
-        else:
-            # Continue previous answer
-            if current_question:
-                current_answer.append(line)
+        # Detect interviewer question
+        if line_stripped.startswith('**INTERVIEWER:**'):
+            # Get question text (next line)
+            if i + 1 < len(lines):
+                question_text = lines[i + 1].strip()
+                current_question = _map_question_to_key(question_text)
+            continue
 
-    # Save last Q&A
-    if current_question:
-        answers[current_question] = '\n'.join(current_answer).strip()
+        # Detect user answer section
+        if line_stripped.startswith('**USER (ОТВЕТ):**') or line_stripped.startswith('**USER:**'):
+            in_answer_section = True
+            current_answer = []
+            continue
+
+        # Collect answer text
+        if in_answer_section and current_question:
+            # Skip metadata lines
+            if line_stripped.startswith('*[Ответ:') or line_stripped.startswith('==='):
+                in_answer_section = False
+                continue
+
+            # Add content line
+            if line_stripped and not line_stripped.startswith('**'):
+                current_answer.append(line_stripped)
+
+    # Save last answer
+    if current_question and current_answer:
+        answer_text = '\n'.join(current_answer).strip()
+        if answer_text:
+            answers[current_question] = answer_text
 
     return answers
 
 
 def _map_question_to_key(question_text: str) -> str:
-    """Map question text to standardized key"""
+    """Map question text to standardized key for Writer Agent"""
     question_lower = question_text.lower()
 
-    if 'название' in question_lower or 'наименование' in question_lower:
+    # Name/organization
+    if 'имя' in question_lower or 'зовут' in question_lower:
+        return 'name'
+    elif 'организац' in question_lower:
+        return 'organization'
+
+    # Project basics
+    elif 'название' in question_lower or 'наименование' in question_lower or 'проект' in question_lower:
         return 'project_name'
-    elif 'цель' in question_lower:
-        return 'project_goal'
-    elif 'задач' in question_lower:
-        return 'project_tasks'
-    elif 'бюджет' in question_lower:
-        return 'budget'
-    elif 'команда' in question_lower or 'участники' in question_lower:
-        return 'team'
-    elif 'сроки' in question_lower or 'период' in question_lower:
-        return 'timeline'
-    elif 'проблем' in question_lower:
+    elif 'цель' in question_lower or 'описан' in question_lower or 'суть' in question_lower:
+        return 'description'
+
+    # Problem & Solution
+    elif 'проблем' in question_lower or 'вызов' in question_lower:
         return 'problem'
-    elif 'решение' in question_lower:
+    elif 'решен' in question_lower or 'подход' in question_lower:
         return 'solution'
-    elif 'целевая аудитория' in question_lower or 'аудитория' in question_lower:
-        return 'target_audience'
-    elif 'результат' in question_lower:
-        return 'expected_results'
+
+    # Implementation
+    elif 'реализац' in question_lower or 'внедрен' in question_lower or 'этап' in question_lower:
+        return 'implementation'
+    elif 'сро' in question_lower or 'время' in question_lower or 'период' in question_lower:
+        return 'timeline'
+
+    # Resources
+    elif 'бюджет' in question_lower or 'финансир' in question_lower or 'сто' in question_lower:
+        return 'budget'
+    elif 'команд' in question_lower or 'сотрудник' in question_lower or 'персонал' in question_lower:
+        return 'team'
+
+    # Impact
+    elif 'результат' in question_lower or 'эффект' in question_lower or 'достижен' in question_lower:
+        return 'impact'
+    elif 'устойчив' in question_lower or 'после' in question_lower:
+        return 'sustainability'
+
+    # Fallback - use first word as key
     else:
-        # Fallback: use sanitized question text
-        return question_text.lower().replace(' ', '_')[:50]
+        # Get first significant word
+        words = question_lower.split()
+        if words:
+            return words[0].strip('?,.:;!')[:20]  # Max 20 chars
+        return 'other'
 
 
 # ===== TEST: Write Grant #1 (MEDIUM Quality) =====
@@ -297,6 +337,8 @@ def test_write_grant_1_medium_quality(writer, interview_1_data_with_audit, db):
     print(f"🔧 LLM Provider: {writer.llm_provider}")
     print(f"🤖 LLM Model: {GIGACHAT_MODEL}")
     print(f"📝 Audit Score: {interview_1_data_with_audit['audit_results']['overall_score']*100:.1f}/100")
+    print(f"\n🔍 DEBUG: user_answers keys: {list(interview_1_data_with_audit['user_answers'].keys())}")
+    print(f"🔍 DEBUG: user_answers count: {len(interview_1_data_with_audit['user_answers'])}")
     print("\nWriting grant application...")
 
     # ===== RUN WRITER =====

@@ -221,15 +221,116 @@ Summary детальность  | Базовая | Больше  | Расшир�
 
 ---
 
+## 🔍 ROOT CAUSE ANALYSIS (Post-Testing)
+
+### Критическая находка:
+
+После детального анализа выявлена **двойная проблема**:
+
+#### 1. Writer Agent НЕ ИСПОЛЬЗУЕТ LLM для 8 из 10 секций (lines 314-336)
+
+**Код writer_agent.py:**
+```python
+# Упрощенная генерация остальных полей для быстрого тестирования
+logger.info("3️⃣ WriterAgent: Генерируем остальные разделы заявки...")
+
+# Используем простые промпты для тестирования
+try:
+    # Проблема
+    content['problem'] = user_answers.get('problem', 'Проблема требует решения')  # ← ЗАГЛУШКА!
+
+    # Решение
+    content['solution'] = user_answers.get('solution', 'Инновационное решение')  # ← ЗАГЛУШКА!
+```
+
+**Проблема:** Только `title` и `summary` генерируются через `await client.generate_text()`. Остальные 8 секций - прямое копирование из `user_answers` с fallback на hardcoded заглушки.
+
+**Комментарий в коде:** "Упрощенная генерация... для быстрого тестирования"
+
+#### 2. Parser извлекает только 3 поля из 12 вопросов
+
+**Результат парсинга:**
+```
+🔍 DEBUG: user_answers keys: ['name', 'organization', 'project_name']
+🔍 DEBUG: user_answers count: 3
+```
+
+**Проблема:** Parser работает только для HARDCODED вопросов (первые 2). ADAPTIVE вопросы (10 штук) в другом формате не парсятся.
+
+**Последствие:** Writer получает только 3 поля → остальные секции заполняются заглушками.
+
+### Вывод:
+
+❌ **Iteration 47 НЕ ПРОЙДЕНА по методологии** (docs/TESTING-METHODOLOGY-GRANTSERVICE.md)
+
+**Причина:** Test-Production Mismatch (lines 28-34 методологии)
+- Тест проходит технически ✅
+- Но результат не проходит business validation ❌
+- Не тестирует реальный production flow ❌
+
+**Цитата из методологии:**
+```
+Root Causes:
+1. Test-Production Mismatch (Iterations 28-29): Tests bypass production imports
+   Cost: 2 iterations
+```
+
+Мы попали в ту же ловушку! Тест проходит, но производство сломано.
+
+---
+
+## 🚀 Next Steps (Iteration 48)
+
+### Приоритет 1: Исправить Writer Agent (КРИТИЧНО!)
+
+**Файл:** `agents/writer_agent.py` lines 314-336
+
+**Что делать:**
+1. Убрать hardcoded заглушки
+2. Добавить LLM генерацию для ВСЕХ секций
+3. Использовать audit recommendations
+4. Генерировать детальный контент (30K+ chars)
+
+### Приоритет 2: Исправить Parser (ВАЖНО)
+
+**Файл:** `tests/integration/test_write_two_grants.py` lines 184-255
+
+**Что делать:**
+1. Парсить ADAPTIVE вопросы
+2. Извлекать все 12 полей
+3. Или использовать production data format
+
+### Приоритет 3: Добавить Business Validation
+
+**По методологии (lines 732-790):**
+```python
+def validate_grant_quality(grant_text):
+    # 1. Length requirement
+    assert len(grant_text) >= 30000
+
+    # 2. No stub sections
+    stubs = ["Проблема требует решения", "Инновационное решение"]
+    for stub in stubs:
+        assert stub not in grant_text
+
+    # 3. Required business concepts
+    assert "проблема" in grant_text.lower()
+    assert "решение" in grant_text.lower()
+```
+
+---
+
 ## 🔗 References
 
 - **Testing Methodology:** `docs/TESTING-METHODOLOGY-GRANTSERVICE.md`
+- **Quick Reference:** `TESTING_QUICK_REF.md`
 - **Previous Iteration:** `iterations/Iteration_46_Audit_Testing/`
-- **Writer Agent:** `agents/writer_agent.py`
+- **Writer Agent:** `agents/writer_agent.py` (ТРЕБУЕТ ИСПРАВЛЕНИЯ!)
 - **Test File:** `tests/integration/test_write_two_grants.py`
 
 ---
 
-**Status:** ✅ COMPLETED
-**Next Iteration:** Iteration 48 - Writer Agent Improvement (detailed sections + PDF generation)
+**Status:** ⚠️ PARTIALLY COMPLETED (Technical ✅, Business ❌)
+**Next Iteration:** Iteration 48 - FIX Writer Agent (LLM generation for all sections)
 **Completed:** 2025-10-26
+**Lesson Learned:** Test passing ≠ Feature working. Always validate business logic!
