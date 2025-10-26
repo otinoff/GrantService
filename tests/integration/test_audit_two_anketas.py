@@ -71,7 +71,15 @@ def db():
 @pytest.fixture(scope="module")
 def auditor(db):
     """AuditorAgent with GigaChat Pro"""
-    return AuditorAgent(db=db, llm_provider="gigachat")
+    # Create agent with GigaChat provider
+    agent = AuditorAgent(db=db, llm_provider="gigachat")
+
+    # Override LLM client to use GigaChat-Pro model
+    if hasattr(agent, 'llm_client'):
+        from shared.llm.unified_llm_client import UnifiedLLMClient
+        agent.llm_client = UnifiedLLMClient(provider="gigachat", model=GIGACHAT_MODEL)
+
+    return agent
 
 
 @pytest.fixture(scope="module")
