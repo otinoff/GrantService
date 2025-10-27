@@ -1,7 +1,7 @@
 # Iteration 58: Reviewer Type Safety Fix
 
 **Date:** 2025-10-27
-**Status:** ✅ FULLY DEPLOYED - All Fixes (Part 1 + Part 2)
+**Status:** ✅ FULLY DEPLOYED - All Fixes (Part 1 + Part 2 + Part 3)
 **Priority:** P0 - CRITICAL
 **Related:** Iteration_57 (field mapping fix)
 
@@ -320,6 +320,78 @@ txt = generate_review_txt(review_data)
 **Deployment:**
 - Commit: f2c5847
 - Deployed: 2025-10-27 17:38:52 UTC
+- Status: ✅ Active (running)
+
+---
+
+## 📝 Part 3: Review Text Display Fix
+
+**Problem Discovered After Part 2 Deployment:**
+User got review file with score but NO TEXT:
+```
+ОБЩАЯ ОЦЕНКА: 0.3/10
+СТАТУС: ❌ ОТКЛОНЕНО
+
+(empty - no strengths/weaknesses/recommendations shown!)
+```
+
+**Root Cause:**
+- Reviewer returns: `strengths`, `weaknesses`, `recommendations` as **lists**
+- file_generators expected: `review_feedback` as **JSON string**
+- Mismatch → text not displayed
+
+**Solution:**
+```python
+# BEFORE (lines 441-473):
+review_feedback = review_data.get('review_feedback', '')  # ← Field doesn't exist!
+if review_feedback and review_feedback.startswith('{'):
+    feedback_json = json.loads(review_feedback)
+    strengths = feedback_json['strengths']  # ← Never executed
+
+# AFTER (lines 440-475):
+strengths = review_data.get('strengths', [])  # ← Direct access
+weaknesses = review_data.get('weaknesses', [])
+recommendations = review_data.get('recommendations', [])
+
+if strengths:
+    lines.append("СИЛЬНЫЕ СТОРОНЫ:")
+    for strength in strengths:
+        lines.append(f"  {i}. {strength}")
+```
+
+**Testing:**
+```python
+review_data = {
+    'review_score': 0.3,
+    'weaknesses': ['Недостаточно цитат (0, нужно 10+)', ...],
+    'recommendations': ['❌ Заявка требует доработки', ...]
+}
+txt = generate_review_txt(review_data)
+assert 'СЛАБЫЕ СТОРОНЫ:' in txt  # ✅ PASSED
+assert 'Недостаточно цитат' in txt  # ✅ PASSED
+```
+
+**Now Output:**
+```
+ОБЩАЯ ОЦЕНКА: 0.3/10
+СТАТУС: ❌ ОТКЛОНЕНО
+
+Качество: ░░░░░░░░░░ 0.3/10
+
+СЛАБЫЕ СТОРОНЫ:
+  1. Недостаточно цитат (0, нужно 10+)
+  2. Недостаточно таблиц (0, нужно 2+)
+  3. Отсутствует официальная статистика
+
+РЕКОМЕНДАЦИИ ПО УЛУЧШЕНИЮ:
+  1. ❌ Заявка требует существенной доработки
+  2. Добавьте минимум 10 цитат из надежных источников
+  3. Создайте 2+ сравнительные таблицы
+```
+
+**Deployment:**
+- Commit: 289c63b
+- Deployed: 2025-10-27 17:46:52 UTC
 - Status: ✅ Active (running)
 
 ---
