@@ -184,12 +184,12 @@ class ReviewerAgent(BaseAgent):
             # Получаем требования ФПГ из векторной БД через Expert Agent
             fpg_requirements = await self._get_fpg_requirements_async()
 
-            # Извлекаем данные
+            # Извлекаем данные с защитой от None (Iteration_58)
             grant_content = input_data.get('grant_content', {})
             research_results = input_data.get('research_results', {})
             user_answers = input_data.get('user_answers', {})
-            citations = input_data.get('citations', [])
-            tables = input_data.get('tables', [])
+            citations = input_data.get('citations', []) or []  # Защита от None
+            tables = input_data.get('tables', []) or []  # Защита от None
             selected_grant = input_data.get('selected_grant', {})
 
             logger.info(f"📊 Reviewer: Получены данные - цитаты: {len(citations)}, таблицы: {len(tables)}")
@@ -329,7 +329,7 @@ class ReviewerAgent(BaseAgent):
             official_sources = ['rosstat', 'минстат', 'минздрав', 'минобр', 'минспорт', 'fedstat']
             has_official = any(
                 any(source.lower() in c.get('source', '').lower() for source in official_sources)
-                for c in citations
+                for c in citations if isinstance(c, dict)  # Iteration_58: Type safety
             )
             details['official_stats'] = has_official
             if has_official:
@@ -338,7 +338,7 @@ class ReviewerAgent(BaseAgent):
             # 2. Проверка ссылок на госпрограммы
             gov_program_keywords = ['нацпроект', 'госпрограмм', 'паспорт проекта', 'стратегия']
             has_gov_programs = False
-            if research_results:
+            if research_results and isinstance(research_results, dict):  # Iteration_58: Type safety
                 block1 = research_results.get('block1_problem', {})
                 programs = block1.get('programs', [])
                 has_gov_programs = len(programs) > 0
@@ -348,7 +348,7 @@ class ReviewerAgent(BaseAgent):
 
             # 3. Проверка наличия успешных кейсов (минимум 3)
             success_cases_count = 0
-            if research_results:
+            if research_results and isinstance(research_results, dict):  # Iteration_58: Type safety
                 block1 = research_results.get('block1_problem', {})
                 success_cases_count = len(block1.get('success_cases', []))
             details['success_cases'] = success_cases_count >= 3
@@ -372,7 +372,7 @@ class ReviewerAgent(BaseAgent):
                 score += 0.75
 
             # 6. Разнообразие источников (минимум 5)
-            unique_sources = set([c.get('source', '') for c in citations if c.get('source')])
+            unique_sources = set([c.get('source', '') for c in citations if isinstance(c, dict) and c.get('source')])  # Iteration_58: Type safety
             details['sources_count'] = len(unique_sources)
             if len(unique_sources) >= 5:
                 score += 0.5
@@ -492,30 +492,31 @@ class ReviewerAgent(BaseAgent):
 
         try:
             # 1. SMART-цели (из block3_goals)
-            if research_results:
+            if research_results and isinstance(research_results, dict):  # Iteration_58: Type safety
                 block3 = research_results.get('block3_goals', {})
                 main_goals = block3.get('main_goal_variants', [])
                 if main_goals and len(main_goals) > 0:
                     first_goal = main_goals[0]
-                    smart_check = first_goal.get('smart_check', {})
-                    if all(smart_check.values()):
-                        details['smart_goals'] = True
-                        score += 3.0
-                    elif sum(smart_check.values()) >= 3:
-                        details['smart_goals'] = True
-                        score += 2.0
+                    if isinstance(first_goal, dict):  # Iteration_58: Type safety
+                        smart_check = first_goal.get('smart_check', {})
+                        if all(smart_check.values()):
+                            details['smart_goals'] = True
+                            score += 3.0
+                        elif sum(smart_check.values()) >= 3:
+                            details['smart_goals'] = True
+                            score += 2.0
 
             # 2. Измеримые KPI
-            if research_results:
+            if research_results and isinstance(research_results, dict):  # Iteration_58: Type safety
                 block3 = research_results.get('block3_goals', {})
                 key_tasks = block3.get('key_tasks', [])
-                has_kpi = any(task.get('kpi') for task in key_tasks)
+                has_kpi = any(task.get('kpi') for task in key_tasks if isinstance(task, dict))  # Iteration_58: Type safety
                 details['measurable_kpi'] = has_kpi
                 if has_kpi:
                     score += 2.5
 
             # 3. Региональная привязка
-            if research_results:
+            if research_results and isinstance(research_results, dict):  # Iteration_58: Type safety
                 block2 = research_results.get('block2_geography', {})
                 target_audience = block2.get('target_audience', {})
                 infrastructure = block2.get('infrastructure', {})
@@ -525,10 +526,10 @@ class ReviewerAgent(BaseAgent):
                     score += 2.5
 
             # 4. Соответствие нацпроектам
-            if research_results:
+            if research_results and isinstance(research_results, dict):  # Iteration_58: Type safety
                 block1 = research_results.get('block1_problem', {})
                 programs = block1.get('programs', [])
-                has_natproject = any('нацпроект' in p.get('name', '').lower() for p in programs)
+                has_natproject = any('нацпроект' in p.get('name', '').lower() for p in programs if isinstance(p, dict))  # Iteration_58: Type safety
                 details['national_projects_aligned'] = has_natproject
                 if has_natproject:
                     score += 2.0
