@@ -118,7 +118,7 @@ Release is complete when:
 | Release | Date | Description | Status |
 |---------|------|-------------|--------|
 | [002](Release_002_Interviewer_Fix/) | 2025-10-27 | Fix Iteration 53 import bug | ✅ DEPLOYED |
-| 001 | TBD | Initial production | 📅 PLANNED |
+| 001 | TBD | Initial production setup | 📅 PLANNED |
 
 ---
 
