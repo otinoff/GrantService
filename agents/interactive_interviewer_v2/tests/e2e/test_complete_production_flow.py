@@ -39,7 +39,7 @@ sys.path.insert(0, str(_project_root / "data"))
 from agents.full_flow_manager import FullFlowManager
 from agents.synthetic_user_simulator import SyntheticUserSimulator
 from agents.auditor_agent import AuditorAgent
-from shared.telegram.file_generators import generate_anketa_txt, generate_audit_txt
+from shared.telegram_utils.file_generators import generate_anketa_txt, generate_audit_txt
 from data.database.models import GrantServiceDatabase
 
 

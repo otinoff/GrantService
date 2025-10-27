@@ -29,7 +29,7 @@ from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.ext import ContextTypes
 
 # Import file generators
-from shared.telegram.file_generators import (
+from shared.telegram_utils.file_generators import (
     generate_anketa_txt,
     generate_audit_txt,
     generate_grant_txt,
@@ -71,10 +71,11 @@ class InteractivePipelineHandler:
         Вызывается после завершения анкеты
 
         Actions:
-        1. Генерирует файл anketa.txt
-        2. Отправляет файл пользователю
-        3. Показывает кнопку "Начать аудит"
-        4. Обновляет state → ANKETA_COMPLETED
+        1. Отправляет "Спасибо" сообщение с номером анкеты
+        2. Генерирует файл anketa.txt
+        3. Отправляет файл пользователю
+        4. Показывает кнопку "Начать аудит"
+        5. Обновляет state → ANKETA_COMPLETED
 
         Args:
             update: Telegram Update
@@ -82,7 +83,10 @@ class InteractivePipelineHandler:
             anketa_id: ID анкеты
             session_data: Данные сессии из БД
         """
+        # ITERATION 53 FIX: Используем chat_id вместо update.message
+        # Потому что в background task update.message может быть None
         user_id = update.effective_user.id
+        chat_id = update.effective_chat.id
 
         logger.info(f"[PIPELINE] User {user_id} completed anketa {anketa_id}")
 
@@ -92,10 +96,35 @@ class InteractivePipelineHandler:
 
             if not anketa_data:
                 logger.error(f"[ERROR] Anketa {anketa_id} not found in database")
-                await update.message.reply_text(
-                    "❌ Ошибка: анкета не найдена в базе данных"
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text="❌ Ошибка: анкета не найдена в базе данных"
                 )
                 return
+
+            # Подсчитать количество ответов
+            answers_data = anketa_data.get('answers_data') or anketa_data.get('interview_data', {})
+            if isinstance(answers_data, str):
+                try:
+                    import json
+                    answers_data = json.loads(answers_data)
+                except:
+                    answers_data = {}
+
+            question_count = len(answers_data) if isinstance(answers_data, dict) else 0
+
+            # ITERATION 53: Отправить "Спасибо" сообщение СРАЗУ
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=(
+                    f"✅ Спасибо! Интервью завершено.\n\n"
+                    f"Вы ответили на {question_count} вопросов.\n"
+                    f"Анкета `{anketa_id}` сохранена в базе данных."
+                ),
+                parse_mode="Markdown"
+            )
+
+            logger.info(f"[OK] Sent thank you message to user {user_id}")
 
             # Генерировать файл
             txt_content = generate_anketa_txt(anketa_data)
@@ -110,12 +139,13 @@ class InteractivePipelineHandler:
                 f.write(txt_content)
                 temp_file_path = f.name
 
-            # Отправить файл
+            # ITERATION 53 FIX: Используем context.bot.send_document вместо update.message.reply_document
             with open(temp_file_path, 'rb') as f:
-                await update.message.reply_document(
+                await context.bot.send_document(
+                    chat_id=chat_id,
                     document=f,
                     filename=f"anketa_{anketa_id}.txt",
-                    caption="✅ Анкета заполнена!\n\nВсе ваши ответы сохранены."
+                    caption="📄 Ваша анкета во вложении.\n\nВсе ваши ответы сохранены."
                 )
 
             # Удалить временный файл
@@ -129,8 +159,9 @@ class InteractivePipelineHandler:
                 )]
             ])
 
-            # Отправить сообщение с кнопкой
-            await update.message.reply_text(
+            # ITERATION 53 FIX: Используем context.bot.send_message вместо update.message.reply_text
+            await context.bot.send_message(
+                chat_id=chat_id,
                 text=(
                     "🎯 Анкета готова к аудиту!\n\n"
                     "Аудит проверит:\n"
@@ -152,8 +183,10 @@ class InteractivePipelineHandler:
             logger.error(f"[ERROR] Failed to process anketa completion: {e}")
             import traceback
             traceback.print_exc()
-            await update.message.reply_text(
-                "❌ Произошла ошибка при обработке анкеты. Попробуйте позже."
+            # ITERATION 53 FIX: Используем context.bot.send_message вместо update.message.reply_text
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text="❌ Произошла ошибка при обработке анкеты. Попробуйте позже."
             )
 
     # ========== STEP 2: AUDIT → GRANT ==========

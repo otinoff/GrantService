@@ -32,7 +32,7 @@ def test_generate_anketa_txt_with_null_answers_data():
 
     Fix: Fallback to interview_data when answers_data is NULL/empty
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
 
     # Simulate real production data structure
     anketa_data = {
@@ -73,7 +73,7 @@ def test_generate_anketa_txt_with_empty_answers_data():
     Test handling of empty answers_data dict.
     Should fallback to interview_data.
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
 
     anketa_data = {
         'anketa_id': 'test_empty',
@@ -105,7 +105,7 @@ def test_generate_anketa_txt_with_invalid_json_string():
     Test handling of invalid JSON string in answers_data.
     Should gracefully handle parse errors.
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
 
     anketa_data = {
         'anketa_id': 'test_invalid_json',
@@ -136,7 +136,7 @@ def test_generate_anketa_txt_with_no_data():
     Test handling when both answers_data and interview_data are missing.
     Should generate file with minimal information.
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
 
     anketa_data = {
         'anketa_id': 'test_no_data',
@@ -165,7 +165,7 @@ def test_generate_anketa_txt_with_valid_json_string():
     """
     Test that valid JSON string is properly parsed.
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
     import json
 
     answers = {
@@ -199,7 +199,7 @@ def test_generate_anketa_txt_with_all_new_fields():
     """
     Test that all new field labels added in Iteration 53 work correctly.
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
 
     anketa_data = {
         'anketa_id': 'test_all_fields',
@@ -246,7 +246,7 @@ def test_generate_anketa_txt_with_list_instead_of_dict():
     Test handling when answers_data is a list instead of dict.
     Should handle gracefully without crashing.
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
 
     anketa_data = {
         'anketa_id': 'test_wrong_type',
@@ -277,7 +277,7 @@ def test_generate_anketa_txt_with_special_characters():
     """
     Test that special characters (Cyrillic, quotes, newlines) are handled.
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
 
     anketa_data = {
         'anketa_id': 'test_special_chars',
@@ -306,7 +306,7 @@ def test_generate_anketa_txt_with_long_text():
     """
     Test handling of very long text values (stress test).
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
 
     long_text = "А" * 10000  # 10K characters
 
@@ -339,7 +339,7 @@ def test_generate_anketa_txt_with_real_production_data():
     Test with REAL production data structure from anketa_606_1761527391.
     This is the exact data that caused the production bug.
     """
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
 
     # Real production data
     anketa_data = {

@@ -163,7 +163,7 @@ def test_e2e_dependencies_available():
     """Placeholder: Verify E2E test dependencies"""
     # Check that required modules can be imported
     try:
-        from shared.telegram.file_generators import generate_grant_txt
+        from shared.telegram_utils.file_generators import generate_grant_txt
         from shared.state_machine.pipeline_state import PipelineState
         assert True
     except ImportError as e:

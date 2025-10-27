@@ -123,7 +123,7 @@ def test_integration_test_file_exists():
 
 def test_integration_imports_work():
     """Placeholder: Verify imports work"""
-    from shared.telegram.file_generators import generate_anketa_txt
+    from shared.telegram_utils.file_generators import generate_anketa_txt
     from shared.state_machine.pipeline_state import PipelineStateMachine
     assert callable(generate_anketa_txt)
     assert PipelineStateMachine is not None

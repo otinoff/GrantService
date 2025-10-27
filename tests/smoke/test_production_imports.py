@@ -76,8 +76,8 @@ def test_file_generators_import():
     """Test that file generators can be imported."""
 
     try:
-        from shared.telegram.file_generators import generate_anketa_txt
-        from shared.telegram.file_generators import generate_audit_txt
+        from shared.telegram_utils.file_generators import generate_anketa_txt
+        from shared.telegram_utils.file_generators import generate_audit_txt
     except ImportError as e:
         pytest.fail(f"File generators import failed: {e}")
 

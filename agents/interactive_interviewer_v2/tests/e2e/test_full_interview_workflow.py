@@ -28,7 +28,7 @@ sys.path.insert(0, str(_project_root / "agents"))
 sys.path.insert(0, str(_project_root / "data"))
 
 from agents.interactive_interviewer_v2.agent import InteractiveInterviewerAgentV2
-from shared.telegram.file_generators import generate_anketa_txt
+from shared.telegram_utils.file_generators import generate_anketa_txt
 from agents.auditor_agent import AuditorAgent
 
 
