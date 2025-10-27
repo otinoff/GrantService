@@ -249,6 +249,15 @@ class ReviewerAgent(BaseAgent):
                 'agent_type': 'reviewer',
                 'readiness_score': round(readiness_score, 2),
                 'approval_probability': round(approval_probability, 1),
+
+                # Field aliases for compatibility with handler/file_generators (Iteration_57)
+                'review_score': round(readiness_score, 2),  # Alias for readiness_score
+                'final_status': (  # Derived from readiness_score
+                    'approved' if readiness_score >= 7.0
+                    else 'needs_revision' if readiness_score >= 5.0
+                    else 'rejected'
+                ),
+
                 'fpg_requirements': fpg_requirements,  # Требования из векторной БД
                 'criteria_scores': {
                     'evidence_base': {
