@@ -9,6 +9,23 @@ jobs:
   # Pre-deployment tests
   test:
     runs-on: ubuntu-latest
+
+    # PostgreSQL service for integration tests
+    services:
+      postgres:
+        image: postgres:15
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: root
+          POSTGRES_DB: grantservice_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
     steps:
     - uses: actions/checkout@v3
 
@@ -23,12 +40,35 @@ jobs:
         pip install pytest pytest-asyncio psycopg2-binary python-dotenv
         pip install -r telegram-bot/requirements.txt || true
 
+    - name: Setup test database
+      run: |
+        # Create database schema for tests
+        export PGPASSWORD=root
+        psql -h localhost -U postgres -d grantservice_test -c "
+          CREATE TABLE IF NOT EXISTS sessions (
+            id SERIAL PRIMARY KEY,
+            telegram_id BIGINT NOT NULL,
+            project_name TEXT,
+            interview_data JSONB,
+            started_at TIMESTAMP DEFAULT NOW(),
+            updated_at TIMESTAMP DEFAULT NOW()
+          );
+        "
+        echo "✓ Test database schema created"
+
     - name: Run integration tests
       run: |
         # Run critical integration tests before deployment
-        pytest tests/integration/test_full_application_flow.py::TestFullApplicationFlow::test_complete_application_flow -v || exit 1
-        pytest tests/integration/test_streamlit_users_page.py::TestUsersPageData::test_get_total_users -v || exit 1
+        # Based on TESTING-METHODOLOGY.md: test production imports, integration, smoke
+
+        # 1. Smoke test: Verify production import paths (Iteration 53 fix validation)
+        pytest tests/smoke/test_production_imports.py -v || exit 1
+
+        # 2. Integration: PostgreSQL connection
         pytest tests/integration/test_postgresql_migration.py::TestDatabaseConnection::test_can_connect_to_postgresql -v || exit 1
+
+        # 3. E2E: InteractiveInterviewerAgentV2 full workflow (critical path)
+        pytest agents/interactive_interviewer_v2/tests/e2e/test_full_interview_workflow.py::test_full_interview_and_audit_workflow -v || exit 1
       continue-on-error: false
 
     - name: Notify tests failed
