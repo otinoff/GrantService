@@ -30,6 +30,7 @@ deployments/
 │   └── 03_VERIFICATION.md
 ├── Release_001_Initial_Production/  ← Example
 ├── Release_002_Interviewer_Fix/     ← Iteration 53 fix
+├── Release_003_Namespace_Fix/       ← Namespace collision fix
 └── Release_XXX_Feature_Name/        ← Future releases
 ```
 
@@ -117,6 +118,7 @@ Release is complete when:
 
 | Release | Date | Description | Status |
 |---------|------|-------------|--------|
+| [003](Release_003_Namespace_Fix/) | 2025-10-27 | Fix namespace collision crash | ✅ DEPLOYED |
 | [002](Release_002_Interviewer_Fix/) | 2025-10-27 | Fix Iteration 53 import bug | ✅ DEPLOYED |
 | 001 | TBD | Initial production setup | 📅 PLANNED |
 
