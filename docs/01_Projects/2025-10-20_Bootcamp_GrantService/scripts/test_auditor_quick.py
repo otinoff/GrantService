@@ -91,20 +91,25 @@ async def main():
 
         auditor_duration = (datetime.now() - auditor_start).total_seconds()
 
-        overall_score = audit_result.get('overall_score', 0)
-        can_submit = audit_result.get('can_submit', False)
+        # Extract result from BaseAgent wrapper
+        result = audit_result.get('result', audit_result)
+
+        overall_score = result.get('overall_score', 0)
+        can_submit = result.get('can_submit', False)
+        completeness_score = result.get('completeness_score', 0)
+        quality_score = result.get('quality_score', 0)
+        compliance_score = result.get('compliance_score', 0)
 
         log("", "")
         log("✅ AUDITOR COMPLETED!", "🎉")
         log(f"   Duration: {auditor_duration:.1f}s", "")
-        log(f"   Overall Score: {overall_score:.2f}%", "")
+        log(f"   Overall Score: {overall_score*100:.2f}%", "")
         log(f"   Can Submit: {can_submit}", "")
         log("", "")
         log("Detailed Scores:", "")
-        scores = audit_result.get('scores', {})
-        log(f"   - Completeness: {scores.get('completeness', 0):.1f}/10", "")
-        log(f"   - Quality: {scores.get('quality', 0):.1f}/10", "")
-        log(f"   - Compliance: {scores.get('compliance', 0):.1f}/10", "")
+        log(f"   - Completeness: {completeness_score:.1f}/10", "")
+        log(f"   - Quality: {quality_score:.1f}/10", "")
+        log(f"   - Compliance: {compliance_score:.1f}/10", "")
         log("", "")
 
         # Export
@@ -137,7 +142,7 @@ async def main():
         log("", "")
         log("📈 Results:", "")
         log(f"   Grant length: {len(grant_content)} chars", "")
-        log(f"   Auditor score: {overall_score:.2f}%", "")
+        log(f"   Auditor score: {overall_score*100:.2f}%", "")
         log(f"   Can submit: {'✅ YES' if can_submit else '❌ NO'}", "")
         log("", "")
         log("=" * 80, "")
