@@ -437,40 +437,42 @@ def generate_review_txt(review_data: Dict[str, Any]) -> str:
     lines.append("-" * 60)
     lines.append("")
 
-    # Feedback
+    # Iteration_58: Get strengths/weaknesses/recommendations directly from review_data
+    # (Reviewer returns these as lists, not as JSON string)
+    strengths = review_data.get('strengths', [])
+    weaknesses = review_data.get('weaknesses', [])
+    recommendations = review_data.get('recommendations', [])
+
+    # Display strengths
+    if strengths and isinstance(strengths, list) and len(strengths) > 0:
+        lines.append("СИЛЬНЫЕ СТОРОНЫ:")
+        for i, strength in enumerate(strengths, 1):
+            lines.append(f"  {i}. {strength}")
+        lines.append("")
+
+    # Display weaknesses
+    if weaknesses and isinstance(weaknesses, list) and len(weaknesses) > 0:
+        lines.append("СЛАБЫЕ СТОРОНЫ:")
+        for i, weakness in enumerate(weaknesses, 1):
+            lines.append(f"  {i}. {weakness}")
+        lines.append("")
+
+    # Display recommendations
+    if recommendations and isinstance(recommendations, list) and len(recommendations) > 0:
+        lines.append("РЕКОМЕНДАЦИИ ПО УЛУЧШЕНИЮ:")
+        for i, rec in enumerate(recommendations, 1):
+            lines.append(f"  {i}. {rec}")
+        lines.append("")
+
+    # Legacy: Also check for review_feedback (for backward compatibility)
     review_feedback = review_data.get('review_feedback', '')
-    if review_feedback:
+    if review_feedback and isinstance(review_feedback, str):
         lines.append("ДЕТАЛЬНОЕ РЕВЬЮ:")
         lines.append("")
         lines.append(review_feedback)
         lines.append("")
         lines.append("-" * 60)
         lines.append("")
-
-    # Parse feedback for structured data (if JSON)
-    try:
-        if review_feedback and review_feedback.startswith('{'):
-            feedback_json = json.loads(review_feedback)
-
-            if 'strengths' in feedback_json:
-                lines.append("СИЛЬНЫЕ СТОРОНЫ:")
-                for i, strength in enumerate(feedback_json['strengths'], 1):
-                    lines.append(f"  {i}. {strength}")
-                lines.append("")
-
-            if 'weaknesses' in feedback_json:
-                lines.append("СЛАБЫЕ СТОРОНЫ:")
-                for i, weakness in enumerate(feedback_json['weaknesses'], 1):
-                    lines.append(f"  {i}. {weakness}")
-                lines.append("")
-
-            if 'recommendations' in feedback_json:
-                lines.append("РЕКОМЕНДАЦИИ ПО УЛУЧШЕНИЮ:")
-                for i, rec in enumerate(feedback_json['recommendations'], 1):
-                    lines.append(f"  {i}. {rec}")
-                lines.append("")
-    except:
-        pass  # Ignore JSON parsing errors
 
     # Footer
     lines.append("=" * 60)
