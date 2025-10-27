@@ -2117,6 +2117,11 @@ PDF документ с полной анкетой прикреплен
             self.pipeline_handler.handle_start_audit,
             pattern=r"^start_audit:anketa:\w+$"
         ))
+        # ITERATION 59: Research step
+        application.add_handler(CallbackQueryHandler(
+            self.pipeline_handler.handle_start_research,
+            pattern=r"^start_research:anketa:\w+$"
+        ))
         application.add_handler(CallbackQueryHandler(
             self.pipeline_handler.handle_start_grant,
             pattern=r"^start_grant:anketa:\w+$"

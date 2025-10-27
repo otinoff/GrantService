@@ -322,24 +322,23 @@ class InteractivePipelineHandler:
             # Удалить временный файл
             os.unlink(temp_file_path)
 
-            # Создать кнопку "Начать написание гранта"
+            # Iteration 59: Создать кнопку "Начать исследование"
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(
-                    "✍️ Начать написание гранта",
-                    callback_data=f"start_grant:anketa:{anketa_id}"
+                    "🔍 Начать исследование",
+                    callback_data=f"start_research:anketa:{anketa_id}"
                 )]
             ])
 
             # Отправить сообщение с кнопкой
             await query.message.reply_text(
                 text=(
-                    "📝 Готовы создать грантовую заявку?\n\n"
-                    "Генератор создаст полноценную заявку:\n"
-                    "• Описание проблемы\n"
-                    "• Решение\n"
-                    "• Методология\n"
-                    "• Бюджет и команда\n\n"
-                    "⏱️ Это займет 2-3 минуты.\n\n"
+                    "🔍 Следующий шаг - исследование!\n\n"
+                    "Поиск данных для усиления заявки:\n"
+                    "• Статистика по теме проекта\n"
+                    "• Данные о целевой аудитории\n"
+                    "• Официальные источники (Росстат, министерства)\n\n"
+                    "⏱️ Это займет 30-60 секунд.\n\n"
                     "Нажмите кнопку когда будете готовы:"
                 ),
                 reply_markup=keyboard
@@ -356,6 +355,164 @@ class InteractivePipelineHandler:
             traceback.print_exc()
             await query.message.reply_text(
                 "❌ Произошла ошибка при аудите. Попробуйте позже."
+            )
+
+    # ========== STEP 2.5: RESEARCH (Iteration 59) ==========
+
+    async def handle_start_research(
+        self,
+        update: Update,
+        context: ContextTypes.DEFAULT_TYPE
+    ):
+        """
+        Callback handler для кнопки "Начать исследование" (Iteration 59)
+
+        Actions:
+        1. Запускает ResearcherAgent с Claude Code WebSearch
+        2. Сохраняет research_results в БД (sessions.research_data)
+        3. Отправляет краткий отчет пользователю
+        4. Показывает кнопку "Начать написание гранта"
+        """
+        query = update.callback_query
+        user_id = query.from_user.id
+
+        # Parse callback data: "start_research:anketa:ANK123"
+        callback_data = query.data
+        parts = callback_data.split(':')
+
+        if len(parts) != 3 or parts[0] != 'start_research' or parts[1] != 'anketa':
+            await query.answer("❌ Неверный формат данных", show_alert=True)
+            return
+
+        anketa_id = parts[2]
+
+        logger.info(f"[PIPELINE] User {user_id} clicked 'Start Research' for anketa {anketa_id}")
+
+        # Acknowledge button click
+        await query.answer("⏳ Запускаем исследование...")
+
+        try:
+            # Отправить сообщение о начале исследования
+            await query.message.reply_text(
+                "🔍 Запускаю исследование...\n\n"
+                "Поиск данных через Claude Code WebSearch:\n"
+                "• Статистика по теме проекта\n"
+                "• Данные о целевой аудитории\n"
+                "• Официальные источники (Росстат, министерства)\n\n"
+                "⏱️ Это займет 30-60 секунд."
+            )
+
+            # Получить данные анкеты из БД
+            anketa_session = self.db.get_session_by_anketa_id(anketa_id)
+            if not anketa_session:
+                await query.message.reply_text(
+                    "❌ Ошибка: анкета не найдена"
+                )
+                return
+
+            # Парсим interview_data
+            import json
+            if isinstance(anketa_session.get('interview_data'), str):
+                anketa_data = json.loads(anketa_session['interview_data'])
+            else:
+                anketa_data = anketa_session.get('interview_data', {})
+
+            # Создать ResearcherAgent
+            from agents.researcher_agent import ResearcherAgent
+
+            researcher = ResearcherAgent(db=self.db, llm_provider='claude_code')
+
+            # Формируем input для Researcher
+            # Берем данные из разных разделов анкеты
+            project_info = anketa_data.get('Основная информация', {})
+            project_essence = anketa_data.get('Суть проекта', {})
+            target_aud = anketa_data.get('Целевая аудитория', {})
+
+            research_input = {
+                'description': (
+                    f"{project_info.get('Название проекта', '')}. "
+                    f"{project_essence.get('Проблема', '')} "
+                    f"Целевая аудитория: {target_aud.get('Описание', '')}"
+                ),
+                'llm_provider': 'claude_code',
+                'session_id': anketa_session.get('id')
+            }
+
+            # Запускаем исследование
+            logger.info(f"[PIPELINE] Starting research with query: {research_input['description'][:100]}...")
+            research_result = await researcher.research_grant_async(research_input)
+
+            if not research_result or research_result.get('status') != 'success':
+                await query.message.reply_text(
+                    "❌ Не удалось выполнить исследование. Попробуйте позже."
+                )
+                return
+
+            # Сохранить research_results в БД
+            logger.info(f"[PIPELINE] Saving research results to DB...")
+
+            # Обновляем sessions.research_data через прямой SQL
+            import psycopg2
+            import os
+
+            conn = psycopg2.connect(
+                host=os.getenv('PGHOST', 'localhost'),
+                port=os.getenv('PGPORT', '5434'),
+                database=os.getenv('PGDATABASE', 'grantservice'),
+                user=os.getenv('PGUSER', 'postgres'),
+                password=os.getenv('PGPASSWORD', 'root')
+            )
+
+            with conn.cursor() as cur:
+                cur.execute(
+                    "UPDATE sessions SET research_data = %s WHERE anketa_id = %s",
+                    (json.dumps(research_result, ensure_ascii=False), anketa_id)
+                )
+                conn.commit()
+
+            conn.close()
+
+            # Отправить краткий отчет
+            sources_count = len(research_result.get('sources', []))
+            results_count = research_result.get('total_results', 0)
+
+            await query.message.reply_text(
+                f"✅ Исследование завершено!\n\n"
+                f"📊 Найдено источников: {sources_count}\n"
+                f"📄 Результатов поиска: {results_count}\n\n"
+                f"Данные будут использованы при написании гранта."
+            )
+
+            # Создать кнопку "Начать написание гранта"
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton(
+                    "✍️ Начать написание гранта",
+                    callback_data=f"start_grant:anketa:{anketa_id}"
+                )]
+            ])
+
+            # Отправить сообщение с кнопкой
+            await query.message.reply_text(
+                text=(
+                    "📝 Готовы создать грантовую заявку?\n\n"
+                    "Генератор создаст заявку С ИСПОЛЬЗОВАНИЕМ найденных данных:\n"
+                    "• Описание проблемы с реальной статистикой\n"
+                    "• Обоснование с официальными источниками\n"
+                    "• Цели и показатели на основе данных\n\n"
+                    "⏱️ Это займет 2-3 минуты.\n\n"
+                    "Нажмите кнопку когда будете готовы:"
+                ),
+                reply_markup=keyboard
+            )
+
+            logger.info(f"[OK] Research complete for user {user_id}, button displayed")
+
+        except Exception as e:
+            logger.error(f"[ERROR] Failed to run research: {e}")
+            import traceback
+            traceback.print_exc()
+            await query.message.reply_text(
+                "❌ Произошла ошибка при исследовании. Попробуйте позже."
             )
 
     # ========== STEP 3: GRANT → REVIEW ==========
@@ -424,6 +581,25 @@ class InteractivePipelineHandler:
             else:
                 anketa_data = anketa_session['interview_data']
 
+            # Iteration 59: Получить research_results из БД
+            research_results = None
+            research_data = anketa_session.get('research_data')
+
+            if research_data:
+                logger.info("[PIPELINE] Found research_data in session")
+                if isinstance(research_data, str):
+                    try:
+                        research_results = json.loads(research_data)
+                        logger.info(f"[PIPELINE] Parsed research_results: {len(research_results.get('sources', []))} sources")
+                    except Exception as e:
+                        logger.error(f"[ERROR] Failed to parse research_data: {e}")
+                        research_results = None
+                elif isinstance(research_data, dict):
+                    research_results = research_data
+                    logger.info(f"[PIPELINE] Using research_results: {len(research_results.get('sources', []))} sources")
+            else:
+                logger.warning("[PIPELINE] No research_data found - grant will be created without research")
+
             # Создать ProductionWriter
             writer = ProductionWriter(
                 llm_provider='gigachat',  # или получить из БД
@@ -437,8 +613,11 @@ class InteractivePipelineHandler:
                 db=self.db
             )
 
-            # Генерируем грант через write()
-            grant_content = await writer.write(anketa_data=anketa_data)
+            # Iteration 59: Генерируем грант через write() С research_results
+            grant_content = await writer.write(
+                anketa_data=anketa_data,
+                research_results=research_results  # ← ADD
+            )
 
             if not grant_content:
                 await query.message.reply_text(

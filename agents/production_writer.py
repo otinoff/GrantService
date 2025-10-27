@@ -237,7 +237,8 @@ class ProductionWriter:
         self,
         section_config: Dict,
         anketa_data: Dict,
-        fpg_requirements: List[Dict[str, Any]]
+        fpg_requirements: List[Dict[str, Any]],
+        research_results: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Построить промпт для генерации одной секции
@@ -246,6 +247,7 @@ class ProductionWriter:
             section_config: Конфигурация секции из SECTIONS
             anketa_data: Данные анкеты
             fpg_requirements: FPG требования из Qdrant
+            research_results: Optional - результаты исследования (статистика, источники)
 
         Returns:
             str: Промпт для LLM
@@ -268,6 +270,33 @@ class ProductionWriter:
                 requirements_text += f"### Требование {i+1}: {req['section_name']}\n"
                 requirements_text += f"{req['content'][:500]}...\n\n"
 
+        # Форматируем research_results (статистика из интернета)
+        research_text = ""
+        if research_results and research_results.get('status') == 'success':
+            research_text = "\n\n## ДАННЫЕ ИЗ ИССЛЕДОВАНИЯ (используй для обоснования):\n\n"
+
+            # Добавляем источники
+            sources = research_results.get('sources', [])
+            if sources:
+                research_text += "### Официальные источники:\n"
+                for source in sources[:5]:  # Первые 5 источников
+                    research_text += f"- {source}\n"
+                research_text += "\n"
+
+            # Добавляем результаты поиска
+            results = research_results.get('results', [])
+            if results:
+                research_text += "### Найденные данные:\n\n"
+                for i, result in enumerate(results[:3], 1):  # Первые 3 результата
+                    research_text += f"{i}. **{result.get('title', 'N/A')}**\n"
+                    research_text += f"   Источник: {result.get('url', 'N/A')}\n"
+                    snippet = result.get('snippet', '')
+                    if snippet:
+                        research_text += f"   {snippet[:200]}...\n"
+                    research_text += "\n"
+
+            research_text += "**ВАЖНО:** Используй эти данные для усиления аргументации в разделе!\n"
+
         prompt = f"""
 Ты эксперт по написанию грантовых заявок с опытом работы 15+ лет.
 
@@ -286,6 +315,8 @@ class ProductionWriter:
 Цели: {', '.join(goals) if isinstance(goals, list) else goals}
 
 {requirements_text}
+
+{research_text}
 
 ТРЕБОВАНИЯ К РАЗДЕЛУ "{section_name}":
 
@@ -309,7 +340,8 @@ class ProductionWriter:
     async def _generate_section(
         self,
         section_config: Dict,
-        anketa_data: Dict
+        anketa_data: Dict,
+        research_results: Optional[Dict[str, Any]] = None
     ) -> str:
         """
         Сгенерировать одну секцию заявки
@@ -317,6 +349,7 @@ class ProductionWriter:
         Args:
             section_config: Конфигурация секции
             anketa_data: Данные анкеты
+            research_results: Optional - результаты исследования (статистика, источники)
 
         Returns:
             str: Сгенерированный текст секции
@@ -340,7 +373,8 @@ class ProductionWriter:
         prompt = self._build_section_prompt(
             section_config=section_config,
             anketa_data=anketa_data,
-            fpg_requirements=fpg_requirements
+            fpg_requirements=fpg_requirements,
+            research_results=research_results  # ← ADD
         )
 
         logger.info(f"📋 Prompt built ({len(prompt)} chars)")
@@ -362,7 +396,11 @@ class ProductionWriter:
 
         return section_content
 
-    async def write(self, anketa_data: Dict) -> str:
+    async def write(
+        self,
+        anketa_data: Dict,
+        research_results: Optional[Dict[str, Any]] = None
+    ) -> str:
         """
         Написать полную грантовую заявку 30K+ символов
 
@@ -378,6 +416,13 @@ class ProductionWriter:
                     ...
                 },
                 ...
+            }
+            research_results: Optional[Dict] - результаты исследования из ResearcherAgent
+            {
+                "status": "success",
+                "sources": ["https://rosstat.gov.ru/...", ...],
+                "results": [{"title": "...", "url": "...", "snippet": "..."}, ...],
+                "total_results": 5
             }
 
         Returns:
@@ -406,7 +451,8 @@ class ProductionWriter:
 
                 section_text = await self._generate_section(
                     section_config=section_config,
-                    anketa_data=anketa_data
+                    anketa_data=anketa_data,
+                    research_results=research_results  # ← ADD
                 )
 
                 sections_content.append({
