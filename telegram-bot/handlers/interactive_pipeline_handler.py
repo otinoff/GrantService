@@ -293,15 +293,24 @@ class InteractivePipelineHandler:
                 temp_file_path = f.name
 
             # Отправить файл
-            score = audit_result.get('average_score', 0)
-            status = audit_result.get('approval_status', 'pending')
+            score = audit_result.get('overall_score', 0) * 10  # Convert 0-1 to 0-10
+            status = audit_result.get('readiness_status', 'Требует проверки')
+
+            # Map Russian status to English for emoji selection
+            status_key = 'pending'
+            if 'Одобрено' in status or 'Готово' in status:
+                status_key = 'approved'
+            elif 'Требует доработки' in status or 'Доработка' in status:
+                status_key = 'needs_revision'
+            elif 'Отклонено' in status:
+                status_key = 'rejected'
 
             status_emoji = {
                 'approved': '✅',
                 'needs_revision': '⚠️',
                 'rejected': '❌',
                 'pending': '⏳'
-            }.get(status, '⏳')
+            }.get(status_key, '⏳')
 
             with open(temp_file_path, 'rb') as f:
                 await query.message.reply_document(
