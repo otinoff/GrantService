@@ -29,7 +29,7 @@ class TestInterviewMinimumQuestions:
         """Test: Interview with 9 answers should ask 10th question before finalizing"""
 
         # Import agent
-        from agents.interactive_interviewer_agent_v2 import InteractiveInterviewerAgentV2
+        from agents.interactive_interviewer_v2.agent import InteractiveInterviewerAgentV2
 
         # Mock DB
         mock_db = MagicMock()

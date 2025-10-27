@@ -17,7 +17,7 @@ from unittest.mock import Mock, AsyncMock, patch
 from typing import List, Dict
 
 # Note: conftest.py adds project root to sys.path
-from agents.interactive_interviewer_agent_v2 import InteractiveInterviewerAgentV2
+from agents.interactive_interviewer_v2.agent import InteractiveInterviewerAgentV2
 from agents.reference_points.reference_point import ReferencePointPriority
 
 

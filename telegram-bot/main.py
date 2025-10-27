@@ -1962,7 +1962,7 @@ PDF документ с полной анкетой прикреплен
         - Подключение к Qdrant
         - Инициализация LLM клиента
         """
-        from agents.interactive_interviewer_agent_v2 import InteractiveInterviewerAgentV2
+        from agents.interactive_interviewer_v2.agent import InteractiveInterviewerAgentV2
 
         # Получить LLM провайдер пользователя
         llm_provider = self.interview_handler.db.get_user_llm_preference(user_id)

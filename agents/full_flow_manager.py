@@ -15,7 +15,7 @@ from datetime import datetime
 from typing import Dict, List, Any, Optional, Callable
 import asyncio
 
-from agents.interactive_interviewer_agent_v2 import InteractiveInterviewerAgentV2
+from agents.interactive_interviewer_v2.agent import InteractiveInterviewerAgentV2
 from agents.synthetic_user_simulator import SyntheticUserSimulator
 
 logger = logging.getLogger(__name__)

@@ -19,7 +19,7 @@ import asyncio
 from unittest.mock import Mock, AsyncMock, patch, MagicMock
 
 # Note: conftest.py already adds project root to sys.path
-from agents.interactive_interviewer_agent_v2 import InteractiveInterviewerAgentV2
+from agents.interactive_interviewer_v2.agent import InteractiveInterviewerAgentV2
 from agents.reference_points.reference_point import ReferencePoint, ReferencePointPriority
 from agents.reference_points.reference_point_manager import ReferencePointManager
 

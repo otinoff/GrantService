@@ -69,12 +69,24 @@ def generate_anketa_txt(anketa_data: Dict[str, Any]) -> str:
     lines.append("-" * 60)
     lines.append("")
 
-    # Answers
+    # Answers - try both answers_data and interview_data (Iteration 52 compatibility)
     answers_data = anketa_data.get('answers_data', {})
     if isinstance(answers_data, str):
         try:
             answers_data = json.loads(answers_data)
         except:
+            answers_data = {}
+
+    # ITERATION 53 FIX: If answers_data is empty/None/not-dict, try interview_data
+    if not answers_data or not isinstance(answers_data, dict):
+        answers_data = anketa_data.get('interview_data', {})
+        if isinstance(answers_data, str):
+            try:
+                answers_data = json.loads(answers_data)
+            except:
+                answers_data = {}
+        # If interview_data is also not a dict, use empty dict
+        if not isinstance(answers_data, dict):
             answers_data = {}
 
     lines.append("ОТВЕТЫ НА ВОПРОСЫ:")
@@ -85,26 +97,38 @@ def generate_anketa_txt(anketa_data: Dict[str, Any]) -> str:
         'organization': 'Организация',
         'project_description': 'Описание проекта',
         'problem': 'Проблема',
+        'problem_description': 'Описание проблемы',
         'solution': 'Решение',
         'target_audience': 'Целевая аудитория',
         'expected_results': 'Ожидаемые результаты',
         'budget': 'Бюджет',
+        'budget_total': 'Общий бюджет',
+        'budget_breakdown': 'Структура бюджета',
         'duration': 'Срок реализации',
         'team': 'Команда проекта',
+        'team_description': 'Описание команды',
         'partners': 'Партнеры',
+        'project_goal': 'Цель проекта',
+        'methodology': 'Методология',
+        'risks': 'Риски',
+        'sustainability': 'Устойчивость',
     }
 
-    for key, value in answers_data.items():
-        if value:
-            label = question_labels.get(key, key.replace('_', ' ').capitalize())
-            lines.append(f"{label}:")
-            lines.append(f"  {value}")
-            lines.append("")
+    # ITERATION 53 FIX: Check if answers_data is dict before calling .items()
+    if isinstance(answers_data, dict):
+        for key, value in answers_data.items():
+            if value:
+                label = question_labels.get(key, key.replace('_', ' ').capitalize())
+                lines.append(f"{label}:")
+                lines.append(f"  {value}")
+                lines.append("")
 
     # Footer
     lines.append("")
     lines.append("=" * 60)
-    lines.append(f"Всего вопросов: {len(answers_data)}")
+    # ITERATION 53 FIX: Check answers_data is dict before calling len()
+    question_count = len(answers_data) if isinstance(answers_data, dict) else 0
+    lines.append(f"Всего вопросов: {question_count}")
     lines.append("=" * 60)
 
     return "\n".join(lines)
