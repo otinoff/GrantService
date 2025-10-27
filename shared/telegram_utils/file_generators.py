@@ -222,13 +222,26 @@ def generate_audit_txt(audit_data: Dict[str, Any]) -> str:
     lines.append("-" * 60)
     lines.append("")
 
-    # Recommendations
+    # Recommendations (handle multiple formats)
     recommendations = audit_data.get('recommendations', {})
+
+    # Handle string (JSON)
     if isinstance(recommendations, str):
         try:
             recommendations = json.loads(recommendations)
         except:
             recommendations = {}
+
+    # Handle list (from Agent: ['problem1', 'problem2'])
+    elif isinstance(recommendations, list):
+        recommendations = {
+            'problems': recommendations,
+            'suggestions': []
+        }
+
+    # Handle invalid types
+    elif not isinstance(recommendations, dict):
+        recommendations = {}
 
     if recommendations:
         lines.append("РЕКОМЕНДАЦИИ:")

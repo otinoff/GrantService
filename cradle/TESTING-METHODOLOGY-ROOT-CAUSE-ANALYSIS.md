@@ -725,7 +725,350 @@ pytest tests/e2e/ -v
 
 ---
 
-**Last Updated:** 2025-10-27
-**Author:** Claude Code (ROOT CAUSE ANALYSIS + IDEAL METHODOLOGY)
+## 🚨 ITERATION 55: КРИТИЧЕСКИЕ УРОКИ (2025-10-27)
+
+### ПРОБЛЕМА: Тесты прошли, но production всё ещё ломается
+
+**Контекст:**
+- Iteration_54: Исправили field mapping (overall_score) ✅
+- Iteration_55: Исправили float → int conversion ✅
+- Local tests: ✅ PASSED
+- Deploy: ✅ SUCCESS
+- Production: ❌ НОВАЯ ОШИБКА!
+
+```python
+AttributeError: 'list' object has no attribute 'get'
+File: file_generators.py:238
+problems = recommendations.get('problems', [])
+```
+
+---
+
+### 📊 ROOT CAUSE ANALYSIS: Почему тесты не поймали?
+
+#### ❌ Ошибка #1: Mock Data вместо Real Data
+
+**Что делали:**
+```python
+# НАШ ТЕСТ (НЕПРАВИЛЬНО):
+audit_result = {
+    'recommendations': {            # ← MOCK: Dict
+        'problems': ['Проблема 1'],
+        'suggestions': ['Предложение 1']
+    }
+}
+```
+
+**Что в production:**
+```python
+# РЕАЛЬНЫЙ AGENT (PRODUCTION):
+audit_result = {
+    'recommendations': [            # ← REAL: List!
+        'Проблема 1',
+        'Проблема 2',
+        'Проблема 3'
+    ]
+}
+```
+
+**Результат:**
+- Тест прошел с mock dict
+- Production упал с real list
+- **ТЕСТ НЕ ОТРАЗИЛ РЕАЛЬНОСТЬ!**
+
+---
+
+#### ❌ Ошибка #2: Не запустили E2E с РЕАЛЬНЫМ Agent
+
+**Что делали:**
+```python
+# Mock Agent output
+audit_result = simulate_audit_output()  # Fake data
+```
+
+**Что нужно было:**
+```python
+# Real Agent
+from agents.auditor_agent import AuditorAgent
+auditor = AuditorAgent(llm_provider="gigachat", db=db)
+audit_result = await auditor.run_audit(anketa_data)  # REAL data!
+```
+
+**Результат:**
+- Не тестировали реальную структуру данных Agent
+- Не знали что Agent возвращает list, а не dict
+- **MOCK НЕ РАВЕН PRODUCTION!**
+
+---
+
+#### ❌ Ошибка #3: Не проверили production ПЕРЕД SUCCESS
+
+**Что делали:**
+```
+1. Local tests PASSED ✅
+2. Git commit ✅
+3. Git push ✅
+4. Deploy to production ✅
+5. Create SUCCESS.md ✅
+6. Ждем user feedback... ⏳ ← ОШИБКА ЗДЕСЬ!
+```
+
+**Что нужно было:**
+```
+1. Local tests PASSED ✅
+2. Git commit ✅
+3. Git push ✅
+4. Deploy to production ✅
+5. SMOKE TEST on production ✅ ← ДОБАВИТЬ!
+6. User verification ✅
+7. ТОЛЬКО ТОГДА SUCCESS.md ✅
+```
+
+**Результат:**
+- Объявили SUCCESS до проверки
+- User нашел баг сразу после deploy
+- **НЕ ПРОВЕРИЛИ ЧТО РАБОТАЕТ!**
+
+---
+
+### ✅ НОВЫЕ ПРАВИЛА МЕТОДОЛОГИИ
+
+#### Правило #1: REAL DATA ONLY
+
+```
+❌ ЗАПРЕЩЕНО: Mock данные для integration/e2e тестов
+✅ ТРЕБУЕТСЯ: Реальные данные от Agent
+
+# BAD:
+audit_result = {'recommendations': {'problems': [...]}}  # Mock
+
+# GOOD:
+auditor = AuditorAgent(db=db, llm_provider="gigachat")
+audit_result = await auditor.run_audit(real_anketa_data)  # Real!
+```
+
+**Исключения:**
+- Unit tests (изолированная логика) - mock OK
+- Быстрые smoke tests - mock OK
+- Integration/E2E tests - ТОЛЬКО РЕАЛЬНЫЕ ДАННЫЕ!
+
+---
+
+#### Правило #2: E2E = PRODUCTION PARITY
+
+```
+E2E TEST ДОЛЖЕН ИСПОЛЬЗОВАТЬ:
+✅ Реальный Agent (не mock)
+✅ Реальную БД (не in-memory)
+✅ Реальный LLM (GigaChat/Claude)
+✅ Реальный workflow (как user)
+
+ЦЕЛЬ: Если E2E прошел, production должен работать!
+```
+
+**Чеклист E2E теста:**
+- [ ] Использует настоящий Agent class
+- [ ] Вызывает реальный LLM API
+- [ ] Сохраняет/читает из БД
+- [ ] Проходит через production handlers
+- [ ] Тестирует полный user workflow
+
+---
+
+#### Правило #3: SMOKE TEST ПЕРЕД SUCCESS
+
+```
+НОВЫЙ ОБЯЗАТЕЛЬНЫЙ ШАГ:
+
+After Deploy:
+1. Pull на production ✅
+2. Restart service ✅
+3. SMOKE TEST - user workflow ✅ ← НОВОЕ!
+4. Verify logs - no errors ✅ ← НОВОЕ!
+5. ТОЛЬКО ТОГДА SUCCESS ✅
+```
+
+**SMOKE TEST на production:**
+```bash
+# 1. Deploy
+ssh root@5.35.88.251
+cd /var/GrantService
+git pull && systemctl restart grantservice-bot
+
+# 2. SMOKE TEST (НОВОЕ!)
+# Option A: Automated smoke test
+python tests/smoke/test_production_workflow.py --production
+
+# Option B: Manual user test (если нет automated)
+# - Пройти интервью
+# - Запустить аудит
+# - Проверить что файл создался
+# - Проверить что нет ошибок
+
+# 3. Check logs
+journalctl -u grantservice-bot --since "2 minutes ago" | grep ERROR
+
+# 4. ТОЛЬКО ЕСЛИ ВСЕ OK → SUCCESS.md
+```
+
+---
+
+### 🎯 ОБНОВЛЕННЫЙ WORKFLOW
+
+#### СТАРЫЙ (НЕПРАВИЛЬНЫЙ):
+```
+Test → Commit → Deploy → Wait for user → Hope it works
+```
+
+#### НОВЫЙ (ПРАВИЛЬНЫЙ):
+```
+1. Write test with REAL Agent data
+2. Run E2E with REAL Agent
+3. Commit if tests pass
+4. Deploy to production
+5. SMOKE TEST on production
+6. Verify in logs
+7. User test
+8. ТОЛЬКО ТОГДА SUCCESS
+```
+
+---
+
+### 📚 ИТОГОВЫЕ ПРАВИЛА
+
+#### При написании тестов:
+
+1. **Mock Data - только для Unit Tests**
+   - Integration/E2E = Real Agent data ОБЯЗАТЕЛЬНО
+
+2. **Получить Real Data от Agent**
+   ```python
+   # Запустить Agent локально и сохранить output
+   audit_result = await auditor.run_audit(test_data)
+   print(json.dumps(audit_result, indent=2))  # Save to test
+   ```
+
+3. **Тестировать ВСЕ форматы данных**
+   ```python
+   test_with_dict()
+   test_with_list()
+   test_with_string()
+   test_with_none()
+   ```
+
+4. **E2E = Production Parity**
+   - Если E2E прошел, production ДОЛЖЕН работать
+
+---
+
+#### При деплое:
+
+1. **Pre-Deploy Checklist**
+   - [ ] All tests PASSED (unit, integration, e2e)
+   - [ ] Tests use REAL Agent data
+   - [ ] E2E uses REAL Agent (не mock)
+
+2. **Deploy Process**
+   - [ ] Git push
+   - [ ] Pull на production
+   - [ ] Restart service
+   - [ ] **SMOKE TEST** ← НОВОЕ!
+   - [ ] Check logs for errors
+   - [ ] User verification
+
+3. **Post-Deploy**
+   - [ ] ТОЛЬКО после SMOKE TEST → SUCCESS
+   - [ ] Update LESSONS-LEARNED.md
+
+---
+
+### 🔥 КРИТИЧЕСКОЕ ПРАВИЛО
+
+```
+НИКОГДА НЕ ОБЪЯВЛЯЙ SUCCESS
+ПОКА НЕ ПРОВЕРИЛ НА PRODUCTION!
+
+Тесты прошли ≠ Production работает
+```
+
+**Почему:**
+- Mock data ≠ Real data
+- Local ≠ Production
+- Тесты могут быть неполными
+
+**Решение:**
+- SMOKE TEST на production
+- User verification
+- Logs check
+- ТОЛЬКО ТОГДА SUCCESS
+
+---
+
+### 📝 ОБНОВЛЕННЫЙ CHECKLIST
+
+**ПЕРЕД КОММИТОМ:**
+- [ ] Unit tests PASSED
+- [ ] Integration tests PASSED (with REAL data)
+- [ ] E2E tests PASSED (with REAL Agent)
+- [ ] All data formats tested (dict, list, string, none)
+
+**ПЕРЕД DEPLOY:**
+- [ ] Pre-deploy checklist completed
+- [ ] Commit message describes changes
+- [ ] Tests cover bug scenario
+
+**ПОСЛЕ DEPLOY:**
+- [ ] Production service restarted
+- [ ] **SMOKE TEST executed** ← ОБЯЗАТЕЛЬНО!
+- [ ] Logs checked (no errors)
+- [ ] User verified feature works
+- [ ] SUCCESS.md created
+
+**ТОЛЬКО ЕСЛИ ВСЕ ✅ → ITERATION SUCCESS**
+
+---
+
+### 💡 ПРАКТИЧЕСКИЙ ПРИМЕР
+
+**Iteration_55: Как ПРАВИЛЬНО:**
+
+```bash
+# 1. Fix bug
+edit file_generators.py
+
+# 2. Write test with REAL data
+python -c "
+from agents.auditor_agent import AuditorAgent
+audit = await auditor.run_audit(test_data)
+print(audit['recommendations'])  # Get REAL structure
+"
+# Output: ['Problem 1', 'Problem 2']  ← It's a LIST!
+
+# 3. Update test with REAL format
+test_recommendations_as_list()  # Test LIST format
+
+# 4. Run ALL tests
+pytest tests/integration/ -v  # All PASS
+
+# 5. Commit & Deploy
+git commit && git push
+ssh root@5.35.88.251 "cd /var/GrantService && git pull && systemctl restart grantservice-bot"
+
+# 6. SMOKE TEST (НОВОЕ!)
+ssh root@5.35.88.251 "journalctl -u grantservice-bot --since '1 minute ago' | grep ERROR"
+# No errors ✅
+
+# 7. User test
+# User: "Аудит работает!" ✅
+
+# 8. ТОЛЬКО ТОГДА
+create SUCCESS.md ✅
+```
+
+---
+
+**Last Updated:** 2025-10-27 (Added Iteration_55 lessons)
+**Author:** Claude Code (ROOT CAUSE ANALYSIS + IDEAL METHODOLOGY + Iteration_55)
 **Status:** ACTIVE - Use as reference for all testing
 **Priority:** P0 - КРИТИЧЕСКИ ВАЖНО для production
+**New Rules:** Real Data Only, E2E = Production Parity, SMOKE TEST before SUCCESS
