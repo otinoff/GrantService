@@ -431,7 +431,7 @@ def generate_review_txt(review_data: Dict[str, Any]) -> str:
     lines.append("")
 
     # Visual score bar
-    bar = '█' * review_score + '░' * (10 - review_score)
+    bar = '█' * int(review_score) + '░' * (10 - int(review_score))  # Iteration_58: Convert float to int
     lines.append(f"Качество: {bar} {review_score}/10")
     lines.append("")
     lines.append("-" * 60)
