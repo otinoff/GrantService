@@ -1,7 +1,7 @@
 # Iteration 57: Reviewer Field Mapping Fix
 
 **Date:** 2025-10-27
-**Status:** ✅ DEPLOYED - Awaiting User Verification
+**Status:** ✅ COMPLETED (See Iteration_58 for follow-up bugs)
 **Priority:** P1 - HIGH
 **Related:** Iteration_54 (Auditor field mapping), Iteration_56 Part 1 (GigaChat fix)
 
@@ -453,3 +453,22 @@ return ReviewResult(**result).dict()
 **Date:** 2025-10-27
 **Time:** 20:15 MSK (17:15 UTC)
 **Related:** Iteration_54 (Auditor), Iteration_56 (GigaChat)
+
+---
+
+## ⚠️ Post-Deployment Note
+
+**Iteration_58 Follow-up Required**
+
+After deploying this fix, 3 additional bugs were discovered:
+1. **Type Safety:** Missing isinstance() checks caused TypeError
+2. **Float Conversion:** Progress bar failed with float scores
+3. **Text Display:** Field mapping for strengths/weaknesses/recommendations
+
+These were NOT caused by this iteration's fix being wrong.
+Rather, the new code paths (review_score, final_status) triggered
+existing fragility in downstream code.
+
+**See:** `iterations/Iteration_58_Reviewer_Type_Safety_Fix/`
+
+**Status:** All bugs fixed in Iteration_58 ✅
