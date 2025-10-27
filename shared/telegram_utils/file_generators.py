@@ -214,8 +214,9 @@ def generate_audit_txt(audit_data: Dict[str, Any]) -> str:
 
     for field, label in score_fields.items():
         score = audit_data.get(field, 0)
-        bar = '█' * score + '░' * (10 - score)
-        lines.append(f"{label}: {bar} {score}/10")
+        score_int = round(score)  # Convert float to int for string multiplication
+        bar = '█' * score_int + '░' * (10 - score_int)
+        lines.append(f"{label}: {bar} {score:.1f}/10")
 
     lines.append("")
     lines.append("-" * 60)
