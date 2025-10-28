@@ -129,8 +129,7 @@ class E2ESyntheticWorkflow:
             # 2. Initialize simulator
             simulator = SyntheticUserSimulator(
                 quality_level='medium',
-                context=context,
-                llm_model='GigaChat'
+                context=context
             )
 
             # 3. Create session
