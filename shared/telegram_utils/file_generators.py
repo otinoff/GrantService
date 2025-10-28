@@ -459,7 +459,11 @@ def generate_research_txt(research_data: Dict[str, Any]) -> str:
 
         for i, query_data in enumerate(queries, 1):
             query_text = query_data.get('query', 'N/A')
-            answer = query_data.get('answer', 'N/A')
+
+            # ITERATION 62 FIX: Extract answer from nested 'result.summary'
+            result = query_data.get('result', {})
+            answer = result.get('summary', 'N/A')
+
             sources = query_data.get('sources', [])
 
             lines.append(f"=== ЗАПРОС {i} ===")
