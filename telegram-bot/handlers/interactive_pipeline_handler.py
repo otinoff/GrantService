@@ -422,25 +422,10 @@ class InteractivePipelineHandler:
 
             researcher = ResearcherAgent(db=self.db, llm_provider='claude_code')
 
-            # Формируем input для Researcher
-            # Берем данные из разных разделов анкеты
-            project_info = anketa_data.get('Основная информация', {})
-            project_essence = anketa_data.get('Суть проекта', {})
-            target_aud = anketa_data.get('Целевая аудитория', {})
-
-            research_input = {
-                'description': (
-                    f"{project_info.get('Название проекта', '')}. "
-                    f"{project_essence.get('Проблема', '')} "
-                    f"Целевая аудитория: {target_aud.get('Описание', '')}"
-                ),
-                'llm_provider': 'claude_code',
-                'session_id': anketa_session.get('id')
-            }
-
-            # Запускаем исследование
-            logger.info(f"[PIPELINE] Starting research with query: {research_input['description'][:100]}...")
-            research_result = await researcher.research_grant_async(research_input)
+            # Запускаем исследование через research_anketa() (с реальным WebSearch)
+            # Этот метод использует Claude Code WebSearch для поиска актуальной статистики
+            logger.info(f"[PIPELINE] Starting research with anketa_id: {anketa_id}...")
+            research_result = researcher.research_anketa(anketa_id)
 
             if not research_result or research_result.get('status') != 'success':
                 await query.message.reply_text(
@@ -473,8 +458,10 @@ class InteractivePipelineHandler:
             conn.close()
 
             # Отправить краткий отчет
-            sources_count = len(research_result.get('sources', []))
-            results_count = research_result.get('total_results', 0)
+            # research_anketa() возвращает: {'results': {'metadata': {'sources_count': N, 'total_queries': M}}}
+            metadata = research_result.get('results', {}).get('metadata', {})
+            sources_count = metadata.get('sources_count', 0)
+            results_count = metadata.get('total_queries', 0)
 
             await query.message.reply_text(
                 f"✅ Исследование завершено!\n\n"
