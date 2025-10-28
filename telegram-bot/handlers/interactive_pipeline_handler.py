@@ -18,6 +18,7 @@ import sys
 import logging
 import tempfile
 import os
+import io  # Iteration 61: For BytesIO
 from pathlib import Path
 from typing import Dict, Any, Optional
 from datetime import datetime
@@ -32,6 +33,7 @@ from telegram.ext import ContextTypes
 from shared.telegram_utils.file_generators import (
     generate_anketa_txt,
     generate_audit_txt,
+    generate_research_txt,  # Iteration 61: Add research file generation
     generate_grant_txt,
     generate_review_txt
 )
@@ -469,6 +471,40 @@ class InteractivePipelineHandler:
                 f"📄 Результатов поиска: {results_count}\n\n"
                 f"Данные будут использованы при написании гранта."
             )
+
+            # ITERATION 61: Send research results file
+            try:
+                # Construct research_data for file generation
+                research_data = {
+                    'research_id': f"{anketa_id}-RS-001",  # Simplified for now
+                    'anketa_id': anketa_id,
+                    'research_results': research_result,
+                    'created_at': datetime.now(),
+                    'llm_provider': 'claude_code'
+                }
+
+                # Generate .txt file
+                research_txt_content = generate_research_txt(research_data)
+
+                # Create filename following nomenclature
+                # Format: research_AN-YYYYMMDD-user-001-RS-001.txt
+                research_id = research_data.get('research_id', '')
+                filename = f"research_{research_id.replace('#', '')}.txt"
+
+                # Send file to user
+                file_bytes = research_txt_content.encode('utf-8')
+                await query.message.reply_document(
+                    document=io.BytesIO(file_bytes),
+                    filename=filename,
+                    caption="📄 Результаты исследования (файл для ознакомления)"
+                )
+                logger.info(f"[OK] Research file sent: {filename}")
+
+            except Exception as e:
+                logger.error(f"[ERROR] Failed to send research file: {e}")
+                import traceback
+                traceback.print_exc()
+                # Don't fail the whole pipeline - file is optional
 
             # Создать кнопку "Начать написание гранта"
             keyboard = InlineKeyboardMarkup([

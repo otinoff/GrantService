@@ -370,6 +370,128 @@ def generate_grant_txt(grant_data: Dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def generate_research_txt(research_data: Dict[str, Any]) -> str:
+    """
+    Generate research results as text file
+
+    Args:
+        research_data: Dictionary with research results from researcher_research table
+            Required keys: research_id, anketa_id, research_results, created_at
+
+    Returns:
+        Formatted text content for research file
+
+    Example:
+        research = {
+            'research_id': '#AN-20251028-user-001-RS-001',
+            'anketa_id': '#AN-20251028-user-001',
+            'research_results': {
+                'results': {
+                    'block1': {
+                        'queries': [...]
+                    },
+                    'metadata': {
+                        'sources_count': 3,
+                        'total_queries': 3
+                    }
+                }
+            },
+            'created_at': '2025-10-28 23:00:00'
+        }
+        txt = generate_research_txt(research)
+    """
+
+    # Header
+    lines = [
+        "=" * 60,
+        "РЕЗУЛЬТАТЫ ИССЛЕДОВАНИЯ",
+        "=" * 60,
+        ""
+    ]
+
+    # Metadata
+    research_id = research_data.get('research_id', 'Unknown')
+    anketa_id = research_data.get('anketa_id', 'Unknown')
+    created_at = research_data.get('created_at', datetime.now())
+    if isinstance(created_at, str):
+        created_at_str = created_at
+    else:
+        created_at_str = created_at.strftime("%Y-%m-%d %H:%M:%S")
+
+    lines.append(f"ID исследования: {research_id}")
+    lines.append(f"ID анкеты: {anketa_id}")
+    lines.append(f"Дата исследования: {created_at_str}")
+    lines.append("")
+    lines.append("-" * 60)
+    lines.append("")
+
+    # Parse research results (handle nested structure from Iteration 60)
+    research_results = research_data.get('research_results', {})
+    if isinstance(research_results, str):
+        try:
+            research_results = json.loads(research_results)
+        except:
+            research_results = {}
+
+    # Extract results and metadata
+    results = research_results.get('results', {})
+    metadata = results.get('metadata', {})
+
+    sources_count = metadata.get('sources_count', 0)
+    total_queries = metadata.get('total_queries', 0)
+
+    # Statistics section
+    lines.append("СТАТИСТИКА:")
+    lines.append("")
+    lines.append(f"📊 Найдено источников: {sources_count}")
+    lines.append(f"📄 Выполнено запросов: {total_queries}")
+    lines.append("")
+    lines.append("-" * 60)
+    lines.append("")
+
+    # Block 1 results (queries and answers)
+    block1 = results.get('block1', {})
+    queries = block1.get('queries', [])
+
+    if queries:
+        lines.append("РЕЗУЛЬТАТЫ ПОИСКА:")
+        lines.append("")
+
+        for i, query_data in enumerate(queries, 1):
+            query_text = query_data.get('query', 'N/A')
+            answer = query_data.get('answer', 'N/A')
+            sources = query_data.get('sources', [])
+
+            lines.append(f"=== ЗАПРОС {i} ===")
+            lines.append("")
+            lines.append(f"Вопрос: {query_text}")
+            lines.append("")
+            lines.append("Ответ:")
+            lines.append(answer)
+            lines.append("")
+
+            if sources:
+                lines.append("Источники:")
+                for source in sources:
+                    lines.append(f"  • {source}")
+                lines.append("")
+
+            lines.append("-" * 60)
+            lines.append("")
+    else:
+        lines.append("⚠️ Результаты поиска недоступны")
+        lines.append("")
+
+    # Footer
+    llm_provider = research_data.get('llm_provider', 'Unknown')
+    lines.append("=" * 60)
+    lines.append(f"Исследование выполнено: {llm_provider}")
+    lines.append(f"Всего запросов: {total_queries}")
+    lines.append("=" * 60)
+
+    return "\n".join(lines)
+
+
 def generate_review_txt(review_data: Dict[str, Any]) -> str:
     """
     Generate review results as text file
