@@ -466,3 +466,177 @@ def _websearch_simple(self, query: str) -> ResearchResult:
 **Iteration:** 62
 **Impact:** Critical bug fix (blocked research data flow)
 **Status:** ✅ Production-tested
+
+---
+
+# Production Database Schema & Credentials
+
+**Дата:** 2025-10-29
+**Источник:** Iteration 64 - Full E2E Pipeline
+**Статус:** ✅ Tested in production
+
+---
+
+## 🐛 Проблема: Неправильные credentials и table names
+
+### Симптом 1: Authentication Failed
+
+```
+psycopg2.OperationalError: connection to server at "localhost" (127.0.0.1),
+port 5434 failed: FATAL: password authentication failed for user "postgres"
+```
+
+### Симптом 2: Table Does Not Exist
+
+```
+psycopg2.errors.UndefinedTable: relation "audits" does not exist
+LINE 2: INSERT INTO audits (session_id, audit_data...)
+```
+
+---
+
+## ✅ Решение
+
+### Production Database Credentials
+
+```bash
+# ❌ WRONG (Local dev)
+PGUSER=postgres
+PGPASSWORD=root
+PGPORT=5432
+
+# ✅ CORRECT (Production - 5.35.88.251)
+export PGHOST=localhost
+export PGPORT=5434
+export PGDATABASE=grantservice
+export PGUSER=grantservice
+export PGPASSWORD='jPsGn%Nt%q#THnUB&&cqo*1Q'
+```
+
+### Production Table Names
+
+| Dev/Test Name | Production Name | Status |
+|---------------|-----------------|--------|
+| `audits` | `auditor_results` | ✅ EXISTS |
+| `researcher_research` | `researcher_research` | ✅ EXISTS |
+| `grants` | `grants` | ✅ EXISTS |
+| `reviews` | N/A | ❌ DOES NOT EXIST |
+
+**Key Tables:**
+- `auditor_results` - Audit data from AuditorAgentClaude
+- `researcher_research` - Research results from ResearcherAgent
+- `grants` - Grant applications from WriterAgent
+- `sessions` - Session data with JSONB answers_data
+- `users` - User accounts
+
+---
+
+## 📋 Правильные SQL Queries
+
+### Step 2 (Audit)
+
+```python
+# ❌ WRONG
+INSERT INTO audits (session_id, audit_data, created_at)
+VALUES (%s, %s, %s)
+
+# ✅ CORRECT
+INSERT INTO auditor_results (session_id, audit_data, created_at)
+VALUES (%s, %s, %s)
+```
+
+### Step 5 (Review)
+
+```python
+# ❌ WRONG - Table doesn't exist
+INSERT INTO reviews (session_id, review_data, created_at)
+
+# ✅ CORRECT - Skip DB save, file-only
+logger.info("⚠️ Skipping database save (reviews table not found)")
+# Just generate review_*.txt file
+```
+
+---
+
+## 🔍 How to Check Schema
+
+```bash
+# Connect to production DB
+PGPASSWORD='jPsGn%Nt%q#THnUB&&cqo*1Q' psql \
+  -h localhost \
+  -p 5434 \
+  -U grantservice \
+  -d grantservice \
+  -c '\dt'
+
+# Check specific tables
+PGPASSWORD='...' psql -h localhost -p 5434 -U grantservice -d grantservice \
+  -c "SELECT table_name FROM information_schema.tables
+      WHERE table_schema='public'
+      AND table_name ~ 'audit|research|grant|review';"
+```
+
+---
+
+## 🚨 Common Mistakes
+
+### 1. Wrong Port (5432 instead of 5434)
+
+```bash
+# ❌ WRONG - Default PostgreSQL port
+psql -h localhost -U grantservice -d grantservice
+# Fails: password authentication failed
+
+# ✅ CORRECT - Custom port 5434
+psql -h localhost -p 5434 -U grantservice -d grantservice
+```
+
+### 2. Wrong User (postgres instead of grantservice)
+
+```bash
+# ❌ WRONG
+PGUSER=postgres
+
+# ✅ CORRECT
+PGUSER=grantservice
+```
+
+### 3. Wrong Table Names
+
+```python
+# ❌ WRONG
+self.db.execute("INSERT INTO audits ...")
+
+# ✅ CORRECT
+self.db.execute("INSERT INTO auditor_results ...")
+```
+
+---
+
+## 📚 Related Code
+
+**Files using DB:**
+- `scripts/e2e_synthetic_workflow.py` - E2E pipeline
+- `data/database/models.py` - Database connection class
+- `agents/*_agent.py` - Agent implementations
+
+**Environment Setup:**
+```python
+# agents/base_agent.py or scripts
+import os
+os.environ['PGHOST'] = 'localhost'
+os.environ['PGPORT'] = '5434'
+os.environ['PGDATABASE'] = 'grantservice'
+os.environ['PGUSER'] = 'grantservice'
+os.environ['PGPASSWORD'] = 'jPsGn%Nt%q#THnUB&&cqo*1Q'
+
+db = GrantServiceDatabase()  # Will use env vars
+```
+
+---
+
+**Автор:** Claude Code
+**Дата:** 2025-10-29
+**Iteration:** 64
+**Impact:** Critical - Production deployment blocker
+**Status:** ✅ Documented and fixed
