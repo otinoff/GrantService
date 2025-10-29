@@ -408,9 +408,10 @@ class E2ESyntheticWorkflow:
             grant_text = writer_result.get('grant_text', writer_result.get('result', {}).get('text', 'N/A'))
 
             # 3. Save to database (production grants schema)
-            # ITERATION 64 FIX: Use correct grants table schema
+            # ITERATION 64 FIX: Use correct grants table schema + varchar(50) limit
             timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
-            grant_id = f"{anketa_id}-GR-{timestamp}"
+            # Format: #GR-{timestamp}-{shortened_anketa_id} = 4+14+1+30 = 49 chars
+            grant_id = f"#GR-{timestamp}-{anketa_id[:30]}"
 
             # Extract title (first line or default)
             grant_title = grant_text.split('\n')[0][:200] if grant_text else "Грантовая заявка"
