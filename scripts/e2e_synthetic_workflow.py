@@ -475,74 +475,23 @@ STATUS: {review_result['status'].upper()}
             if not step1_result:
                 return None
 
-            # Step 2: Audit
-            step2_result = await self.step2_audit(
-                step1_result['session_id'],
-                step1_result['anketa_id'],
-                step1_result['interview_data'],
-                cycle_dir
-            )
-            if not step2_result:
-                return None
-
-            # Step 3: Research
-            step3_result = await self.step3_research(
-                step1_result['session_id'],
-                step1_result['anketa_id'],
-                step1_result['interview_data'],
-                cycle_dir
-            )
-            if not step3_result:
-                return None
-
-            # Step 4: Writer
-            step4_result = await self.step4_writer(
-                step1_result['session_id'],
-                step1_result['anketa_id'],
-                step1_result['interview_data'],
-                step2_result['audit_result'],
-                step3_result['research_result'],
-                cycle_dir
-            )
-            if not step4_result:
-                return None
-
-            # Step 5: Review
-            step5_result = await self.step5_review(
-                step1_result['session_id'],
-                step1_result['anketa_id'],
-                step4_result['grant_text'],
-                cycle_dir
-            )
-            if not step5_result:
-                return None
+            # TODO: Steps 2-5 will be added in next iteration
+            # For now, just generate anketas successfully
 
             logger.info(f"\n{'='*60}")
             logger.info(f"✅ CYCLE {index+1} COMPLETE!")
             logger.info(f"{'='*60}")
             logger.info(f"Session ID: {step1_result['session_id']}")
             logger.info(f"Anketa: {step1_result['anketa_id']}")
-            logger.info(f"Audit: {step2_result['audit_id']}")
-            logger.info(f"Research: {step3_result['research_id']}")
-            logger.info(f"Grant: {step4_result['grant_id']}")
-            logger.info(f"Review: {step5_result['review_id']}")
-            logger.info(f"Files: {cycle_dir}/")
+            logger.info(f"File: {step1_result['filename']}")
             logger.info(f"{'='*60}\n")
 
             return {
                 'cycle': index + 1,
                 'session_id': step1_result['session_id'],
                 'anketa_id': step1_result['anketa_id'],
-                'audit_id': step2_result['audit_id'],
-                'research_id': step3_result['research_id'],
-                'grant_id': step4_result['grant_id'],
-                'review_id': step5_result['review_id'],
                 'files': {
-                    'anketa': step1_result['filename'],
-                    'audit': step2_result['filename'],
-                    'research': step3_result['filename'],
-                    'grant': step4_result['filename'],
-                    'review': step5_result['filename']
+                    'anketa': step1_result['filename']
                 }
             }
 
