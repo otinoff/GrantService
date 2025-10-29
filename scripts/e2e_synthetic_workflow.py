@@ -223,19 +223,32 @@ class E2ESyntheticWorkflow:
             # 1. Initialize auditor
             auditor = AuditorAgentClaude(self.db)
 
-            # 2. Run audit
-            logger.info("Running AuditorAgent...")
-            audit_result = await auditor.audit_anketa(interview_data)
+            # 2. Format project_data for auditor
+            project_data = {
+                "название": f"Проект {anketa_id}",
+                "проблема": interview_data.get('problem', 'Н/Д'),
+                "решение": interview_data.get('solution', 'Н/Д'),
+                "цели": interview_data.get('goals', 'Н/Д'),
+                "мероприятия": interview_data.get('activities', 'Н/Д'),
+                "результаты": interview_data.get('results', 'Н/Д'),
+                "бюджет": interview_data.get('budget_breakdown', 'Н/Д')
+            }
 
-            # 3. Save to database
+            # 3. Run audit
+            logger.info("Running AuditorAgent.evaluate_project_async()...")
+            audit_result = await auditor.evaluate_project_async(project_data, use_quick_score=False)
+
+            # 4. Save to database (using context manager - Iteration 63 fix!)
             audit_id = f"{anketa_id}-AU-001"
 
-            cursor = self.db.conn.cursor()
-            cursor.execute("""
-                INSERT INTO audits (session_id, audit_data, created_at)
-                VALUES (?, ?, ?)
-            """, (session_id, json.dumps(audit_result, ensure_ascii=False), datetime.now()))
-            self.db.conn.commit()
+            with self.db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO audits (session_id, audit_data, created_at)
+                    VALUES (%s, %s, %s)
+                """, (session_id, json.dumps(audit_result, ensure_ascii=False), datetime.now()))
+                conn.commit()
+                cursor.close()
 
             # 4. Generate file
             audit_data = {
@@ -277,19 +290,21 @@ class E2ESyntheticWorkflow:
             # 1. Initialize researcher
             researcher = ResearcherAgent(self.db)
 
-            # 2. Run research (3 WebSearch queries)
-            logger.info("Running ResearcherAgent with WebSearch...")
-            research_result = await researcher.research_anketa(interview_data)
+            # 2. Run research (3 WebSearch queries) - uses anketa_id, not interview_data
+            logger.info(f"Running ResearcherAgent.research_anketa({anketa_id})...")
+            research_result = researcher.research_anketa(anketa_id)  # Synchronous method!
 
             # 3. Save to database
             research_id = f"{anketa_id}-RS-001"
 
-            cursor = self.db.conn.cursor()
-            cursor.execute("""
-                INSERT INTO researcher_research (session_id, research_data, created_at)
-                VALUES (?, ?, ?)
-            """, (session_id, json.dumps(research_result, ensure_ascii=False), datetime.now()))
-            self.db.conn.commit()
+            with self.db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO researcher_research (session_id, research_data, created_at)
+                    VALUES (%s, %s, %s)
+                """, (session_id, json.dumps(research_result, ensure_ascii=False), datetime.now()))
+                conn.commit()
+                cursor.close()
 
             # 4. Generate file (using Iteration 62 fix!)
             research_data = {
@@ -338,25 +353,35 @@ class E2ESyntheticWorkflow:
             logger.info(f"{'='*60}")
 
             # 1. Initialize writer
-            writer = WriterAgentV2(self.db)
+            writer = WriterAgentV2(self.db, llm_provider="gigachat")
 
-            # 2. Generate grant
-            logger.info("Running WriterAgent...")
-            grant_text = await writer.write_grant(
-                interview_data=interview_data,
-                audit_data=audit_result,
-                research_data=research_result
-            )
+            # 2. Prepare input_data for writer
+            input_data = {
+                "anketa_id": anketa_id,
+                "user_answers": interview_data,
+                "selected_grant": {
+                    "name": "Президентский грант",
+                    "organization": "Фонд президентских грантов"
+                }
+            }
+
+            # 3. Generate grant
+            logger.info("Running WriterAgent.write_application_async()...")
+            writer_result = await writer.write_application_async(input_data)
+
+            grant_text = writer_result.get('grant_text', writer_result.get('result', {}).get('text', 'N/A'))
 
             # 3. Save to database
             grant_id = f"{anketa_id}-GR-001"
 
-            cursor = self.db.conn.cursor()
-            cursor.execute("""
-                INSERT INTO grants (session_id, grant_text, created_at)
-                VALUES (?, ?, ?)
-            """, (session_id, grant_text, datetime.now()))
-            self.db.conn.commit()
+            with self.db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO grants (session_id, grant_text, created_at)
+                    VALUES (%s, %s, %s)
+                """, (session_id, grant_text, datetime.now()))
+                conn.commit()
+                cursor.close()
 
             # 4. Generate file
             grant_data = {
@@ -412,12 +437,14 @@ class E2ESyntheticWorkflow:
             }
 
             # Save to database
-            cursor = self.db.conn.cursor()
-            cursor.execute("""
-                INSERT INTO reviews (session_id, review_data, created_at)
-                VALUES (?, ?, ?)
-            """, (session_id, json.dumps(review_result, ensure_ascii=False), datetime.now()))
-            self.db.conn.commit()
+            with self.db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    INSERT INTO reviews (session_id, review_data, created_at)
+                    VALUES (%s, %s, %s)
+                """, (session_id, json.dumps(review_result, ensure_ascii=False), datetime.now()))
+                conn.commit()
+                cursor.close()
 
             # Generate file
             review_txt = f"""{'='*60}
@@ -475,15 +502,63 @@ STATUS: {review_result['status'].upper()}
             if not step1_result:
                 return None
 
-            # TODO: Steps 2-5 will be added in next iteration
-            # For now, just generate anketas successfully
+            # Step 2: Audit
+            step2_result = await self.step2_audit(
+                step1_result['session_id'],
+                step1_result['anketa_id'],
+                step1_result['interview_data'],
+                cycle_dir
+            )
+            if not step2_result:
+                logger.error("Step 2 (Audit) failed, aborting cycle")
+                return None
+
+            # Step 3: Research
+            step3_result = await self.step3_research(
+                step1_result['session_id'],
+                step1_result['anketa_id'],
+                step1_result['interview_data'],
+                cycle_dir
+            )
+            if not step3_result:
+                logger.error("Step 3 (Research) failed, aborting cycle")
+                return None
+
+            # Step 4: Writer
+            step4_result = await self.step4_writer(
+                step1_result['session_id'],
+                step1_result['anketa_id'],
+                step1_result['interview_data'],
+                step2_result['audit_result'],
+                step3_result['research_result'],
+                cycle_dir
+            )
+            if not step4_result:
+                logger.error("Step 4 (Writer) failed, aborting cycle")
+                return None
+
+            # Step 5: Review
+            step5_result = await self.step5_review(
+                step1_result['session_id'],
+                step1_result['anketa_id'],
+                step4_result['grant_text'],
+                cycle_dir
+            )
+            if not step5_result:
+                logger.error("Step 5 (Review) failed, aborting cycle")
+                return None
 
             logger.info(f"\n{'='*60}")
             logger.info(f"✅ CYCLE {index+1} COMPLETE!")
             logger.info(f"{'='*60}")
             logger.info(f"Session ID: {step1_result['session_id']}")
             logger.info(f"Anketa: {step1_result['anketa_id']}")
-            logger.info(f"File: {step1_result['filename']}")
+            logger.info(f"Files generated: 5")
+            logger.info(f"  - Anketa: {step1_result['filename']}")
+            logger.info(f"  - Audit: {step2_result['filename']}")
+            logger.info(f"  - Research: {step3_result['filename']}")
+            logger.info(f"  - Grant: {step4_result['filename']}")
+            logger.info(f"  - Review: {step5_result['filename']}")
             logger.info(f"{'='*60}\n")
 
             return {
@@ -491,7 +566,11 @@ STATUS: {review_result['status'].upper()}
                 'session_id': step1_result['session_id'],
                 'anketa_id': step1_result['anketa_id'],
                 'files': {
-                    'anketa': step1_result['filename']
+                    'anketa': step1_result['filename'],
+                    'audit': step2_result['filename'],
+                    'research': step3_result['filename'],
+                    'grant': step4_result['filename'],
+                    'review': step5_result['filename']
                 }
             }
 
