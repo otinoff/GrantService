@@ -160,16 +160,21 @@ class E2ESyntheticWorkflow:
 
                 interview_data[field_name] = answer
 
-            # 5. Save to database
-            self.db.save_interview_data(session_id, interview_data)
+            # 5. Save to database - update answers_data and mark as synthetic
+            with self.db.connect() as conn:
+                cursor = conn.cursor()
+                cursor.execute("""
+                    UPDATE sessions
+                    SET answers_data = %s::jsonb,
+                        synthetic = TRUE,
+                        status = 'completed',
+                        last_activity = CURRENT_TIMESTAMP
+                    WHERE id = %s
+                """, (json.dumps(interview_data), session_id))
+                conn.commit()
+                cursor.close()
 
-            # Mark as synthetic
-            cursor = self.db.conn.cursor()
-            cursor.execute(
-                "UPDATE sessions SET synthetic = TRUE WHERE id = ?",
-                (session_id,)
-            )
-            self.db.conn.commit()
+            logger.info(f"✅ Saved interview data for session {session_id}")
 
             # 6. Generate anketa ID
             anketa_id = f"#AN-{datetime.now().strftime('%Y%m%d')}-{username}-001"
