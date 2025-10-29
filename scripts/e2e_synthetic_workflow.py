@@ -320,7 +320,9 @@ class E2ESyntheticWorkflow:
             research_result = researcher.research_anketa(anketa_id)  # Synchronous method!
 
             # 3. Save to database (researcher_research schema: research_id, anketa_id, user_id, session_id, llm_provider, research_results)
-            research_id = f"{anketa_id}-RS-001"
+            # ITERATION 64 FIX: Make research_id unique with timestamp to avoid duplicates
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            research_id = f"{anketa_id}-RS-{timestamp}"
 
             with self.db.connect() as conn:
                 cursor = conn.cursor()
@@ -367,7 +369,9 @@ class E2ESyntheticWorkflow:
     async def step4_writer(
         self,
         session_id: int,
+        telegram_id: int,
         anketa_id: str,
+        research_id: str,
         interview_data: Dict,
         audit_result: Dict,
         research_result: Dict,
@@ -403,15 +407,28 @@ class E2ESyntheticWorkflow:
 
             grant_text = writer_result.get('grant_text', writer_result.get('result', {}).get('text', 'N/A'))
 
-            # 3. Save to database
-            grant_id = f"{anketa_id}-GR-001"
+            # 3. Save to database (production grants schema)
+            # ITERATION 64 FIX: Use correct grants table schema
+            timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+            grant_id = f"{anketa_id}-GR-{timestamp}"
+
+            # Extract title (first line or default)
+            grant_title = grant_text.split('\n')[0][:200] if grant_text else "Грантовая заявка"
 
             with self.db.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO grants (session_id, grant_text, created_at)
-                    VALUES (%s, %s, %s)
-                """, (session_id, grant_text, datetime.now()))
+                    INSERT INTO grants (
+                        grant_id, anketa_id, research_id, user_id,
+                        grant_title, grant_content, grant_sections, metadata,
+                        llm_provider, model, status, created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    grant_id, anketa_id, research_id, telegram_id,
+                    grant_title, grant_text, json.dumps({}), json.dumps({'generated_by': 'e2e_workflow'}),
+                    'gigachat', 'GigaChat-Max', 'draft', datetime.now()
+                ))
                 conn.commit()
                 cursor.close()
 
@@ -554,7 +571,9 @@ STATUS: {review_result['status'].upper()}
             # Step 4: Writer
             step4_result = await self.step4_writer(
                 step1_result['session_id'],
+                step1_result['telegram_id'],
                 step1_result['anketa_id'],
+                step3_result['research_id'],
                 step1_result['interview_data'],
                 step2_result['audit_result'],
                 step3_result['research_result'],
