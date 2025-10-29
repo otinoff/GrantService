@@ -241,12 +241,36 @@ class E2ESyntheticWorkflow:
             # 4. Save to database (using context manager - Iteration 63 fix!)
             audit_id = f"{anketa_id}-AU-001"
 
+            # Parse audit result for structured fields
+            scores = audit_result.get('scores', {})
+            completeness_score = scores.get('completeness', 5)
+            clarity_score = scores.get('clarity', 5)
+            feasibility_score = scores.get('feasibility', 5)
+            innovation_score = scores.get('innovation', 5)
+            quality_score = scores.get('quality', 5)
+            average_score = sum([completeness_score, clarity_score, feasibility_score, innovation_score, quality_score]) / 5
+
+            recommendations = audit_result.get('recommendations', [])
+
             with self.db.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO auditor_results (session_id, audit_data, created_at)
-                    VALUES (%s, %s, %s)
-                """, (session_id, json.dumps(audit_result, ensure_ascii=False), datetime.now()))
+                    INSERT INTO auditor_results (
+                        session_id,
+                        completeness_score, clarity_score, feasibility_score,
+                        innovation_score, quality_score, average_score,
+                        approval_status, recommendations, metadata,
+                        auditor_llm_provider, created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    session_id,
+                    completeness_score, clarity_score, feasibility_score,
+                    innovation_score, quality_score, average_score,
+                    'pending', json.dumps(recommendations, ensure_ascii=False),
+                    json.dumps(audit_result, ensure_ascii=False),
+                    'claude', datetime.now()
+                ))
                 conn.commit()
                 cursor.close()
 
