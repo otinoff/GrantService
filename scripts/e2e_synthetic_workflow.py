@@ -551,6 +551,25 @@ STATUS: {review_result['status'].upper()}
         self.stats['start_time'] = datetime.now()
         self.stats['total_cycles'] = num_cycles
 
+        # Create synthetic users in database first
+        logger.info("Creating synthetic users in database...")
+        cursor = self.db.conn.cursor()
+        for i in range(num_cycles):
+            telegram_id = 999999001 + i
+            username = f"synthetic_user_{i+1:03d}"
+
+            try:
+                cursor.execute("""
+                    INSERT INTO users (telegram_id, username, full_name)
+                    VALUES (%s, %s, %s)
+                    ON CONFLICT (telegram_id) DO NOTHING
+                """, (telegram_id, username, f"Synthetic User {i+1}"))
+            except Exception as e:
+                logger.warning(f"Could not create user {telegram_id}: {e}")
+
+        self.db.conn.commit()
+        logger.info(f"✅ Created {num_cycles} synthetic users")
+
         for i in range(num_cycles):
             result = await self.run_full_cycle(i)
 
