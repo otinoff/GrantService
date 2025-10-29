@@ -407,7 +407,8 @@ class E2ESyntheticWorkflow:
             logger.info("Running WriterAgent.write_application_async()...")
             writer_result = await writer.write_application_async(input_data)
 
-            grant_text = writer_result.get('grant_text', writer_result.get('result', {}).get('text', 'N/A'))
+            # ITERATION 65 FIX: WriterAgent returns 'application' key, not 'grant_text'
+            grant_text = writer_result.get('application', writer_result.get('grant_text', writer_result.get('result', {}).get('text', 'N/A')))
 
             # 3. Save to database (production grants schema)
             # ITERATION 64 FIX: Use correct grants table schema + varchar(50) limit
