@@ -553,23 +553,23 @@ STATUS: {review_result['status'].upper()}
 
         # Create synthetic users in database first
         logger.info("Creating synthetic users in database...")
-        with self.db.connect() as conn:
-            cursor = conn.cursor()
-            for i in range(num_cycles):
-                telegram_id = 999999001 + i
-                username = f"synthetic_user_{i+1:03d}"
+        for i in range(num_cycles):
+            telegram_id = 999999001 + i
+            username = f"synthetic_user_{i+1:03d}"
+            first_name = f"Synthetic"
+            last_name = f"User {i+1}"
 
-                try:
-                    cursor.execute("""
-                        INSERT INTO users (telegram_id, username, full_name)
-                        VALUES (%s, %s, %s)
-                        ON CONFLICT (telegram_id) DO NOTHING
-                    """, (telegram_id, username, f"Synthetic User {i+1}"))
-                except Exception as e:
-                    logger.warning(f"Could not create user {telegram_id}: {e}")
+            try:
+                self.db.create_user(
+                    telegram_id=telegram_id,
+                    username=username,
+                    first_name=first_name,
+                    last_name=last_name
+                )
+                logger.info(f"✅ Created user {telegram_id}: {username}")
+            except Exception as e:
+                logger.warning(f"Could not create user {telegram_id}: {e}")
 
-            conn.commit()
-            cursor.close()
         logger.info(f"✅ Created {num_cycles} synthetic users")
 
         for i in range(num_cycles):
