@@ -84,7 +84,8 @@ class E2ESyntheticWorkflow:
     def __init__(self, db: GrantServiceDatabase, with_embeddings: bool = False):
         self.db = db
         self.with_embeddings = with_embeddings
-        self.output_dir = Path(f"data/synthetic_corpus_{datetime.now().strftime('%Y-%m-%d')}")
+        # ITERATION 64: Save to iterations directory for better documentation
+        self.output_dir = Path(f"iterations/Iteration_64_Full_E2E_Pipeline/artifacts/run_{datetime.now().strftime('%Y%m%d_%H%M%S')}")
         self.output_dir.mkdir(parents=True, exist_ok=True)
 
         self.stats = {
@@ -160,23 +161,24 @@ class E2ESyntheticWorkflow:
 
                 interview_data[field_name] = answer
 
-            # 5. Save to database - update answers_data
+            # 5. Generate anketa ID
+            anketa_id = f"#AN-{datetime.now().strftime('%Y%m%d')}-{username}-001"
+
+            # 6. Save to database - update answers_data AND anketa_id
             with self.db.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
                     UPDATE sessions
                     SET answers_data = %s::jsonb,
+                        anketa_id = %s,
                         status = 'completed',
                         last_activity = CURRENT_TIMESTAMP
                     WHERE id = %s
-                """, (json.dumps(interview_data), session_id))
+                """, (json.dumps(interview_data), anketa_id, session_id))
                 conn.commit()
                 cursor.close()
 
-            logger.info(f"✅ Saved interview data for session {session_id}")
-
-            # 6. Generate anketa ID
-            anketa_id = f"#AN-{datetime.now().strftime('%Y%m%d')}-{username}-001"
+            logger.info(f"✅ Saved interview data and anketa_id for session {session_id}")
 
             # 7. Generate file
             anketa_data = {
