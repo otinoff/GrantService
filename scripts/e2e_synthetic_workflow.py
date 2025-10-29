@@ -136,11 +136,7 @@ class E2ESyntheticWorkflow:
             telegram_id = 999999001 + index
             username = f"synthetic_user_{index+1:03d}"
 
-            session_id = self.db.create_session(
-                telegram_id=telegram_id,
-                username=username,
-                full_name=f"Synthetic User {index+1}"
-            )
+            session_id = self.db.create_session(telegram_id=telegram_id)
 
             logger.info(f"Created session ID: {session_id}")
 
