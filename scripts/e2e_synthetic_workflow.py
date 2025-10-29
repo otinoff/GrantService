@@ -199,6 +199,7 @@ class E2ESyntheticWorkflow:
 
             return {
                 'session_id': session_id,
+                'telegram_id': telegram_id,
                 'anketa_id': anketa_id,
                 'interview_data': interview_data,
                 'filename': str(filename)
@@ -299,7 +300,7 @@ class E2ESyntheticWorkflow:
             logger.error(f"❌ Step 2 failed: {e}", exc_info=True)
             return None
 
-    async def step3_research(self, session_id: int, anketa_id: str, interview_data: Dict, cycle_dir: Path) -> Optional[Dict]:
+    async def step3_research(self, session_id: int, telegram_id: int, anketa_id: str, interview_data: Dict, cycle_dir: Path) -> Optional[Dict]:
         """
         Step 3: Run research using ResearcherAgent
 
@@ -318,15 +319,22 @@ class E2ESyntheticWorkflow:
             logger.info(f"Running ResearcherAgent.research_anketa({anketa_id})...")
             research_result = researcher.research_anketa(anketa_id)  # Synchronous method!
 
-            # 3. Save to database
+            # 3. Save to database (researcher_research schema: research_id, anketa_id, user_id, session_id, llm_provider, research_results)
             research_id = f"{anketa_id}-RS-001"
 
             with self.db.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO researcher_research (session_id, research_data, created_at)
-                    VALUES (%s, %s, %s)
-                """, (session_id, json.dumps(research_result, ensure_ascii=False), datetime.now()))
+                    INSERT INTO researcher_research (
+                        research_id, anketa_id, user_id, session_id,
+                        llm_provider, status, research_results, created_at
+                    )
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    research_id, anketa_id, telegram_id, session_id,
+                    'claude_code', 'completed', json.dumps(research_result, ensure_ascii=False),
+                    datetime.now()
+                ))
                 conn.commit()
                 cursor.close()
 
@@ -534,6 +542,7 @@ STATUS: {review_result['status'].upper()}
             # Step 3: Research
             step3_result = await self.step3_research(
                 step1_result['session_id'],
+                step1_result['telegram_id'],
                 step1_result['anketa_id'],
                 step1_result['interview_data'],
                 cycle_dir
