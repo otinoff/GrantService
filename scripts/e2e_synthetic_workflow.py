@@ -244,7 +244,7 @@ class E2ESyntheticWorkflow:
             with self.db.connect() as conn:
                 cursor = conn.cursor()
                 cursor.execute("""
-                    INSERT INTO audits (session_id, audit_data, created_at)
+                    INSERT INTO auditor_results (session_id, audit_data, created_at)
                     VALUES (%s, %s, %s)
                 """, (session_id, json.dumps(audit_result, ensure_ascii=False), datetime.now()))
                 conn.commit()
@@ -436,15 +436,9 @@ class E2ESyntheticWorkflow:
                 'status': 'approved'
             }
 
-            # Save to database
-            with self.db.connect() as conn:
-                cursor = conn.cursor()
-                cursor.execute("""
-                    INSERT INTO reviews (session_id, review_data, created_at)
-                    VALUES (%s, %s, %s)
-                """, (session_id, json.dumps(review_result, ensure_ascii=False), datetime.now()))
-                conn.commit()
-                cursor.close()
+            # Save to database - SKIPPED (reviews table doesn't exist in production)
+            # TODO: Create reviews table or use existing table
+            logger.info("⚠️ Skipping database save (reviews table not found)")
 
             # Generate file
             review_txt = f"""{'='*60}
