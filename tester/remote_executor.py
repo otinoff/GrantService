@@ -46,8 +46,8 @@ class RemoteExecutor:
         self.local_artifacts_dir = Path(local_artifacts_dir)
         self.local_artifacts_dir.mkdir(parents=True, exist_ok=True)
 
-        print(f"🏠 Local artifacts: {self.local_artifacts_dir}")
-        print(f"🌐 Remote server: {ssh_user}@{ssh_host}:{remote_path}")
+        print(f"[Local] Artifacts: {self.local_artifacts_dir}")
+        print(f"[Remote] Server: {ssh_user}@{ssh_host}:{remote_path}")
 
     def execute_remote_test(
         self,
@@ -67,7 +67,7 @@ class RemoteExecutor:
         test_id = datetime.now().strftime("%Y%m%d_%H%M%S")
 
         print("\n" + "="*80)
-        print("🚀 REMOTE EXECUTION - Test Engineer Agent")
+        print("[RUN] REMOTE EXECUTION - Test Engineer Agent")
         print("="*80)
         print(f"Test ID: {test_id}")
         print(f"Mode: {'Mock WebSearch' if use_mock_websearch else 'Real WebSearch'}")
@@ -92,7 +92,7 @@ class RemoteExecutor:
         ]
 
         # Execute remote test
-        print("\n⏳ Executing test on production...")
+        print("\n[WAIT] Executing test on production...")
         start_time = time.time()
 
         try:
@@ -113,9 +113,9 @@ class RemoteExecutor:
             test_results = self._parse_output(output)
 
             if test_results:
-                print(f"✅ Test completed in {duration:.1f}s")
+                print(f"[OK] Test completed in {duration:.1f}s")
             else:
-                print(f"⚠️ Test finished but no JSON output found")
+                print(f"[WARN] Test finished but no JSON output found")
                 test_results = {
                     "test_id": test_id,
                     "status": "partial",
@@ -141,7 +141,7 @@ class RemoteExecutor:
             return test_results
 
         except subprocess.TimeoutExpired:
-            print("❌ Test timed out after 10 minutes")
+            print("[FAIL] Test timed out after 10 minutes")
             return {
                 "test_id": test_id,
                 "status": "timeout",
@@ -149,7 +149,7 @@ class RemoteExecutor:
             }
 
         except Exception as e:
-            print(f"❌ Execution failed: {e}")
+            print(f"[FAIL] Execution failed: {e}")
             return {
                 "test_id": test_id,
                 "status": "error",
@@ -178,7 +178,7 @@ class RemoteExecutor:
             return None
 
         except Exception as e:
-            print(f"⚠️ Failed to parse output: {e}")
+            print(f"[WARN] Failed to parse output: {e}")
             return None
 
     def _get_token_info(self) -> Dict:
@@ -219,7 +219,7 @@ class RemoteExecutor:
             }
 
         except Exception as e:
-            print(f"⚠️ Token tracking failed: {e}")
+            print(f"[WARN] Token tracking failed: {e}")
             return {
                 "spent_today": None,
                 "remaining_today": None,
@@ -282,7 +282,7 @@ class RemoteExecutor:
                     duration = step_data.get("duration_sec", 0)
                     f.write(f"- **{step_name}:** {status} ({duration:.1f}s)\n")
 
-        print(f"\n📁 Results saved to: {test_dir}")
+        print(f"\n[DIR] Results saved to: {test_dir}")
         print(f"   - results.json")
         print(f"   - SUMMARY.md (with token tracking)")
         print(f"   - stdout.log")
@@ -317,14 +317,14 @@ def main():
     # Print summary
     print("\n" + "="*80)
     if results.get("status") == "success":
-        print("✅ TEST PASSED")
+        print("[OK] TEST PASSED")
     else:
-        print("❌ TEST FAILED")
+        print("[FAIL] TEST FAILED")
     print("="*80)
 
     if "tokens" in results:
         tokens = results["tokens"]
-        print(f"\n💰 Token Usage:")
+        print(f"\n[TOKENS] Token Usage:")
         print(f"   Spent today: {tokens.get('spent_today', 'N/A'):,}")
         print(f"   Remaining: {tokens.get('remaining_today', 'N/A'):,}")
         print(f"   Utilization: {tokens.get('utilization_pct', 'N/A')}%")

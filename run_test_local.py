@@ -38,10 +38,10 @@ def main():
     args = parser.parse_args()
 
     print("="*80)
-    print("TEST ENGINEER AGENT - Local → Production Execution")
+    print("TEST ENGINEER AGENT - Local -> Production Execution")
     print("="*80)
     print()
-    print("📍 Mode:")
+    print("[*] Mode:")
     print("   - Code: Production (SSH to 5.35.88.251)")
     print("   - Artifacts: Local (test_artifacts/)")
     print("   - Tracking: Tokens + Duration + Steps")
@@ -56,34 +56,34 @@ def main():
 
     # Print summary
     print("\n" + "="*80)
-    print("📊 TEST SUMMARY")
+    print("[TEST SUMMARY]")
     print("="*80)
 
     # Status
     status = results.get("status", "unknown")
     if status == "success" or not results.get("errors"):
-        print("✅ TEST PASSED")
+        print("[OK] TEST PASSED")
     else:
-        print("❌ TEST FAILED")
+        print("[FAIL] TEST FAILED")
 
     # Steps
     if "steps" in results:
-        print(f"\n🔧 Steps:")
+        print(f"\n[Steps]:")
         for step_name, step_data in results["steps"].items():
-            status_emoji = "✅" if step_data.get("status") == "success" else "❌"
+            status_emoji = "[OK]" if step_data.get("status") == "success" else "[FAIL]"
             duration = step_data.get("duration_sec", 0)
             print(f"   {status_emoji} {step_name}: {duration:.1f}s")
 
     # Tokens
     if "tokens" in results:
         tokens = results["tokens"]
-        print(f"\n💰 Token Usage:")
+        print(f"\n[Token Usage]:")
         print(f"   Spent today: {tokens.get('spent_today', 'N/A'):,} tokens")
         print(f"   Remaining: {tokens.get('remaining_today', 'N/A'):,} tokens")
         print(f"   Utilization: {tokens.get('utilization_pct', 'N/A')}%")
 
     # Artifacts
-    print(f"\n📁 Artifacts saved to:")
+    print(f"\n[Artifacts saved to]:")
     test_id = results.get("test_id", "unknown")
     artifacts_dir = project_root / "test_artifacts" / f"test_{test_id}"
     print(f"   {artifacts_dir}")
