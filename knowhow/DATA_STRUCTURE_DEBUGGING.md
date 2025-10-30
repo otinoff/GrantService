@@ -640,3 +640,200 @@ db = GrantServiceDatabase()  # Will use env vars
 **Iteration:** 64
 **Impact:** Critical - Production deployment blocker
 **Status:** ✅ Documented and fixed
+
+---
+
+## 📊 Production Table Schemas (Complete)
+
+### grants Table
+
+**Full Schema** (queried via `\d grants` on production):
+
+```sql
+Column            | Type                        | Constraints
+------------------+-----------------------------+----------------------------------
+grant_id          | varchar(50)                 | not null, unique
+anketa_id         | varchar(50)                 | not null, FK → sessions.anketa_id
+research_id       | varchar(100)                | FK → researcher_research.research_id
+user_id           | bigint                      | not null, FK → users.telegram_id
+grant_title       | varchar(200)                |
+grant_content     | text                        |
+grant_sections    | jsonb                       |
+metadata          | jsonb                       |
+llm_provider      | varchar(50)                 | not null
+model             | varchar(50)                 |
+status            | varchar(30)                 | default 'draft'
+created_at        | timestamp                   | default CURRENT_TIMESTAMP
+updated_at        | timestamp                   | default CURRENT_TIMESTAMP
+
+Indexes:
+  "grants_pkey" PRIMARY KEY, btree (grant_id)
+  "grants_anketa_id_key" UNIQUE CONSTRAINT, btree (anketa_id)
+  "grants_grant_id_key" UNIQUE CONSTRAINT, btree (grant_id)
+
+Foreign Key Constraints:
+  "grants_anketa_id_fkey" FOREIGN KEY (anketa_id) → sessions(anketa_id)
+  "grants_research_id_fkey" FOREIGN KEY (research_id) → researcher_research(research_id)
+  "grants_user_id_fkey" FOREIGN KEY (user_id) → users(telegram_id)
+```
+
+**Correct INSERT Query:**
+
+```python
+# ITERATION 64 FIX: Use correct grants table schema
+timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+grant_id = f"{anketa_id}-GR-{timestamp}"
+
+# Extract title (first line or default)
+grant_title = grant_text.split('\n')[0][:200] if grant_text else "Грантовая заявка"
+
+with self.db.connect() as conn:
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO grants (
+            grant_id, anketa_id, research_id, user_id,
+            grant_title, grant_content, grant_sections, metadata,
+            llm_provider, model, status, created_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+    """, (
+        grant_id,           # varchar(50) - Primary key
+        anketa_id,          # varchar(50) - FK to sessions
+        research_id,        # varchar(100) - FK to researcher_research
+        telegram_id,        # bigint - FK to users
+        grant_title,        # varchar(200)
+        grant_text,         # text - Full grant content
+        json.dumps({}),     # jsonb - Empty sections structure
+        json.dumps({'generated_by': 'e2e_workflow'}),  # jsonb - Metadata
+        'gigachat',         # varchar(50) - LLM provider
+        'GigaChat-Max',     # varchar(50) - Model name
+        'draft',            # varchar(30) - Status
+        datetime.now()      # timestamp - Created at
+    ))
+    conn.commit()
+```
+
+### researcher_research Table
+
+**Key Fields:**
+
+```sql
+Column            | Type                        | Constraints
+------------------+-----------------------------+----------------------------------
+research_id       | varchar(100)                | not null, unique (PRIMARY KEY)
+session_id        | integer                     | not null, FK → sessions
+anketa_id         | varchar(50)                 | FK → sessions.anketa_id
+research_data     | jsonb                       | Full research results
+queries           | jsonb                       | Array of queries
+created_at        | timestamp                   |
+```
+
+**Correct INSERT Query:**
+
+```python
+# ITERATION 64 FIX: Make research_id unique with timestamp
+timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+research_id = f"{anketa_id}-RS-{timestamp}"
+
+with self.db.connect() as conn:
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO researcher_research (
+            research_id, session_id, anketa_id,
+            research_data, queries, created_at
+        )
+        VALUES (%s, %s, %s, %s, %s, %s)
+    """, (
+        research_id,
+        session_id,
+        anketa_id,
+        json.dumps(research_data),
+        json.dumps(queries),
+        datetime.now()
+    ))
+```
+
+---
+
+## 🔑 Pattern: Timestamp-Based Unique IDs
+
+### Problem: Static IDs Cause Duplicates
+
+**❌ BAD Pattern:**
+```python
+research_id = f"{anketa_id}-RS-001"  # Always same ID!
+# → duplicate key violation when re-running workflow
+```
+
+**Why it fails:**
+- E2E workflows may re-run with same anketa_id
+- Testing creates duplicate entries
+- No uniqueness guarantee
+
+### Solution: Add Timestamp
+
+**✅ GOOD Pattern:**
+```python
+from datetime import datetime
+
+timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+research_id = f"{anketa_id}-RS-{timestamp}"
+# Example: "ANK-20251029031145-RS-20251029031202"
+```
+
+**Benefits:**
+- ✅ Guaranteed unique per second
+- ✅ Human-readable timestamp
+- ✅ Sortable chronologically
+- ✅ Debugging-friendly
+
+### When to Use
+
+**Use timestamp-based IDs for:**
+1. **Research IDs** - Multiple research runs per anketa
+2. **Grant IDs** - Multiple grant versions
+3. **Audit IDs** - Multiple audits
+4. **Review IDs** - Multiple reviews
+
+**Don't use for:**
+1. **User IDs** - Already unique (telegram_id)
+2. **Session IDs** - Database auto-increment
+3. **Anketa IDs** - Already timestamp-based in session creation
+
+### Full Pattern
+
+```python
+from datetime import datetime
+
+def generate_unique_id(prefix: str, base_id: str) -> str:
+    """
+    Generate unique ID with timestamp
+
+    Args:
+        prefix: ID type prefix (RS, GR, AU, RV)
+        base_id: Base identifier (usually anketa_id)
+
+    Returns:
+        Unique ID like: "ANK-123-RS-20251029031145"
+
+    Example:
+        >>> generate_unique_id("RS", "ANK-20251029-001")
+        "ANK-20251029-001-RS-20251029031145"
+    """
+    timestamp = datetime.now().strftime('%Y%m%d%H%M%S')
+    return f"{base_id}-{prefix}-{timestamp}"
+
+# Usage:
+research_id = generate_unique_id("RS", anketa_id)
+grant_id = generate_unique_id("GR", anketa_id)
+audit_id = generate_unique_id("AU", anketa_id)
+review_id = generate_unique_id("RV", anketa_id)
+```
+
+---
+
+**Автор:** Claude Code
+**Дата:** 2025-10-29
+**Iteration:** 64
+**Impact:** Critical - Resolved duplicate key violations and schema mismatches
+**Status:** ✅ Production-tested and documented

@@ -1,301 +1,257 @@
-# GrantService Knowhow
+# 🏆 Cradle Know-How
 
-**Практические знания и best practices из реальной разработки**
-
-Эта директория содержит практический опыт, полученный при разработке GrantService. Каждый документ основан на реальных проблемах и их решениях, проверенных в production.
+**Version:** 1.0.0
+**Purpose:** Cradle's output products - methodologies, frameworks, and knowledge products
 
 ---
 
-## 📚 Документы
+## 📦 What is Know-How?
 
-### 🚀 [DEPLOYMENT_SSH_PRACTICES.md](DEPLOYMENT_SSH_PRACTICES.md)
+**Know-How** = **Deliverables** created by Cradle OS through research, analysis, and synthesis.
 
-**Что внутри:**
-- SSH deployment через ключи в Windows
-- Решение `Host key verification failed`
-- Работа с `git stash` на production
-- Полный deployment workflow
-- Troubleshooting guide
+### Semantics:
 
-**Когда использовать:**
-- Деплоишь изменения на production
-- Проблемы с SSH соединением
-- Git conflicts на сервере
-
-**Из iteration:** 62 - Research Results Parsing Fix
-
-**Ключевые команды:**
-```bash
-# SSH с явным ключом
-ssh -i "C:\Users\Андрей\.ssh\id_rsa" -o StrictHostKeyChecking=no root@5.35.88.251
-
-# Deployment
-ssh root@5.35.88.251 "cd /var/GrantService && git stash && git pull origin master"
-ssh root@5.35.88.251 "systemctl restart grantservice-bot"
+```
+Know-How/          ← What Cradle CREATED (export/deliverables)
+04-Knowledge-Base/ ← What Cradle STUDIED (import/research)
+01-Active-Projects/← What Cradle IS DOING (work in progress)
 ```
 
 ---
 
-### 🔍 [DATA_STRUCTURE_DEBUGGING.md](DATA_STRUCTURE_DEBUGGING.md)
+## 📚 Available Know-How Products
 
-**Что внутри:**
-- Debugging nested dictionaries
-- Extraction patterns (flat, nested, list of dicts)
-- Методология поиска data structure mismatches
-- Best practices для `.get()` и defaults
-- Real example: N/A bug fix
+### 1. PHILOSOPHY_SELF_LEARNING_OS.md
+**Status:** 🟢 ACTIVE - Core Concept
+**Version:** 1.0
+**Created:** 2025-10-19
+**Type:** Philosophical Foundation
+**Size:** 22KB
 
-**Когда использовать:**
-- Данные не извлекаются (показывает N/A, None)
-- KeyError в dict операциях
-- Mismatch между API и parser
-- Проектирование data structures
+**Key Concepts:**
+- Cradle OS as living, evolving system
+- Self-learning cycle with each session
+- Extended Mind theory (files = memory)
+- Knowledge transfer between Claude instances
+- Continuous improvement philosophy
 
-**Из iteration:** 62 - Research Results Parsing Fix
-
-**Ключевые паттерны:**
-```python
-# ❌ BAD
-answer = data['result']['summary']
-
-# ✅ GOOD
-result = data.get('result', {})
-answer = result.get('summary', 'N/A')
-```
-
----
-
-### 📋 [ITERATION_WORKFLOW.md](ITERATION_WORKFLOW.md)
-
-**Что внутри:**
-- Полный цикл iteration: PLAN → DEVELOP → TEST → DEPLOY → DOCUMENT
-- Templates для 00_PLAN.md и SUCCESS.md
-- Git workflow best practices
-- Checklists для каждой фазы
-- Metrics и timing для hotfix vs feature
-
-**Когда использовать:**
-- Начинаешь новую iteration
-- Нужен template для документации
-- Deployment checklist
-- Оценка времени на задачу
-
-**Из iterations:** 60-62 experience
-
-**Quick reference:**
-```bash
-# Hotfix (15-30 min)
-mkdir iterations/Iteration_XX && vim 00_PLAN.md
-# Apply fix
-git commit && git push
-ssh root@5.35.88.251 "cd /var/GrantService && git pull && systemctl restart grantservice-bot"
-vim SUCCESS.md
-```
-
----
-
-## 🎯 Как использовать Knowhow
-
-### Scenario 1: Deployment на production
-
-1. Открой [DEPLOYMENT_SSH_PRACTICES.md](DEPLOYMENT_SSH_PRACTICES.md)
-2. Найди секцию "Full deployment workflow"
-3. Скопируй команды, замени на свои значения
-4. Выполни deployment checklist
-
-### Scenario 2: Debugging data extraction
-
-1. Открой [DATA_STRUCTURE_DEBUGGING.md](DATA_STRUCTURE_DEBUGGING.md)
-2. Пройди "Debugging Checklist" (6 шагов)
-3. Примени правильный extraction pattern
-4. Добавь unit test для проверки
-
-### Scenario 3: Начало новой iteration
-
-1. Открой [ITERATION_WORKFLOW.md](ITERATION_WORKFLOW.md)
-2. Скопируй template для 00_PLAN.md
-3. Следуй 5 фазам: PLAN → DEVELOP → TEST → DEPLOY → DOCUMENT
-4. По завершении скопируй template для SUCCESS.md
-
----
-
-## 📈 Когда добавлять новый Knowhow
-
-**Добавляй новый документ если:**
-- ✅ Решил нетривиальную проблему
-- ✅ Нашел useful pattern для будущего
-- ✅ Проблема может повториться
-- ✅ Решение проверено в production
-
-**НЕ добавляй если:**
-- ❌ Одноразовая проблема
-- ❌ Тривиальное решение (документация уже есть)
-- ❌ Специфично для одного случая
-
-**Template для нового knowhow:**
+**Usage:**
 ```markdown
-# Topic Name
-
-**Дата:** YYYY-MM-DD
-**Источник:** Iteration XX - Feature Name
-**Статус:** ✅ Production-tested
-
----
-
-## 🐛 Problem / 🎯 Goal
-
-[Описание проблемы или цели]
-
----
-
-## 🔍 Solution
-
-[Подробное решение с примерами кода]
-
----
-
-## 📋 Step-by-Step Guide
-
-1. Step 1
-2. Step 2
-3. Step 3
-
----
-
-## 🎯 Best Practices
-
-### 1. Practice name
-- ✅ Good
-- ❌ Bad
-
----
-
-## 🧪 Real Example
-
-[Пример из конкретной iteration]
-
----
-
-## 🔗 Related Knowhow
-
-- `knowhow/OTHER_DOC.md`
-
----
-
-**Автор:** Claude Code
-**Дата:** YYYY-MM-DD
-**Iteration:** XX
-**Status:** ✅ Production-tested
+@Know-How/PHILOSOPHY_SELF_LEARNING_OS.md
 ```
 
 ---
 
-## 📊 Статистика Knowhow
+### 2. SELF_LEARNING_SYSTEM_DESIGN.md
+**Status:** 🔥 ACTIVE RESEARCH & IMPLEMENTATION
+**Version:** 1.0
+**Created:** 2025-10-19
+**Type:** System Architecture
+**Size:** 19KB
 
-**Всего документов:** 3 + README
+**Key Features:**
+- AI-Native Memory System architecture
+- Reinforcement Learning for AI agents
+- Memory hierarchy (Short-term/Long-term/Working/Meta)
+- Knowledge graph implementation
+- Self-improving autonomous agents
 
-**По источникам:**
-- Iteration 62: 2 documents (SSH practices, Data debugging)
-- Iterations 60-62: 1 document (Iteration workflow)
+**Based on:**
+- Stanford AgentFlow (RL for AI agents)
+- AI-Native Memory Systems (2025)
+- Contextual Memory Intelligence
 
-**Impact:**
-- 🔥 Critical: 2 (Deployment, Data structures)
-- 📋 High: 1 (Iteration workflow)
-
----
-
-## 🔄 Обновление Knowhow
-
-**Когда обновлять существующий документ:**
-- Найден улучшенный способ
-- Добавлен новый паттерн
-- Обнаружен edge case
-- Изменились best practices
-
-**Процесс обновления:**
-1. Открой документ
-2. Добавь новую секцию или обнови существующую
-3. Отметь дату обновления в header
-4. Сохрани старую версию как `DOC_v1.md` (если major change)
-
-**Example:**
+**Usage:**
 ```markdown
-# Document Name
-
-**Дата создания:** 2025-10-29
-**Последнее обновление:** 2025-11-05
-**Версия:** 2.0
+@Know-How/SELF_LEARNING_SYSTEM_DESIGN.md
 ```
 
 ---
 
-## 🏆 Best Knowhow Practices
+### 3. TESTING-METHODOLOGY.md
+**Status:** ✅ Production Ready
+**Version:** 1.0.0
+**Created:** 2025-10-26
+**Type:** Universal Testing Framework for Python Projects
+**Size:** 39KB
 
-### 1. Write immediately after solving
+**Key Features:**
+- 4 Core Pillars (Production Parity, Unified Config, Test Pyramid, CI/CD)
+- ROI: 42-57% time savings
+- Adapted for AI/LLM and Scientific projects
+- 1,543 lines of comprehensive guidance
 
-Не откладывай - пиши knowhow сразу после успешного решения, пока всё свежо в памяти.
-
-### 2. Include real code examples
-
-Абстрактные объяснения забываются. Конкретные примеры кода - остаются.
-
-### 3. Show both ❌ BAD and ✅ GOOD
-
-Покажи что НЕ надо делать, а не только правильный способ.
-
-### 4. Add checklist where applicable
-
-Checklists = actionable steps. Легко следовать, сложно забыть шаг.
-
-### 5. Link to iterations
-
-Всегда указывай откуда взят опыт - это даёт context и возможность посмотреть полный example.
-
----
-
-## 📚 Related Documentation
-
-**Project Documentation:**
-- `cradle/PROJECT-EVOLUTION-METHODOLOGY.md` - High-level methodology
-- `cradle/TESTING-METHODOLOGY.md` - Testing strategies
-- `cradle/GRANTSERVICE-LESSONS-LEARNED.md` - Project-specific lessons
-- `iterations/` - Individual iteration docs
-
-**External Resources:**
-- [Git Best Practices](https://git-scm.com/book/en/v2)
-- [Python Best Practices](https://peps.python.org/pep-0008/)
-- [SSH Documentation](https://www.openssh.com/manual.html)
-
----
-
-## 💬 Feedback
-
-**Есть идея для нового knowhow документа?**
-
-Создай issue или добавь в `knowhow/IDEAS.md`:
+**Usage:**
 ```markdown
-## Idea: Topic Name
+@Know-How/TESTING-METHODOLOGY.md
+```
 
-**Problem:** [Описание проблемы]
-**Proposed solution:** [Предлагаемое решение]
-**Priority:** High / Medium / Low
+**Case Studies:**
+- GrantService (AI/LLM Multi-Agent): 45→8 iterations projected
+- OmicsIntegrationSuite (Scientific): Improved test organization
+
+---
+
+### 4. MEMORY_OPTIMIZATION_GUIDE.md
+**Status:** ✅ Operational Guide
+**Version:** 1.0
+**Created:** 2025-10-20
+**Type:** Practical Windows Optimization Guide
+**Size:** 13KB
+
+**Key Features:**
+- Windows memory optimization techniques
+- Legacy vs modern approaches
+- Ready-to-use PowerShell scripts
+- Service optimization strategies
+- Real diagnostic data and solutions
+
+**Usage:**
+```markdown
+@Know-How/MEMORY_OPTIMIZATION_GUIDE.md
 ```
 
 ---
 
-## 🎉 Knowhow Contributors
+### 5. PROJECT-EVOLUTION-METHODOLOGY.md
+**Status:** ✅ Production Ready
+**Version:** 1.0.0
+**Created:** 2025-10-25
+**Type:** Universal Project Development Playbook
+**Size:** 16KB
 
-**Iteration 62:** Claude Code
-- Created initial knowhow structure
-- Documented SSH deployment practices
-- Documented data structure debugging
-- Created iteration workflow guide
+**Key Features:**
+- 5-Step Iteration Workflow (Plan → Develop → Integrate → Release → Reflect)
+- DORA Four Keys metrics tracking
+- Biological metaphors (Metabolism, Homeostasis, Regeneration)
+- Anti-patterns and troubleshooting
+- Case studies (Amazon, Netflix, Google, Яндекс)
 
-**Future:** Your contributions here!
+**Based on:**
+- 119 KB research (WebSearch + Perplexity + Parallel)
+- Theories: Extended Mind, Knowledge Spiral, VSM, Learning Organization
+
+**Usage:**
+```markdown
+@Know-How/PROJECT-EVOLUTION-METHODOLOGY.md
+```
+
+**Perfect for:**
+- Project cleanup and refactoring
+- Setting up CI/CD pipelines
+- Managing technical debt
+- Team process improvement
 
 ---
 
-**Created:** 2025-10-29
-**Last Updated:** 2025-10-29
-**Documents:** 3 + README
-**Status:** 🌱 Growing knowledge base
+## 🎯 Future Methodologies (Planned)
+
+### 6. AI-INTEGRATION-METHODOLOGY.md
+**Status:** 🔄 In Progress
+**Research:** `01-Active-Projects/AI-Integration-Research/`
+
+### 7. PROMPT-ENGINEERING-METHODOLOGY.md
+**Status:** 📋 Planned
+**Research:** `04-Knowledge-Base/OpenAI-Research/`
+
+### 8. DOCUMENTATION-METHODOLOGY.md
+**Status:** 📋 Planned
+**Agent:** `documentation-keeper` skill
+
+---
+
+## 🔄 Lifecycle: From Research to Know-How
+
+```
+1. Research Phase
+   └─ 04-Knowledge-Base/ (collect sources)
+
+2. Active Development
+   └─ 01-Active-Projects/ (synthesis work)
+
+3. Finalization
+   └─ Know-How/ (production-ready deliverable)
+
+4. Application
+   └─ Other projects use via @Know-How/FILE.md
+```
+
+---
+
+## 📊 Quality Standards
+
+All Know-How products must have:
+
+✅ **Version number** (semantic versioning)
+✅ **Status badge** (Draft/In Progress/Production Ready)
+✅ **Creation date**
+✅ **Executive summary** (< 200 words)
+✅ **Case studies** (real-world validation)
+✅ **ROI metrics** (quantified value)
+✅ **Implementation roadmap** (actionable steps)
+
+---
+
+## 🚀 How to Use Know-How
+
+### In Projects:
+```markdown
+# In any project's documentation:
+@Know-How/TESTING-METHODOLOGY.md
+
+# Apply principles, adapt to context
+```
+
+### In Skills:
+```markdown
+# In skill prompts:
+Load testing methodology: @Know-How/TESTING-METHODOLOGY.md
+Apply principles to [specific context]
+```
+
+### In CLAUDE.md:
+```markdown
+## 🏆 CRADLE KNOW-HOW
+
+- **Testing:** `@Know-How/TESTING-METHODOLOGY.md`
+```
+
+---
+
+## 🎓 Philosophy
+
+> **"Know-How is the crystallized wisdom of Cradle OS"**
+
+**Principles:**
+1. **Tested in practice** - No theoretical-only methodologies
+2. **Quantified value** - ROI must be measurable
+3. **Universally applicable** - Works across project types
+4. **Continuously improved** - Updated based on feedback
+
+---
+
+## 📂 Legacy Folders (Migrated)
+
+These folders contain older methodology work:
+
+- `ClaudeCodeStarter/` - Early Claude Code integration
+- `Integration/` - Integration methodologies
+- `SnowWhite/` - Original SnowWhite project methodologies
+
+**Note:** These are preserved for reference. New methodologies go directly in `Know-How/` root.
+
+---
+
+## 🔗 Related Resources
+
+- **Theoretical Foundations:** `@.claude/docs/theories.md`
+- **Best Practices:** `@04-Knowledge-Base/02-Best-Practices/`
+- **Research Index:** `@04-Knowledge-Base/AI-PLATFORMS-RESEARCH-INDEX.md`
+
+---
+
+**Created by:** Cradle OS Team
+**Maintained by:** Cradle Master Orchestrator
+**Last Updated:** 2025-10-26
+
+> **"200 строк вместо 5000!"** — Alexey Krol
