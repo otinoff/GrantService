@@ -556,6 +556,12 @@ def main():
         help="Custom artifacts directory"
     )
 
+    parser.add_argument(
+        "--output-json",
+        action="store_true",
+        help="Output results as JSON (for remote execution)"
+    )
+
     args = parser.parse_args()
 
     # Determine websearch mode
@@ -569,6 +575,12 @@ def main():
         import asyncio
         results = asyncio.run(agent.run_e2e_test(use_mock_websearch=use_mock_websearch))
 
+        # Output JSON if requested (for remote execution)
+        if args.output_json:
+            print("\n```json")
+            print(json.dumps(results, indent=2, ensure_ascii=False))
+            print("```")
+
         # Exit with success
         sys.exit(0)
 
@@ -576,6 +588,17 @@ def main():
         print(f"\n❌ Test Engineer Agent failed: {e}")
         import traceback
         traceback.print_exc()
+
+        # Output error JSON if requested
+        if args.output_json:
+            error_result = {
+                "status": "error",
+                "error": str(e),
+                "traceback": traceback.format_exc()
+            }
+            print("\n```json")
+            print(json.dumps(error_result, indent=2, ensure_ascii=False))
+            print("```")
 
         # Exit with error
         sys.exit(1)
