@@ -21,15 +21,16 @@ from enum import Enum
 
 from .reference_point import ReferencePoint
 
+# Initialize logger BEFORE using it
+logger = logging.getLogger(__name__)
+
 # Для генерации embeddings (Qdrant search)
 try:
     from sentence_transformers import SentenceTransformer
     SENTENCE_TRANSFORMERS_AVAILABLE = True
 except ImportError:
     SENTENCE_TRANSFORMERS_AVAILABLE = False
-    logger.warning("sentence-transformers not available, Qdrant search will be disabled")
-
-logger = logging.getLogger(__name__)
+    # sentence-transformers not available, Qdrant search will be disabled
 
 
 class UserExpertiseLevel(Enum):
