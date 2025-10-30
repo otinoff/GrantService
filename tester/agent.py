@@ -18,11 +18,14 @@ project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
 # Import production E2E modules
-from tests.e2e.modules.interviewer_module import InterviewerModule
-from tests.e2e.modules.auditor_module import AuditorModule
-from tests.e2e.modules.researcher_module import ResearcherModule
-from tests.e2e.modules.writer_module import WriterModule
-from tests.e2e.modules.reviewer_module import ReviewerModule
+from tests.e2e.modules.interviewer_module import InterviewerTestModule
+from tests.e2e.modules.auditor_module import AuditorTestModule
+from tests.e2e.modules.researcher_module import ResearcherTestModule
+from tests.e2e.modules.writer_module import WriterTestModule
+from tests.e2e.modules.reviewer_module import ReviewerTestModule
+
+# Import database
+from data.database.models import GrantServiceDatabase
 
 
 class TestEngineerAgent:
@@ -48,12 +51,16 @@ class TestEngineerAgent:
         print(f"Test Engineer Agent initialized")
         print(f"Artifacts dir: {self.artifacts_dir}")
 
+        # Initialize PRODUCTION database connection
+        self.db = GrantServiceDatabase()
+        print(f"Connected to PRODUCTION database: {self.db}")
+
         # Initialize E2E modules (they connect to PRODUCTION DB!)
-        self.interviewer = InterviewerModule()
-        self.auditor = AuditorModule()
-        self.researcher = ResearcherModule()
-        self.writer = WriterModule()
-        self.reviewer = ReviewerModule()
+        self.interviewer = InterviewerTestModule(self.db)
+        self.auditor = AuditorTestModule(self.db)
+        self.researcher = ResearcherTestModule(self.db)
+        self.writer = WriterTestModule(self.db)
+        self.reviewer = ReviewerTestModule(self.db)
 
     def run_e2e_test(self, use_mock_websearch: bool = True) -> Dict:
         """
