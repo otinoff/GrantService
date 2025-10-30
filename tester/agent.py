@@ -138,7 +138,8 @@ class TestEngineerAgent:
             # Prepare anketa data for auditor
             anketa_data = {
                 "anketa_id": anketa_id,
-                "user_answers": interview_result["user_answers"]  # Direct access, guaranteed to exist
+                "user_answers": interview_result["user_answers"],
+                "session_id": interview_result["session_id"]  # Required for PRODUCTION schema
             }
 
             audit_result = await self.auditor.test_auditor(
