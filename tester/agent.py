@@ -201,7 +201,10 @@ class TestEngineerAgent:
             start = time.time()
 
             # Prepare data for writer
-            anketa_data = {"anketa_id": anketa_id}
+            anketa_data = {
+                "anketa_id": anketa_id,
+                "user_answers": interview_result["user_answers"]
+            }
 
             writer_result = await self.writer.test_writer(
                 anketa_data=anketa_data,
