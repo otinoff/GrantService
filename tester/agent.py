@@ -138,7 +138,7 @@ class TestEngineerAgent:
             # Prepare anketa data for auditor
             anketa_data = {
                 "anketa_id": anketa_id,
-                "answers_data": interview_result.get("user_answers", {})
+                "user_answers": interview_result["user_answers"]  # Direct access, guaranteed to exist
             }
 
             audit_result = await self.auditor.test_auditor(
@@ -170,7 +170,7 @@ class TestEngineerAgent:
             # Prepare anketa data for researcher
             anketa_data = {
                 "anketa_id": anketa_id,
-                "answers_data": interview_result.get("user_answers", {})
+                "user_answers": interview_result["user_answers"]
             }
 
             research_result = await self.researcher.test_researcher(
