@@ -27,6 +27,15 @@ from tests.e2e.modules.reviewer_module import ReviewerTestModule
 # Import database
 from data.database.models import GrantServiceDatabase
 
+# Import RAG components
+try:
+    from tester.knowledge_base.qdrant_setup import QdrantSetup
+    from tester.knowledge_base.rag_retriever import RAGRetriever
+    RAG_AVAILABLE = True
+except ImportError:
+    RAG_AVAILABLE = False
+    print("⚠️ RAG components not available - knowledge base features disabled")
+
 
 class TestEngineerAgent:
     """
@@ -61,6 +70,61 @@ class TestEngineerAgent:
         self.researcher = ResearcherTestModule(self.db)
         self.writer = WriterTestModule(self.db)
         self.reviewer = ReviewerTestModule(self.db)
+
+        # Initialize RAG retriever (optional)
+        self.rag_retriever = None
+        if RAG_AVAILABLE:
+            try:
+                qdrant_setup = QdrantSetup()
+                if qdrant_setup.check_connection():
+                    self.rag_retriever = RAGRetriever(qdrant_setup.client, top_k=5)
+                    stats = self.rag_retriever.get_stats()
+                    print(f"✅ RAG enabled: {stats.get('vectors_count', 0)} vectors in KB")
+                else:
+                    print("⚠️ Qdrant not available - RAG disabled")
+            except Exception as e:
+                print(f"⚠️ RAG initialization failed: {e}")
+
+    async def get_rag_context(self, query: str, max_tokens: int = 1000) -> str:
+        """
+        Retrieve relevant context from knowledge base
+
+        Args:
+            query: Search query (e.g., error message, test scenario)
+            max_tokens: Max tokens for context
+
+        Returns:
+            Formatted context string or empty if RAG unavailable
+        """
+        if not self.rag_retriever:
+            return ""
+
+        try:
+            context = await self.rag_retriever.retrieve_for_context(query, max_tokens)
+            return context
+        except Exception as e:
+            print(f"⚠️ RAG retrieval failed: {e}")
+            return ""
+
+    async def find_similar_issues(self, error_message: str) -> List[Dict]:
+        """
+        Find similar past issues using RAG
+
+        Args:
+            error_message: Error description
+
+        Returns:
+            List of similar issues with solutions
+        """
+        if not self.rag_retriever:
+            return []
+
+        try:
+            similar = await self.rag_retriever.retrieve_similar_issues(error_message, top_k=3)
+            return similar
+        except Exception as e:
+            print(f"⚠️ Similar issues search failed: {e}")
+            return []
 
     async def run_e2e_test(self, use_mock_websearch: bool = True) -> Dict:
         """
