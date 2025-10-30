@@ -62,9 +62,9 @@ class TestEngineerAgent:
         self.writer = WriterTestModule(self.db)
         self.reviewer = ReviewerTestModule(self.db)
 
-    def run_e2e_test(self, use_mock_websearch: bool = True) -> Dict:
+    async def run_e2e_test(self, use_mock_websearch: bool = True) -> Dict:
         """
-        Run full E2E test
+        Run full E2E test (ASYNC)
 
         Args:
             use_mock_websearch: True to avoid ERROR #16 (WebSearch timeout)
@@ -103,12 +103,11 @@ class TestEngineerAgent:
             # Use test user from production DB range
             test_user_id = 999999001  # First test user
 
-            # Simple test answers (embedded in code for MVP)
-            test_answers = self._generate_simple_test_answers()
-
-            interview_result = self.interviewer.run_interview(
-                test_user_id=test_user_id,
-                user_answers=test_answers
+            # Run PRODUCTION InteractiveInterviewerAgentV2
+            interview_result = await self.interviewer.run_automated_interview(
+                telegram_id=test_user_id,
+                username="test_user_001",
+                llm_provider="gigachat"
             )
 
             duration = time.time() - start
@@ -116,15 +115,15 @@ class TestEngineerAgent:
             results["steps"]["interview"] = {
                 "status": "success",
                 "anketa_id": interview_result["anketa_id"],
-                "questions_count": interview_result["questions_count"],
-                "anketa_length": interview_result["anketa_length"],
+                "questions_count": interview_result.get("questions_count", 14),
+                "anketa_length": interview_result.get("total_chars", 0),
                 "duration_sec": round(duration, 2)
             }
 
             print(f"✅ Interview complete:")
             print(f"   - Anketa ID: {interview_result['anketa_id']}")
-            print(f"   - Questions: {interview_result['questions_count']}")
-            print(f"   - Length: {interview_result['anketa_length']} chars")
+            print(f"   - Questions: {interview_result.get('questions_count', 14)}")
+            print(f"   - Length: {interview_result.get('total_chars', 0)} chars")
             print(f"   - Duration: {duration:.1f}s")
 
             anketa_id = interview_result["anketa_id"]
@@ -136,20 +135,29 @@ class TestEngineerAgent:
 
             start = time.time()
 
-            audit_result = self.auditor.run_audit(anketa_id)
+            # Prepare anketa data for auditor
+            anketa_data = {
+                "anketa_id": anketa_id,
+                "answers_data": interview_result.get("user_answers", {})
+            }
+
+            audit_result = await self.auditor.test_auditor(
+                anketa_data=anketa_data,
+                llm_provider="gigachat"
+            )
 
             duration = time.time() - start
 
             results["steps"]["audit"] = {
                 "status": "success",
-                "session_id": audit_result["session_id"],
-                "score": audit_result["score"],
+                "session_id": audit_result.get("session_id"),
+                "score": audit_result.get("score", 0.0),
                 "duration_sec": round(duration, 2)
             }
 
             print(f"✅ Audit complete:")
-            print(f"   - Session ID: {audit_result['session_id']}")
-            print(f"   - Score: {audit_result['score']}/10")
+            print(f"   - Session ID: {audit_result.get('session_id', 'N/A')}")
+            print(f"   - Score: {audit_result.get('score', 0.0)}/10")
             print(f"   - Duration: {duration:.1f}s")
 
             # STEP 3: Research
@@ -159,23 +167,29 @@ class TestEngineerAgent:
 
             start = time.time()
 
-            research_result = self.researcher.run_research(
-                anketa_id,
-                use_mock_websearch=use_mock_websearch
+            # Prepare anketa data for researcher
+            anketa_data = {
+                "anketa_id": anketa_id,
+                "answers_data": interview_result.get("user_answers", {})
+            }
+
+            research_result = await self.researcher.test_researcher(
+                anketa_data=anketa_data,
+                llm_provider="claude_code"  # Researcher uses Claude Code for WebSearch
             )
 
             duration = time.time() - start
 
             results["steps"]["research"] = {
                 "status": "success",
-                "research_id": research_result["research_id"],
-                "sources_count": research_result["sources_count"],
+                "research_id": research_result.get("research_id"),
+                "sources_count": research_result.get("sources_count", 0),
                 "duration_sec": round(duration, 2)
             }
 
             print(f"✅ Research complete:")
-            print(f"   - Research ID: {research_result['research_id']}")
-            print(f"   - Sources: {research_result['sources_count']}")
+            print(f"   - Research ID: {research_result.get('research_id', 'N/A')}")
+            print(f"   - Sources: {research_result.get('sources_count', 0)}")
             print(f"   - Duration: {duration:.1f}s")
 
             # STEP 4: Writer (FIX #15 validation!)
@@ -185,23 +199,27 @@ class TestEngineerAgent:
 
             start = time.time()
 
-            writer_result = self.writer.run_writer(
-                anketa_id,
-                research_id=research_result["research_id"]
+            # Prepare data for writer
+            anketa_data = {"anketa_id": anketa_id}
+
+            writer_result = await self.writer.test_writer(
+                anketa_data=anketa_data,
+                research_data=research_result,  # Contains research_content
+                llm_provider="gigachat"
             )
 
             duration = time.time() - start
 
             results["steps"]["writer"] = {
                 "status": "success",
-                "grant_id": writer_result["grant_id"],
-                "grant_length": writer_result["grant_length"],
+                "grant_id": writer_result.get("grant_id"),
+                "grant_length": writer_result.get("grant_length", 0),
                 "duration_sec": round(duration, 2)
             }
 
             print(f"✅ Writer complete:")
-            print(f"   - Grant ID: {writer_result['grant_id']}")
-            print(f"   - Length: {writer_result['grant_length']} chars")
+            print(f"   - Grant ID: {writer_result.get('grant_id', 'N/A')}")
+            print(f"   - Length: {writer_result.get('grant_length', 0)} chars")
             print(f"   - Duration: {duration:.1f}s")
 
             # FIX #15 Validation
@@ -236,18 +254,27 @@ class TestEngineerAgent:
 
             start = time.time()
 
-            review_result = self.reviewer.run_review(writer_result["grant_id"])
+            # Prepare grant data for reviewer
+            grant_data = {
+                "grant_id": writer_result.get("grant_id"),
+                "grant_text": writer_result.get("grant_text", "")
+            }
+
+            review_result = await self.reviewer.test_reviewer(
+                grant_data=grant_data,
+                llm_provider="gigachat"
+            )
 
             duration = time.time() - start
 
             results["steps"]["review"] = {
                 "status": "success",
-                "review_score": review_result["review_score"],
+                "review_score": review_result.get("review_score", 0.0),
                 "duration_sec": round(duration, 2)
             }
 
             print(f"✅ Review complete:")
-            print(f"   - Score: {review_result['review_score']}/10")
+            print(f"   - Score: {review_result.get('review_score', 0.0)}/10")
             print(f"   - Duration: {duration:.1f}s")
 
             # Save artifacts
@@ -469,9 +496,10 @@ def main():
     # Initialize agent
     agent = TestEngineerAgent(artifacts_dir=args.artifacts_dir)
 
-    # Run E2E test
+    # Run E2E test (ASYNC!)
     try:
-        results = agent.run_e2e_test(use_mock_websearch=use_mock_websearch)
+        import asyncio
+        results = asyncio.run(agent.run_e2e_test(use_mock_websearch=use_mock_websearch))
 
         # Exit with success
         sys.exit(0)
