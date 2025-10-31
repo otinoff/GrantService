@@ -203,91 +203,243 @@ class RepairAgent:
         """
         Чинит подключение к GigaChat API
 
-        Стратегия:
-        1. Проверить токен (истёк ли?)
-        2. Обновить токен если нужно
-        3. Проверить rate limits
-        4. Retry с exponential backoff
-        5. Если quota исчерпана → использовать альтернативную модель
+        Стратегия REPAIR-FIRST (НЕ фолбек сразу!):
 
-        НЕ ДЕЛАТЬ: switch to mock, disable LLM
+        1. DIAGNOSE (диагностика проблемы)
+           - Какая именно ошибка? (timeout, quota, auth, network)
+           - Какая модель использовалась? (Plus, Pro, Max)
+           - Токен валидный?
+
+        2. REPAIR (попытка починить оригинальный сервис)
+           - Обновить токен если истёк
+           - Попробовать другие модели GigaChat (Plus → Pro → Max)
+           - Попробовать другие ключи (может один лимит кончился, другой нет?)
+           - Retry с exponential backoff
+
+        3. FALLBACK (только если ремонт не удался!)
+           - ТОЛЬКО если ВСЕ модели GigaChat недоступны
+           - ТОЛЬКО если ВСЕ ключи исчерпаны
+           → Тогда Claude Code (последняя мера!)
+
+        НЕ ДЕЛАТЬ: Сразу switch to Claude без попытки починить GigaChat!
         """
-        logger.warning("⚠️ GigaChat API error. Attempting repair...")
+        logger.warning("⚠️ GigaChat API error. Starting repair procedure...")
 
-        # Проверяем токен
-        if self._is_token_expired():
-            logger.info("Refreshing GigaChat token...")
-            await self._refresh_gigachat_token()
+        # === PHASE 1: DIAGNOSE ===
+        error_info = await self._diagnose_gigachat_error()
+        logger.info(f"Diagnosis: {error_info['type']} - {error_info['message']}")
 
-        # Проверяем rate limits
-        if self._check_rate_limit_exceeded():
-            logger.warning("Rate limit exceeded. Waiting 60s...")
-            await asyncio.sleep(60)
+        # === PHASE 2: REPAIR (попытка починить GigaChat) ===
 
-        # Retry с backoff
-        for attempt in range(1, 4):
+        # Repair Strategy #1: Обновить токен
+        if error_info['type'] == 'auth_error' or self._is_token_expired():
+            logger.info("🔧 Repair #1: Refreshing GigaChat token...")
             try:
-                # Пробуем запрос
-                response = await gigachat_client.test_connection()
-                if response:
-                    logger.info("✅ GigaChat connection restored!")
+                await self._refresh_gigachat_token()
+                if await self._test_gigachat_connection():
+                    logger.info("✅ GigaChat repaired: Token refreshed!")
                     return True
             except Exception as e:
-                logger.warning(f"Attempt {attempt} failed: {e}")
-                await asyncio.sleep(10 * attempt)
+                logger.warning(f"Token refresh failed: {e}")
 
-        # Если quota исчерпана → альтернатива
-        if self._check_quota_exceeded():
-            logger.warning("⚠️ GigaChat quota exceeded. Using Claude as fallback.")
-            # ✅ Используем РЕАЛЬНУЮ альтернативу
-            self._switch_to_claude_provider()
-            # ❌ НЕ используем mock
-            return True
+        # Repair Strategy #2: Попробовать другие модели GigaChat
+        current_model = error_info.get('model', 'GigaChat-Max')
+        alternative_models = ['GigaChat-Plus', 'GigaChat-Pro', 'GigaChat-Max']
+        alternative_models.remove(current_model)  # Убираем текущую
 
-        raise GigaChatUnavailableError("GigaChat repair failed")
+        for model in alternative_models:
+            logger.info(f"🔧 Repair #2: Trying alternative GigaChat model: {model}")
+            try:
+                if await self._test_gigachat_with_model(model):
+                    logger.info(f"✅ GigaChat repaired: Switched to {model}!")
+                    self._set_gigachat_model(model)
+                    return True
+            except Exception as e:
+                logger.warning(f"Model {model} failed: {e}")
 
-    async def _find_alternative_data_source(self):
+        # Repair Strategy #3: Попробовать другие ключи
+        if error_info['type'] == 'quota_exceeded':
+            logger.info("🔧 Repair #3: Trying alternative GigaChat keys...")
+            alternative_keys = await self._get_alternative_gigachat_keys()
+
+            for key in alternative_keys:
+                logger.info(f"Trying key: {key[:20]}...")
+                try:
+                    if await self._test_gigachat_with_key(key):
+                        logger.info("✅ GigaChat repaired: Switched to alternative key!")
+                        self._set_gigachat_key(key)
+                        return True
+                except Exception as e:
+                    logger.warning(f"Key failed: {e}")
+
+        # Repair Strategy #4: Retry с exponential backoff
+        logger.info("🔧 Repair #4: Retry with exponential backoff...")
+        for attempt in range(1, 4):
+            try:
+                await asyncio.sleep(10 * attempt)  # Backoff
+                if await self._test_gigachat_connection():
+                    logger.info(f"✅ GigaChat repaired: Reconnected on attempt {attempt}!")
+                    return True
+            except Exception as e:
+                logger.warning(f"Retry {attempt}/3 failed: {e}")
+
+        # === PHASE 3: FALLBACK (последняя мера!) ===
+        logger.error("❌ All GigaChat repair strategies failed!")
+        logger.warning("⚠️ FALLBACK: Switching to Claude Code API (last resort)")
+
+        # Уведомляем админа о фолбеке
+        await self._notify_admin(
+            "GigaChat completely unavailable. Switched to Claude Code.",
+            urgency="HIGH"
+        )
+
+        # Переключаемся на Claude
+        self._switch_to_claude_provider()
+
+        return True  # Фолбек успешен
+
+    async def _repair_websearch_connection(self):
         """
-        Находит альтернативный источник данных когда WebSearch недоступен
+        Чинит WebSearch API (Claude Code WebSearch)
 
-        Стратегия:
-        1. WebSearch API не работает?
-        2. Используем Perplexity API (альтернатива #1)
-        3. Используем локальный RAG по векторной базе (альтернатива #2)
-        4. Используем кэшированные результаты прошлых поисков (альтернатива #3)
+        Стратегия REPAIR-FIRST (НЕ фолбек сразу!):
 
-        НЕ ДЕЛАТЬ: use_mock_websearch = True
+        1. DIAGNOSE (диагностика проблемы)
+           - Какая ошибка? (timeout, rate limit, auth, network)
+           - Сколько времени timeout?
+           - Какой запрос вызвал проблему?
+
+        2. REPAIR (попытка починить оригинальный сервис)
+           - Если timeout → retry с увеличенным timeout
+           - Если rate limit → подождать и повторить
+           - Если сетевая ошибка → проверить сеть, повторить
+           - Протестировать WebSearch с простым запросом
+           - Попробовать разные параметры запроса
+
+        3. FALLBACK (только если ремонт не удался!)
+           - ТОЛЬКО если WebSearch полностью недоступен
+           → Perplexity API (альтернатива #1)
+           → Qdrant RAG (альтернатива #2)
+           → Cache (альтернатива #3)
+
+        НЕ ДЕЛАТЬ: Сразу switch to Perplexity без попытки починить WebSearch!
         """
-        logger.warning("⚠️ WebSearch unavailable. Finding alternative...")
+        logger.warning("⚠️ WebSearch API error. Starting repair procedure...")
 
-        # Альтернатива #1: Perplexity
+        # === PHASE 1: DIAGNOSE ===
+        error_info = await self._diagnose_websearch_error()
+        logger.info(f"Diagnosis: {error_info['type']} - {error_info['message']}")
+
+        # === PHASE 2: REPAIR (попытка починить WebSearch) ===
+
+        # Repair Strategy #1: Retry с увеличенным timeout
+        if error_info['type'] == 'timeout':
+            logger.info("🔧 Repair #1: Retry with increased timeout...")
+            original_timeout = error_info.get('timeout', 30)
+
+            for timeout in [60, 90, 120]:
+                logger.info(f"Trying timeout: {timeout}s...")
+                try:
+                    result = await self._test_websearch_with_timeout(timeout)
+                    if result:
+                        logger.info(f"✅ WebSearch repaired: Timeout increased to {timeout}s!")
+                        self._set_websearch_timeout(timeout)
+                        return True
+                except Exception as e:
+                    logger.warning(f"Timeout {timeout}s failed: {e}")
+
+        # Repair Strategy #2: Rate limit - подождать
+        if error_info['type'] == 'rate_limit':
+            logger.info("🔧 Repair #2: Waiting for rate limit reset...")
+            wait_time = error_info.get('retry_after', 60)
+            logger.info(f"Waiting {wait_time}s...")
+            await asyncio.sleep(wait_time)
+
+            try:
+                if await self._test_websearch_connection():
+                    logger.info("✅ WebSearch repaired: Rate limit reset!")
+                    return True
+            except Exception as e:
+                logger.warning(f"Rate limit retry failed: {e}")
+
+        # Repair Strategy #3: Проверить сеть и повторить
+        if error_info['type'] == 'network_error':
+            logger.info("🔧 Repair #3: Network check and retry...")
+            if not await self._check_network_connectivity():
+                logger.warning("Network unreachable. Waiting for reconnection...")
+                await self._wait_for_network(timeout=60)
+
+            # Retry после восстановления сети
+            for attempt in range(1, 4):
+                try:
+                    await asyncio.sleep(5 * attempt)
+                    if await self._test_websearch_connection():
+                        logger.info(f"✅ WebSearch repaired: Network restored, reconnected!")
+                        return True
+                except Exception as e:
+                    logger.warning(f"Network retry {attempt}/3 failed: {e}")
+
+        # Repair Strategy #4: Тестовый запрос (проверка работоспособности)
+        logger.info("🔧 Repair #4: Testing with simple query...")
         try:
-            logger.info("Trying Perplexity API...")
+            test_result = await self._test_websearch_simple()
+            if test_result:
+                logger.info("✅ WebSearch repaired: Simple query successful!")
+                return True
+        except Exception as e:
+            logger.warning(f"Simple query test failed: {e}")
+
+        # === PHASE 3: FALLBACK (последняя мера!) ===
+        logger.error("❌ All WebSearch repair strategies failed!")
+        logger.warning("⚠️ FALLBACK: Trying alternative data sources...")
+
+        # Fallback #1: Perplexity API
+        try:
+            logger.info("FALLBACK #1: Trying Perplexity API...")
             perplexity_result = await perplexity_client.search(query)
             if perplexity_result:
-                logger.info("✅ Using Perplexity as alternative")
+                logger.info("✅ Using Perplexity as fallback")
+                await self._notify_admin(
+                    "WebSearch unavailable. Using Perplexity.",
+                    urgency="MEDIUM"
+                )
                 return perplexity_result
         except Exception as e:
             logger.warning(f"Perplexity failed: {e}")
 
-        # Альтернатива #2: Локальный RAG
+        # Fallback #2: Локальный RAG (Qdrant)
         try:
-            logger.info("Trying local Qdrant RAG...")
+            logger.info("FALLBACK #2: Trying local Qdrant RAG...")
             rag_result = await qdrant_client.search_similar(query)
             if rag_result:
-                logger.info("✅ Using Qdrant RAG as alternative")
+                logger.info("✅ Using Qdrant RAG as fallback")
+                await self._notify_admin(
+                    "WebSearch and Perplexity unavailable. Using Qdrant RAG.",
+                    urgency="MEDIUM"
+                )
                 return rag_result
         except Exception as e:
             logger.warning(f"Qdrant failed: {e}")
 
-        # Альтернатива #3: Кэш
+        # Fallback #3: Кэш прошлых поисков
         cache_result = self._search_cache(query)
         if cache_result:
-            logger.info("✅ Using cached results")
+            logger.info("✅ Using cached results as fallback")
+            await self._notify_admin(
+                "All data sources unavailable. Using cache.",
+                urgency="HIGH"
+            )
             return cache_result
 
+        # Если ничего не помогло → уведомляем и останавливаем
+        logger.error("❌ All data sources failed (WebSearch, Perplexity, Qdrant, Cache)")
+        await self._notify_admin(
+            "All research data sources failed. Night test stopped.",
+            urgency="CRITICAL"
+        )
+
         raise WebSearchUnavailableError(
-            "All alternative data sources failed"
+            "All data sources (WebSearch, Perplexity, Qdrant, Cache) failed"
         )
 
     def _check_system_health(self):
@@ -377,12 +529,12 @@ class RepairAgent:
     → Бизнес-логика сохранена
 ```
 
-### Сценарий: GigaChat Quota Exceeded
+### Сценарий: GigaChat Quota Exceeded (Правильный Repair-First Подход)
 
 ```
 [02:00] Night Orchestrator: Cycle 45/100
 
-[02:15] Writer вызывает GigaChat для генерации гранта
+[02:15] Writer вызывает GigaChat-Max для генерации гранта
 → ❌ ОШИБКА: Quota exceeded (429)
 
 [02:15] ❌ БЕЗ Repair Agent:
@@ -391,21 +543,126 @@ class RepairAgent:
     review_score_threshold = 0  # было 7.0
     → ⚠️ ДЕГРАДАЦИЯ качества!
 
-[02:15] ✅ С Repair Agent:
-    Repair Agent: "GigaChat quota exceeded. Finding alternative..."
+[02:15] ✅ С Repair Agent (DIAGNOSE → REPAIR → FALLBACK):
 
-    [02:15:10] Проверяет Claude Code API → ✅ Доступен
-    [02:15:15] Переключает provider на Claude
-    [02:15:20] Writer генерирует грант через Claude
+    === PHASE 1: DIAGNOSE ===
+    [02:15:05] Repair Agent анализирует ошибку
+    → Diagnosis: quota_exceeded on GigaChat-Max
+    → Current model: GigaChat-Max
+
+    === PHASE 2: REPAIR (попытка починить GigaChat) ===
+    [02:15:10] 🔧 Repair #1: Refreshing token...
+    → Token still valid, not the issue
+
+    [02:15:15] 🔧 Repair #2: Trying alternative GigaChat models...
+    → Trying GigaChat-Plus... ✅ Success!
+    → GigaChat-Plus has quota available!
+
+    [02:15:20] Writer генерирует грант через GigaChat-Plus
     → ✅ Грант 18,500 символов (качество сохранено!)
+    → ✅ GigaChat ПОЧИНЕН без фолбека на Claude!
 
-    [02:15:30] Уведомляет админа:
-    "⚠️ [MEDIUM] GigaChat quota exceeded at cycle 45/100.
-     Switched to Claude. Please check token balance."
-
-    Цикл продолжается с РЕАЛЬНОЙ альтернативой
+    Цикл продолжается с ОРИГИНАЛЬНЫМ сервисом
+    → GigaChat работает (другая модель)
     → Качество сохранено
     → Бизнес-логика сохранена
+    → Claude НЕ использовался (фолбек не понадобился!)
+
+[02:15:30] Repair Agent логирует:
+    "Repair successful: GigaChat-Max quota exceeded,
+     switched to GigaChat-Plus (alternative model)."
+```
+
+### Сценарий: WebSearch Timeout (Правильный Repair-First Подход)
+
+```
+[03:30] Night Orchestrator: Cycle 67/100
+
+[03:35] Researcher вызывает WebSearch API
+→ ❌ ОШИБКА: Request timeout after 30s
+
+[03:35] ❌ БЕЗ Repair Agent:
+    Night Orchestrator: "Ладно, переключусь на Perplexity"
+    use_perplexity = True
+    → ⚠️ Сразу фолбек без попытки починить!
+
+[03:35] ✅ С Repair Agent (DIAGNOSE → REPAIR → FALLBACK):
+
+    === PHASE 1: DIAGNOSE ===
+    [03:35:05] Repair Agent анализирует ошибку
+    → Diagnosis: timeout (30s) on complex query
+    → Query length: 250 chars (long query)
+
+    === PHASE 2: REPAIR (попытка починить WebSearch) ===
+    [03:35:10] 🔧 Repair #1: Retry with increased timeout...
+    → Trying 60s timeout... ❌ Still timeout
+    → Trying 90s timeout... ✅ Success!
+    → WebSearch responded in 75 seconds
+
+    [03:35:95] ✅ WebSearch ПОЧИНЕН!
+    → Timeout увеличен с 30s до 90s
+    → WebSearch работает с длинными запросами
+
+    [03:36:00] Researcher получает результаты WebSearch
+    → ✅ 5 источников найдено
+    → ✅ Качество исследования сохранено
+    → Perplexity НЕ использовался (фолбек не понадобился!)
+
+    Цикл продолжается с ОРИГИНАЛЬНЫМ сервисом
+    → WebSearch работает (с увеличенным timeout)
+    → Качество сохранено
+    → Бизнес-логика сохранена
+
+[03:36:10] Repair Agent логирует:
+    "Repair successful: WebSearch timeout fixed,
+     increased timeout from 30s to 90s."
+```
+
+### Сценарий: Фолбек ТОЛЬКО когда ремонт невозможен
+
+```
+[04:45] Night Orchestrator: Cycle 89/100
+
+[04:50] Writer вызывает GigaChat для генерации гранта
+→ ❌ ОШИБКА: All GigaChat models unavailable
+
+[04:50] ✅ С Repair Agent (все стратегии ремонта провалились):
+
+    === PHASE 1: DIAGNOSE ===
+    [04:50:05] Diagnosis: All models return 503 Service Unavailable
+    → GigaChat сервис полностью недоступен
+
+    === PHASE 2: REPAIR (все попытки) ===
+    [04:50:10] 🔧 Repair #1: Refresh token... ❌ Failed
+    [04:50:20] 🔧 Repair #2: Try GigaChat-Plus... ❌ Unavailable
+    [04:50:30] 🔧 Repair #2: Try GigaChat-Pro... ❌ Unavailable
+    [04:50:40] 🔧 Repair #2: Try GigaChat-Max... ❌ Unavailable
+    [04:50:50] 🔧 Repair #3: Try alternative keys... ❌ All keys fail
+    [04:51:00] 🔧 Repair #4: Retry with backoff... ❌ Still unavailable
+
+    [04:51:10] ❌ All GigaChat repair strategies failed!
+
+    === PHASE 3: FALLBACK (последняя мера!) ===
+    [04:51:15] ⚠️ FALLBACK: Switching to Claude Code API
+    → Claude Code проверен → ✅ Доступен
+    → Переключение на Claude (ПОСЛЕДНЯЯ МЕРА!)
+
+    [04:51:20] 🚨 Уведомление админу (Telegram):
+    "GigaChat completely unavailable (all models, all keys).
+     Switched to Claude Code. Please check GigaChat status."
+
+    [04:51:30] Writer генерирует грант через Claude Code
+    → ✅ Грант 19,200 символов
+    → Качество сохранено (реальная альтернатива!)
+
+    Цикл продолжается с ФОЛБЕКОМ
+    → Фолбек использован ТОЛЬКО после всех попыток ремонта
+    → Качество сохранено
+    → Бизнес-логика сохранена
+
+[04:51:40] Repair Agent логирует:
+    "Fallback activated: GigaChat unrepairable (all strategies failed),
+     using Claude Code as last resort."
 ```
 
 ---
