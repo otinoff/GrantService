@@ -25,6 +25,9 @@ import json
 import traceback
 from dataclasses import dataclass, asdict
 
+# Iteration 71: Repair Agent Integration
+from tester.repair_agent import RepairAgent
+
 logger = logging.getLogger(__name__)
 
 
@@ -81,6 +84,7 @@ class NightTestOrchestrator:
         self.results: List[CycleResult] = []
         self.start_time = None
         self.checkpoint_file = None
+        self.is_running = False  # Iteration 71: For RepairAgent monitoring
 
         # Setup artifacts directory
         self.artifacts_dir = Path(config.artifacts_dir) / datetime.now().strftime("%Y-%m-%d")
@@ -101,6 +105,11 @@ class NightTestOrchestrator:
         logger.info(f"Expert Agent: {config.enable_expert}")
         logger.info(f"Artifacts: {self.artifacts_dir}")
         logger.info(f"Checkpoint interval: {config.checkpoint_interval}")
+        logger.info("="*80)
+
+        # Iteration 71: Initialize Repair Agent
+        self.repair_agent = RepairAgent(self)
+        logger.info("🔧 Repair Agent initialized")
         logger.info("="*80)
 
     def _setup_logging(self):
@@ -136,6 +145,7 @@ class NightTestOrchestrator:
             Summary dictionary
         """
         self.start_time = time.time()
+        self.is_running = True  # Iteration 71: Enable RepairAgent monitoring
 
         # Load checkpoint if resuming
         start_cycle = 1
@@ -146,6 +156,12 @@ class NightTestOrchestrator:
         logger.info("\n" + "="*80)
         logger.info("STARTING NIGHT TEST RUN")
         logger.info("="*80)
+
+        # Iteration 71: Start Repair Agent monitoring in parallel
+        logger.info("🔧 Starting Repair Agent monitoring...")
+        repair_task = asyncio.create_task(
+            self.repair_agent.start_monitoring()
+        )
 
         # Import components
         from tester.synthetic_user_generator import SyntheticUserGenerator
@@ -170,42 +186,74 @@ class NightTestOrchestrator:
         logger.info(f"Generating {self.config.num_cycles} user profiles...")
         profiles = user_generator.generate_profiles(count=self.config.num_cycles)
 
-        # Run cycles
-        for cycle_num in range(start_cycle, self.config.num_cycles + 1):
-            # Check timeout
-            if self._check_timeout():
-                logger.warning("Maximum duration reached. Stopping.")
-                break
+        # Iteration 71: Wrap in try/finally for graceful Repair Agent shutdown
+        try:
+            # Run cycles
+            for cycle_num in range(start_cycle, self.config.num_cycles + 1):
+                # Check timeout
+                if self._check_timeout():
+                    logger.warning("Maximum duration reached. Stopping.")
+                    break
 
-            profile = profiles[cycle_num - 1]
+                profile = profiles[cycle_num - 1]
 
-            logger.info("\n" + "-"*80)
-            logger.info(f"CYCLE {cycle_num}/{self.config.num_cycles}: {profile.name}")
-            logger.info("-"*80)
+                logger.info("\n" + "-"*80)
+                logger.info(f"CYCLE {cycle_num}/{self.config.num_cycles}: {profile.name}")
+                logger.info("-"*80)
 
-            # Run cycle with retry
-            result = await self._run_cycle_with_retry(
-                cycle_num=cycle_num,
-                profile=profile,
-                db=db,
-                expert_agent=expert_agent
-            )
+                # Run cycle with retry
+                result = await self._run_cycle_with_retry(
+                    cycle_num=cycle_num,
+                    profile=profile,
+                    db=db,
+                    expert_agent=expert_agent
+                )
 
-            self.results.append(result)
+                self.results.append(result)
 
-            # Log result
-            if result.success:
-                logger.info(f"✅ Cycle {cycle_num} SUCCESS - Score: {result.expert_score}/10, Duration: {result.duration:.1f}s")
-            else:
-                logger.error(f"❌ Cycle {cycle_num} FAILED - Error: {result.error}")
+                # Log result
+                if result.success:
+                    logger.info(f"✅ Cycle {cycle_num} SUCCESS - Score: {result.expert_score}/10, Duration: {result.duration:.1f}s")
+                else:
+                    logger.error(f"❌ Cycle {cycle_num} FAILED - Error: {result.error}")
 
-            # Checkpoint
-            if cycle_num % self.config.checkpoint_interval == 0:
-                self._save_checkpoint(cycle_num)
-                self._print_progress()
+                # Checkpoint
+                if cycle_num % self.config.checkpoint_interval == 0:
+                    self._save_checkpoint(cycle_num)
+                    self._print_progress()
+
+        except Exception as e:
+            logger.error(f"Orchestrator error: {e}")
+            logger.error(traceback.format_exc())
+            raise
+
+        finally:
+            # Iteration 71: Stop Repair Agent gracefully
+            logger.info("🔧 Stopping Repair Agent...")
+            self.is_running = False
+            await self.repair_agent.stop_monitoring()
+
+            try:
+                await repair_task
+            except asyncio.CancelledError:
+                logger.info("🔧 Repair Agent monitoring cancelled")
+            except Exception as e:
+                logger.warning(f"🔧 Repair Agent shutdown error: {e}")
 
         # Generate summary
         summary = self._generate_summary()
+
+        # Iteration 71: Add repair statistics to summary
+        summary['repair_stats'] = self.repair_agent.get_repair_statistics()
+
+        # Iteration 71: Save repair stats to file for morning report
+        repair_stats_file = self.artifacts_dir / "repair_stats.json"
+        try:
+            with open(repair_stats_file, 'w', encoding='utf-8') as f:
+                json.dump(summary['repair_stats'], f, ensure_ascii=False, indent=2)
+            logger.info(f"Repair statistics saved: {repair_stats_file}")
+        except Exception as e:
+            logger.warning(f"Failed to save repair stats: {e}")
 
         logger.info("\n" + "="*80)
         logger.info("NIGHT TEST RUN COMPLETED")
@@ -213,6 +261,7 @@ class NightTestOrchestrator:
         logger.info(f"Total cycles: {len(self.results)}")
         logger.info(f"Success: {summary['successful']}/{summary['total_cycles']}")
         logger.info(f"Duration: {summary['duration_hours']:.2f}h")
+        logger.info(f"Repairs performed: {summary['repair_stats']['total_repairs']}")
         logger.info("="*80)
 
         return summary
