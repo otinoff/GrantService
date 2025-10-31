@@ -86,9 +86,9 @@ class ReviewerTestModule:
 
         self.logger.info(f"Testing ReviewerAgent for grant: {grant_data['grant_id']}")
 
-        # 4. Run review
-        self.logger.info("Calling ReviewerAgent.review_grant()...")
-        review_result = await reviewer.review_grant(grant_input)
+        # 4. Run review (use review_grant_async since we're already in async context)
+        self.logger.info("Calling ReviewerAgent.review_grant_async()...")
+        review_result = await reviewer.review_grant_async(grant_input)
 
         # 5. Extract review data
         # ReviewerAgent may return nested structure
