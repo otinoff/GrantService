@@ -19,6 +19,9 @@ sys.path.insert(0, os.path.join(project_root, 'shared'))
 sys.path.insert(0, os.path.join(project_root, 'telegram-bot', 'services'))
 sys.path.insert(0, os.path.join(project_root, 'web-admin'))
 
+# Initialize logger before any imports that might use it
+logger = logging.getLogger(__name__)
+
 try:
     from agents.base_agent import BaseAgent
 except ImportError:
