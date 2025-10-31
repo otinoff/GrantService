@@ -38,6 +38,35 @@
 
 **Repair Agent = Developer-Repairman (Разработчик-Ремонтник)**
 
+### Контекст: Три Уровня Системы
+
+**Уровень 1: ПРОДАКШЕН**
+```
+Человек в Telegram → Telegram Bot → Agents (Interview, Research, Write, Review)
+```
+
+**Уровень 2: НОЧНОЕ ТЕСТИРОВАНИЕ**
+```
+Night Orchestrator (тестировщик) → Test Modules → Agents
+                ↑
+        Заменяет человека!
+        Synthetic User с профилем
+```
+
+**Уровень 3: REPAIR AGENT (фолбек тестировщика)**
+```
+Night Orchestrator → проблема (DB down, API timeout, etc.)
+                ↓
+        Repair Agent включается
+        Чинит проблему
+                ↓
+Night Orchestrator продолжает работу
+```
+
+**Ключевое понимание:**
+- Night Orchestrator = тестировщик = заменяет человека в Telegram
+- Repair Agent = фолбек тестировщика = чинит когда тестировщик не может справиться
+
 ### Проблема
 
 Night Orchestrator (тестировщик) запускается ночью и вызывает агентов:
@@ -93,7 +122,52 @@ if qdrant_unavailable:
 
 ## ✅ ПРАВИЛЬНЫЙ Подход: Repair Agent как DevOps/SRE
 
-### Принцип: Чинить Технические Проблемы, Сохранять Бизнес-Логику
+### Принцип: ПРОАКТИВНЫЙ РЕЖИМ РАЗРАБОТЧИКА - Пересобрать Модуль
+
+**Ключевая идея:**
+НЕ просто "попробовать другие параметры"
+НО **ВОЙТИ В РЕЖИМ РАЗРАБОТЧИКА и ПЕРЕСОБРАТЬ модуль как будто он сломался**
+
+Как настоящий DevOps инженер:
+1. Остановить сломанный модуль
+2. Проверить ВСЕ зависимости
+3. Проверить конфигурацию полностью
+4. Проверить ресурсы (сеть, память, CPU)
+5. ПЕРЕСОБРАТЬ модуль с нуля
+6. Протестировать ВСЕ функции
+7. Запустить модуль заново
+
+**Примеры:**
+
+**WebSearch timeout → РЕЖИМ РАЗРАБОТЧИКА:**
+```python
+# ❌ Неправильно (просто поменять параметр):
+websearch.timeout = 90
+
+# ✅ Правильно (ПЕРЕСОБРАТЬ МОДУЛЬ):
+1. websearch.stop()  # Остановить
+2. websearch.check_dependencies()  # Проверить зависимости
+3. websearch.check_network()  # Проверить сеть
+4. websearch.check_resources()  # Проверить ресурсы
+5. websearch.rebuild(timeout=90)  # ПЕРЕСОБРАТЬ
+6. websearch.test_all_functions()  # Тестировать ВСЁ
+7. websearch.start()  # Запустить заново
+```
+
+**GigaChat error → РЕЖИМ РАЗРАБОТЧИКА:**
+```python
+# ❌ Неправильно (просто попробовать другую модель):
+gigachat.model = "GigaChat-Plus"
+
+# ✅ Правильно (ПЕРЕСОБРАТЬ МОДУЛЬ):
+1. gigachat.stop()  # Остановить
+2. gigachat.check_all_keys()  # Проверить ВСЕ ключи
+3. gigachat.check_all_models()  # Проверить ВСЕ модели
+4. gigachat.check_quotas()  # Проверить квоты
+5. gigachat.rebuild(model="Plus", key=working_key)  # ПЕРЕСОБРАТЬ
+6. gigachat.test_connection()  # Тестировать подключение
+7. gigachat.start()  # Запустить заново
+```
 
 ```python
 class RepairAgent:
@@ -201,102 +275,146 @@ class RepairAgent:
 
     async def _repair_gigachat_connection(self):
         """
-        Чинит подключение к GigaChat API
+        ПРОАКТИВНЫЙ РЕЖИМ РАЗРАБОТЧИКА - Пересобрать GigaChat модуль
 
-        Стратегия REPAIR-FIRST (НЕ фолбек сразу!):
+        Стратегия: ОСТАНОВИТЬ → ПРОВЕРИТЬ ВСЁ → ПЕРЕСОБРАТЬ → ЗАПУСТИТЬ
 
-        1. DIAGNOSE (диагностика проблемы)
-           - Какая именно ошибка? (timeout, quota, auth, network)
-           - Какая модель использовалась? (Plus, Pro, Max)
-           - Токен валидный?
-
-        2. REPAIR (попытка починить оригинальный сервис)
-           - Обновить токен если истёк
-           - Попробовать другие модели GigaChat (Plus → Pro → Max)
-           - Попробовать другие ключи (может один лимит кончился, другой нет?)
-           - Retry с exponential backoff
-
-        3. FALLBACK (только если ремонт не удался!)
-           - ТОЛЬКО если ВСЕ модели GigaChat недоступны
-           - ТОЛЬКО если ВСЕ ключи исчерпаны
-           → Тогда Claude Code (последняя мера!)
-
-        НЕ ДЕЛАТЬ: Сразу switch to Claude без попытки починить GigaChat!
+        НЕ просто "попробовать другую модель"!
+        ПЕРЕСОБРАТЬ модуль как DevOps инженер!
         """
-        logger.warning("⚠️ GigaChat API error. Starting repair procedure...")
+        logger.warning("⚠️ GigaChat error detected!")
+        logger.info("🔧 ENTERING DEVELOPER MODE - Rebuilding GigaChat module...")
 
-        # === PHASE 1: DIAGNOSE ===
-        error_info = await self._diagnose_gigachat_error()
-        logger.info(f"Diagnosis: {error_info['type']} - {error_info['message']}")
+        # === STEP 1: ОСТАНОВИТЬ модуль ===
+        logger.info("STEP 1/7: Stopping GigaChat module...")
+        await self._stop_gigachat_module()
 
-        # === PHASE 2: REPAIR (попытка починить GigaChat) ===
+        # === STEP 2: ДИАГНОСТИКА - Проверить ВСЁ ===
+        logger.info("STEP 2/7: Running complete diagnostics...")
 
-        # Repair Strategy #1: Обновить токен
-        if error_info['type'] == 'auth_error' or self._is_token_expired():
-            logger.info("🔧 Repair #1: Refreshing GigaChat token...")
-            try:
-                await self._refresh_gigachat_token()
-                if await self._test_gigachat_connection():
-                    logger.info("✅ GigaChat repaired: Token refreshed!")
-                    return True
-            except Exception as e:
-                logger.warning(f"Token refresh failed: {e}")
+        diagnostics = {
+            'all_keys': await self._check_all_gigachat_keys(),
+            'all_models': await self._check_all_gigachat_models(),
+            'all_quotas': await self._check_all_gigachat_quotas(),
+            'network': await self._check_network_to_gigachat(),
+            'tokens': await self._check_all_tokens_validity()
+        }
 
-        # Repair Strategy #2: Попробовать другие модели GigaChat
-        current_model = error_info.get('model', 'GigaChat-Max')
-        alternative_models = ['GigaChat-Plus', 'GigaChat-Pro', 'GigaChat-Max']
-        alternative_models.remove(current_model)  # Убираем текущую
+        logger.info(f"Diagnostics complete: {diagnostics}")
 
-        for model in alternative_models:
-            logger.info(f"🔧 Repair #2: Trying alternative GigaChat model: {model}")
-            try:
-                if await self._test_gigachat_with_model(model):
-                    logger.info(f"✅ GigaChat repaired: Switched to {model}!")
-                    self._set_gigachat_model(model)
-                    return True
-            except Exception as e:
-                logger.warning(f"Model {model} failed: {e}")
+        # === STEP 3: НАЙТИ рабочую конфигурацию ===
+        logger.info("STEP 3/7: Finding working configuration...")
 
-        # Repair Strategy #3: Попробовать другие ключи
-        if error_info['type'] == 'quota_exceeded':
-            logger.info("🔧 Repair #3: Trying alternative GigaChat keys...")
-            alternative_keys = await self._get_alternative_gigachat_keys()
+        working_config = None
 
-            for key in alternative_keys:
-                logger.info(f"Trying key: {key[:20]}...")
-                try:
-                    if await self._test_gigachat_with_key(key):
-                        logger.info("✅ GigaChat repaired: Switched to alternative key!")
-                        self._set_gigachat_key(key)
-                        return True
-                except Exception as e:
-                    logger.warning(f"Key failed: {e}")
+        # Проверяем ВСЕ комбинации (model + key)
+        for key_info in diagnostics['all_keys']:
+            if not key_info['valid']:
+                continue
 
-        # Repair Strategy #4: Retry с exponential backoff
-        logger.info("🔧 Repair #4: Retry with exponential backoff...")
-        for attempt in range(1, 4):
-            try:
-                await asyncio.sleep(10 * attempt)  # Backoff
-                if await self._test_gigachat_connection():
-                    logger.info(f"✅ GigaChat repaired: Reconnected on attempt {attempt}!")
-                    return True
-            except Exception as e:
-                logger.warning(f"Retry {attempt}/3 failed: {e}")
+            for model in diagnostics['all_models']:
+                if not model['available']:
+                    continue
 
-        # === PHASE 3: FALLBACK (последняя мера!) ===
-        logger.error("❌ All GigaChat repair strategies failed!")
-        logger.warning("⚠️ FALLBACK: Switching to Claude Code API (last resort)")
+                logger.info(f"Testing combination: {model['name']} + key {key_info['id']}")
 
-        # Уведомляем админа о фолбеке
+                if await self._test_gigachat_combination(
+                    model=model['name'],
+                    key=key_info['key']
+                ):
+                    working_config = {
+                        'model': model['name'],
+                        'key': key_info['key'],
+                        'quota': model['quota_remaining']
+                    }
+                    logger.info(f"✅ Found working config: {working_config}")
+                    break
+
+            if working_config:
+                break
+
+        if not working_config:
+            # Не нашли рабочую конфигурацию → ФОЛБЕК
+            logger.error("❌ No working GigaChat configuration found!")
+            return await self._fallback_to_claude()
+
+        # === STEP 4: ПЕРЕСОБРАТЬ модуль с рабочей конфигурацией ===
+        logger.info("STEP 4/7: Rebuilding GigaChat module with working config...")
+
+        await self._rebuild_gigachat_module(
+            model=working_config['model'],
+            key=working_config['key']
+        )
+
+        # === STEP 5: ТЕСТИРОВАТЬ ВСЕ функции ===
+        logger.info("STEP 5/7: Testing all module functions...")
+
+        tests = {
+            'connection': await self._test_gigachat_connection(),
+            'simple_request': await self._test_gigachat_simple_request(),
+            'quota_check': await self._test_gigachat_quota(),
+            'error_handling': await self._test_gigachat_errors()
+        }
+
+        if not all(tests.values()):
+            logger.error(f"❌ Module tests failed: {tests}")
+            return await self._fallback_to_claude()
+
+        logger.info(f"✅ All tests passed: {tests}")
+
+        # === STEP 6: ЗАПУСТИТЬ модуль ===
+        logger.info("STEP 6/7: Starting rebuilt GigaChat module...")
+        await self._start_gigachat_module(working_config)
+
+        # === STEP 7: ФИНАЛЬНАЯ проверка ===
+        logger.info("STEP 7/7: Final validation...")
+
+        if await self._validate_gigachat_operational():
+            logger.info("✅ GigaChat module REBUILT and OPERATIONAL!")
+            logger.info(f"Active config: {working_config}")
+            return True
+        else:
+            logger.error("❌ Final validation failed!")
+            return await self._fallback_to_claude()
+
+    async def _stop_gigachat_module(self):
+        """Останавливает GigaChat модуль полностью"""
+        # Закрываем все соединения
+        # Очищаем кэш
+        # Освобождаем ресурсы
+        pass
+
+    async def _rebuild_gigachat_module(self, model: str, key: str):
+        """
+        ПЕРЕСОБИРАЕТ GigaChat модуль с нуля
+
+        Как будто первый запуск:
+        - Новое подключение
+        - Новый client
+        - Новая конфигурация
+        """
+        # Создаём новый GigaChat client
+        # С рабочей моделью и ключом
+        # Инициализируем все компоненты
+        pass
+
+    async def _start_gigachat_module(self, config: dict):
+        """Запускает GigaChat модуль заново"""
+        # Стартует с новой конфигурацией
+        pass
+
+    async def _fallback_to_claude(self):
+        """ФОЛБЕК - только если пересборка невозможна"""
+        logger.error("❌ All GigaChat rebuild attempts failed!")
+        logger.warning("⚠️ FALLBACK: Switching to Claude Code (last resort)")
+
         await self._notify_admin(
-            "GigaChat completely unavailable. Switched to Claude Code.",
+            "GigaChat unrepairable. Switched to Claude Code.",
             urgency="HIGH"
         )
 
-        # Переключаемся на Claude
         self._switch_to_claude_provider()
-
-        return True  # Фолбек успешен
+        return True
 
     async def _repair_websearch_connection(self):
         """
