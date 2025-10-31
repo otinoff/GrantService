@@ -54,6 +54,13 @@ C:\SnowWhiteAI\GrantService_Project\
 
 **Follow:** Project Evolution Methodology (Cradle OS)
 
+**Documentation:** `cradle/` directory contains all methodologies:
+- `PROJECT-EVOLUTION-METHODOLOGY.md` - Development workflow
+- `TESTING-METHODOLOGY.md` - Testing strategies
+- `SOFTWARE-DEVELOPMENT-BEST-PRACTICES.md` - General best practices
+- `GRANTSERVICE-LESSONS-LEARNED.md` - Project-specific lessons ⭐
+- `SELF_LEARNING_SYSTEM_DESIGN.md` - Self-learning architecture
+
 **Principles:**
 - **Гомеостаз:** Tests before commit, Pre-Deploy Checklist
 - **Метаболизм:** Small commits (<200 lines), 2-5 per day
@@ -109,13 +116,54 @@ Before production deploy:
 
 ---
 
-## 📊 CURRENT STATUS
+## 📚 QUICK METHODOLOGY REFERENCE
 
-**Iteration:** 36 - Methodology Cleanup
-**Previous:** 35 - Anketa Management ✅
-**LLM:** GigaChat-Max (primary)
+**When starting new feature:**
+1. Read: `cradle/PROJECT-EVOLUTION-METHODOLOGY.md`
+2. Plan: Follow 5-phase workflow
+3. Test: Follow `cradle/TESTING-METHODOLOGY.md`
+
+**When debugging production bug:**
+1. Check: `cradle/GRANTSERVICE-LESSONS-LEARNED.md` - Similar bugs?
+2. Write: Edge case test to reproduce
+3. Fix: Update lessons learned doc
+
+**When reviewing code:**
+1. Check: `cradle/SOFTWARE-DEVELOPMENT-BEST-PRACTICES.md`
+2. Verify: Anti-patterns section
+3. Ensure: Production parity in tests
 
 ---
 
-**Last Updated:** 2025-10-25
-**Iteration:** 36
+## 📊 CURRENT STATUS
+
+**Iteration:** 72 - Infrastructure Auto-Repair ✅
+**Previous:** 71 - RepairAgent Integration ✅
+**LLM:** GigaChat-Max (primary)
+
+**New Feature:** Автоматическое восстановление инфраструктуры
+- 🔧 RepairAgent чинит SSH и пакеты БЕЗ человека
+- 📦 Auto-install sentence-transformers на production
+- 🔐 SSH без всплывающих окон (BatchMode)
+- ✅ ExpertAgent теперь работает на production
+- ✅ Writer V2 получает требования ФПГ из векторной БД
+
+**Repairs:**
+- SSH connection (auto-config ~/.ssh/config)
+- Production packages (pip install + verify)
+- Database, GigaChat, WebSearch, Qdrant (coming in Iteration 73)
+
+**Test Results:**
+```bash
+python test_repair_agent_ssh.py
+# ✅ SSH healthy - no popups
+# ✅ Packages healthy - sentence-transformers installed
+# ✅ All automatic
+```
+
+**Docs:** `iterations/Iteration_72_Infrastructure_Auto_Repair/SUCCESS.md`
+
+---
+
+**Last Updated:** 2025-10-31
+**Iteration:** 72
