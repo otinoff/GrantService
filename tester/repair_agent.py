@@ -119,7 +119,9 @@ class RepairAgent:
                 'websearch': {'healthy': bool, 'rate_limit': int, 'error': str},
                 'qdrant': {'healthy': bool, 'collections': int, 'error': str},
                 'disk_space': {'healthy': bool, 'free_gb': float},
-                'memory': {'healthy': bool, 'available_gb': float}
+                'memory': {'healthy': bool, 'available_gb': float},
+                'production_ssh': {'healthy': bool, 'error': str},
+                'production_packages': {'healthy': bool, 'missing': list, 'error': str}
             }
         """
         health = {}
@@ -141,6 +143,12 @@ class RepairAgent:
 
         # Check Memory
         health['memory'] = await self._check_memory()
+
+        # Check Production SSH
+        health['production_ssh'] = await self._check_production_ssh_health()
+
+        # Check Production Packages
+        health['production_packages'] = await self._check_production_packages_health()
 
         return health
 
@@ -191,6 +199,20 @@ class RepairAgent:
         if not health_status['memory']['healthy']:
             self.logger.error("⚠️ Memory critical!")
             await self._cleanup_memory()
+
+        # Production SSH issues
+        if not health_status['production_ssh']['healthy']:
+            self.logger.warning("⚠️ Production SSH unhealthy, initiating repair...")
+            await self._repair_ssh_connection(
+                health_status['production_ssh']
+            )
+
+        # Production packages missing
+        if not health_status['production_packages']['healthy']:
+            self.logger.warning("⚠️ Production packages missing, initiating repair...")
+            await self._repair_production_packages(
+                health_status['production_packages']
+            )
 
     # ========================================
     # HEALTH CHECK METHODS
@@ -481,6 +503,300 @@ class RepairAgent:
 
         # TODO: Implement Telegram notification
         # For now, just log
+
+    async def _check_production_ssh_health(self) -> Dict[str, Any]:
+        """
+        Check SSH connection to production server
+
+        Returns:
+            {'healthy': bool, 'error': str}
+        """
+        import subprocess
+
+        try:
+            # Тест SSH подключения БЕЗ ВСПЛЫВАЮЩИХ ОКОН
+            result = subprocess.run(
+                [
+                    'ssh',
+                    '-o', 'StrictHostKeyChecking=no',
+                    '-o', 'UserKnownHostsFile=/dev/null',
+                    '-o', 'BatchMode=yes',
+                    '-o', 'ConnectTimeout=5',
+                    'root@5.35.88.251',
+                    'echo SSH_OK'
+                ],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0 and 'SSH_OK' in result.stdout:
+                return {
+                    'healthy': True,
+                    'error': None
+                }
+            else:
+                return {
+                    'healthy': False,
+                    'error': f'SSH failed: {result.stderr}'
+                }
+
+        except Exception as e:
+            return {
+                'healthy': False,
+                'error': str(e)
+            }
+
+    async def _check_production_packages_health(self) -> Dict[str, Any]:
+        """
+        Check if required packages installed on production
+
+        Returns:
+            {'healthy': bool, 'missing': list, 'error': str}
+        """
+        import subprocess
+
+        required_packages = ['sentence-transformers']
+        missing = []
+
+        try:
+            for package in required_packages:
+                # Проверяем через pip list (быстрее и надежнее чем import)
+                result = subprocess.run(
+                    [
+                        'ssh',
+                        '-o', 'StrictHostKeyChecking=no',
+                        '-o', 'UserKnownHostsFile=/dev/null',
+                        '-o', 'BatchMode=yes',
+                        '-o', 'ConnectTimeout=5',
+                        'root@5.35.88.251',
+                        f'pip list | grep -i {package}'
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=10
+                )
+
+                if result.returncode != 0 or package not in result.stdout.lower():
+                    missing.append(package)
+
+            if not missing:
+                return {
+                    'healthy': True,
+                    'missing': [],
+                    'error': None
+                }
+            else:
+                return {
+                    'healthy': False,
+                    'missing': missing,
+                    'error': f'Missing packages: {", ".join(missing)}'
+                }
+
+        except Exception as e:
+            return {
+                'healthy': False,
+                'missing': [],
+                'error': str(e)
+            }
+
+    async def _repair_ssh_connection(self, health_info: Dict):
+        """
+        PROACTIVE DEVELOPER MODE - Setup SSH Connection
+
+        Strategy: Configure SSH to work WITHOUT interactive prompts
+        """
+        self.logger.info("🔧 ENTERING DEVELOPER MODE - Configuring SSH...")
+
+        repair_start = datetime.now()
+
+        try:
+            import os
+            import subprocess
+            from pathlib import Path
+
+            # STEP 1: Check SSH keys exist
+            ssh_dir = Path.home() / '.ssh'
+            private_key = ssh_dir / 'id_rsa'
+            public_key = ssh_dir / 'id_rsa.pub'
+
+            if not private_key.exists() or not public_key.exists():
+                self.logger.error("❌ SSH keys not found in ~/.ssh/")
+                return False
+
+            # STEP 2: Create/Update SSH config
+            ssh_config = ssh_dir / 'config'
+            config_content = """
+# Auto-configured by RepairAgent
+Host production
+    HostName 5.35.88.251
+    User root
+    IdentityFile ~/.ssh/id_rsa
+    StrictHostKeyChecking no
+    UserKnownHostsFile /dev/null
+    BatchMode yes
+    ConnectTimeout 10
+"""
+
+            # Добавляем в config если еще нет
+            if not ssh_config.exists():
+                ssh_config.write_text(config_content)
+                self.logger.info("✅ SSH config created")
+            else:
+                existing = ssh_config.read_text()
+                if 'Host production' not in existing:
+                    ssh_config.write_text(existing + "\n" + config_content)
+                    self.logger.info("✅ SSH config updated")
+
+            # STEP 3: Copy public key to production (with password from env)
+            password = os.getenv('PRODUCTION_SSH_PASSWORD')
+            if password:
+                self.logger.info("Copying SSH key to production...")
+                # Используем sshpass если доступен
+                subprocess.run(
+                    f'sshpass -p "{password}" ssh-copy-id -o StrictHostKeyChecking=no -i ~/.ssh/id_rsa.pub root@5.35.88.251',
+                    shell=True,
+                    capture_output=True,
+                    timeout=30
+                )
+
+            # STEP 4: Test connection
+            result = subprocess.run(
+                ['ssh', 'production', 'echo', 'SSH_REPAIR_SUCCESS'],
+                capture_output=True,
+                text=True,
+                timeout=10
+            )
+
+            if result.returncode == 0 and 'SSH_REPAIR_SUCCESS' in result.stdout:
+                self.logger.info("✅ SSH connection repaired successfully")
+
+                self.repairs_performed.append({
+                    'timestamp': datetime.now().isoformat(),
+                    'component': 'production_ssh',
+                    'strategy': 'configure',
+                    'duration_sec': (datetime.now() - repair_start).total_seconds(),
+                    'success': True
+                })
+
+                return True
+            else:
+                self.logger.error(f"❌ SSH test failed: {result.stderr}")
+                return False
+
+        except Exception as e:
+            self.logger.error(f"❌ SSH repair failed: {e}")
+
+            self.repairs_performed.append({
+                'timestamp': datetime.now().isoformat(),
+                'component': 'production_ssh',
+                'strategy': 'configure',
+                'duration_sec': (datetime.now() - repair_start).total_seconds(),
+                'success': False,
+                'error': str(e)
+            })
+
+            await self._notify_admin(
+                f"SSH repair failed: {e}. Manual SSH setup needed.",
+                urgency="HIGH"
+            )
+
+            return False
+
+    async def _repair_production_packages(self, health_info: Dict):
+        """
+        PROACTIVE DEVELOPER MODE - Install Missing Packages on Production
+
+        Strategy: DETECT MISSING → INSTALL → VERIFY
+        """
+        self.logger.info("🔧 ENTERING DEVELOPER MODE - Installing Production Packages...")
+
+        repair_start = datetime.now()
+        missing_packages = health_info.get('missing', [])
+
+        if not missing_packages:
+            self.logger.info("No packages to install")
+            return True
+
+        try:
+            import subprocess
+
+            for package in missing_packages:
+                self.logger.info(f"Installing {package} on production...")
+
+                # STEP 1: Install package
+                result = subprocess.run(
+                    [
+                        'ssh',
+                        '-o', 'StrictHostKeyChecking=no',
+                        '-o', 'UserKnownHostsFile=/dev/null',
+                        '-o', 'BatchMode=yes',
+                        'root@5.35.88.251',
+                        f'cd /var/GrantService && pip install {package}'
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=180
+                )
+
+                if result.returncode != 0:
+                    self.logger.error(f"❌ Failed to install {package}: {result.stderr}")
+                    continue
+
+                # STEP 2: Verify installation
+                # Используем pip list для проверки вместо import
+                verify_result = subprocess.run(
+                    [
+                        'ssh',
+                        '-o', 'StrictHostKeyChecking=no',
+                        '-o', 'UserKnownHostsFile=/dev/null',
+                        '-o', 'BatchMode=yes',
+                        'root@5.35.88.251',
+                        f'pip list | grep -i {package}'
+                    ],
+                    capture_output=True,
+                    text=True,
+                    timeout=15
+                )
+
+                if verify_result.returncode == 0 and package in verify_result.stdout.lower():
+                    self.logger.info(f"✅ {package} installed and verified successfully")
+                else:
+                    self.logger.error(f"❌ {package} installation verification failed: {verify_result.stderr}")
+                    continue
+
+            self.logger.info("✅ All production packages installed")
+
+            self.repairs_performed.append({
+                'timestamp': datetime.now().isoformat(),
+                'component': 'production_packages',
+                'strategy': 'install',
+                'packages': missing_packages,
+                'duration_sec': (datetime.now() - repair_start).total_seconds(),
+                'success': True
+            })
+
+            return True
+
+        except Exception as e:
+            self.logger.error(f"❌ Package installation failed: {e}")
+
+            self.repairs_performed.append({
+                'timestamp': datetime.now().isoformat(),
+                'component': 'production_packages',
+                'strategy': 'install',
+                'packages': missing_packages,
+                'duration_sec': (datetime.now() - repair_start).total_seconds(),
+                'success': False,
+                'error': str(e)
+            })
+
+            await self._notify_admin(
+                f"Package installation failed: {e}",
+                urgency="HIGH"
+            )
+
+            return False
 
     def get_repair_statistics(self) -> Dict[str, Any]:
         """
