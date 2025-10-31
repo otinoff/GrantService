@@ -37,7 +37,8 @@ class ResearcherTestModule:
     async def test_researcher(
         self,
         anketa_data: Dict[str, Any],
-        llm_provider: str = "claude_code"
+        llm_provider: str = "claude_code",
+        use_mock: bool = False
     ) -> Dict[str, Any]:
         """
         Test PRODUCTION ResearcherAgent
@@ -52,6 +53,7 @@ class ResearcherTestModule:
         Args:
             anketa_data: Dict with anketa_id, user_answers
             llm_provider: LLM provider (must support WebSearch!)
+            use_mock: If True, use mock research data (for night testing)
 
         Returns:
             Dict with:
@@ -81,9 +83,14 @@ class ResearcherTestModule:
         self.logger.info(f"Testing ResearcherAgent for anketa: {anketa_id}")
         self.logger.info(f"Using LLM provider: {llm_provider} (WebSearch enabled)")
 
-        # 4. Run research (PRODUCTION signature: research_anketa(anketa_id: str))
-        self.logger.info("Calling ResearcherAgent.research_anketa()...")
-        research_result = researcher.research_anketa(anketa_id)
+        # 4. Handle mock mode (for night testing)
+        if use_mock:
+            self.logger.info("⚡ MOCK MODE: Using mock research data (WebSearch disabled)")
+            research_result = self._generate_mock_research(anketa_data)
+        else:
+            # 4. Run research (PRODUCTION signature: research_anketa(anketa_id: str))
+            self.logger.info("Calling ResearcherAgent.research_anketa()...")
+            research_result = researcher.research_anketa(anketa_id)
 
         # ====== DEBUG LOGGING START ======
         self.logger.info("="*80)
@@ -183,13 +190,120 @@ class ResearcherTestModule:
 
         self.logger.info(f"✅ Research saved to DB: {research_id}")
 
+        # Generate research text for artifacts
+        research_text = self._format_research_text(research_data, sources_count)
+
         return {
             'research_id': research_id,
             'research_data': research_data,
+            'research_text': research_text,
             'sources_count': sources_count,
-            'model': 'Claude-Code-WebSearch',
+            'model': 'Claude-Code-WebSearch' if not use_mock else 'MOCK-WebSearch',
             'missing_sections': missing_sections
         }
+
+    def _format_research_text(self, research_data: Dict, sources_count: int) -> str:
+        """
+        Format research data as human-readable text for artifacts
+
+        Args:
+            research_data: Research data dictionary
+            sources_count: Number of sources
+
+        Returns:
+            Formatted text string
+        """
+        lines = []
+        lines.append("="*80)
+        lines.append("RESEARCH RESULTS")
+        lines.append("="*80)
+        lines.append(f"\nSources analyzed: {sources_count}")
+        lines.append("")
+
+        # Add key sections
+        if 'problem_analysis' in research_data:
+            lines.append("\n" + "-"*80)
+            lines.append("PROBLEM ANALYSIS")
+            lines.append("-"*80)
+            lines.append(str(research_data['problem_analysis']))
+
+        if 'target_audience' in research_data:
+            lines.append("\n" + "-"*80)
+            lines.append("TARGET AUDIENCE")
+            lines.append("-"*80)
+            lines.append(str(research_data['target_audience']))
+
+        if 'similar_projects' in research_data:
+            lines.append("\n" + "-"*80)
+            lines.append("SIMILAR PROJECTS")
+            lines.append("-"*80)
+            lines.append(str(research_data['similar_projects']))
+
+        # Add sources from block1
+        block1 = research_data.get('block1', {})
+        queries = block1.get('queries', [])
+        if queries:
+            lines.append("\n" + "-"*80)
+            lines.append("SOURCES")
+            lines.append("-"*80)
+            for i, query in enumerate(queries, 1):
+                summary = query.get('result', {}).get('summary', '')
+                if summary:
+                    lines.append(f"\n[Source {i}]")
+                    lines.append(summary)
+
+        return '\n'.join(lines)
+
+    def _generate_mock_research(self, anketa_data: Dict) -> Dict:
+        """
+        Generate mock research data for night testing
+
+        Returns research_result in PRODUCTION format with >= 3 sources
+        """
+        from datetime import datetime
+
+        # Mock research result matching PRODUCTION format
+        mock_result = {
+            'status': 'success',
+            'results': {
+                'metadata': {
+                    'sources_count': 3,
+                    'queries_count': 3,
+                    'model': 'MOCK-WebSearch',
+                    'generated_at': datetime.now().isoformat()
+                },
+                'block1': {
+                    'queries': [
+                        {
+                            'query': 'Mock research query 1',
+                            'result': {
+                                'summary': 'Mock research summary showing relevant grants and funding opportunities in this area. Source: http://mock-source-1.com'
+                            }
+                        },
+                        {
+                            'query': 'Mock research query 2',
+                            'result': {
+                                'summary': 'Mock research analysis of similar projects and success stories. Source: http://mock-source-2.com'
+                            }
+                        },
+                        {
+                            'query': 'Mock research query 3',
+                            'result': {
+                                'summary': 'Mock research data on target audience and demographics. Source: http://mock-source-3.com'
+                            }
+                        }
+                    ]
+                },
+                'problem_analysis': 'Mock problem analysis based on anketa responses',
+                'target_audience': 'Mock target audience analysis',
+                'similar_projects': 'Mock similar projects research'
+            },
+            'research_id': f"#RS-MOCK-{datetime.now().strftime('%Y%m%d%H%M%S')}"
+        }
+
+        self.logger.info(f"✅ Generated mock research with {mock_result['results']['metadata']['sources_count']} sources")
+
+        return mock_result
 
     def export_to_file(self, research_data: Dict, filepath: Path):
         """Export research to text file"""
