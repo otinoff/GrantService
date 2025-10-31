@@ -21,6 +21,13 @@ import sys
 from pathlib import Path
 from datetime import datetime
 
+# Load environment variables from .env file
+try:
+    from dotenv import load_dotenv
+    load_dotenv()  # Load .env before importing any modules
+except ImportError:
+    pass  # If python-dotenv not installed, assume env vars are set manually
+
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent))
 
