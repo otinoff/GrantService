@@ -158,7 +158,13 @@ class NightTestOrchestrator:
         if self.config.enable_expert:
             expert_agent = ExpertAgent(use_rag=True)
 
-        db = GrantServiceDatabase()
+        # Optional: Database for token tracking (не критично для тестов)
+        db = None
+        try:
+            db = GrantServiceDatabase()
+            logger.info("[Database] Connected for token tracking")
+        except Exception as e:
+            logger.warning(f"[Database] Not available: {e}. Running without DB.")
 
         # Generate all profiles upfront
         logger.info(f"Generating {self.config.num_cycles} user profiles...")
